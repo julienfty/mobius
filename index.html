@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kumu Clone - Connexion</title>
+
+  <!-- Supabase JS Client via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    /* RESET & STYLES DE BASE */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+
+    body {
+      background-color: #0f172a;
+      color: #f8fafc;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    /* CARTE DU FORMULAIRE */
+    .auth-container {
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 400px;
+      padding: 32px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+
+    /* EN-TÊTE */
+    .auth-header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .auth-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: #818cf8;
+      margin-bottom: 8px;
+    }
+
+    .auth-subtitle {
+      font-size: 14px;
+      color: #94a3b8;
+    }
+
+    /* ALERTES DE NOTIFICATION */
+    .alert {
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .alert.error {
+      display: block;
+      background-color: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.5);
+      color: #fca5a5;
+    }
+
+    .alert.success {
+      display: block;
+      background-color: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.5);
+      color: #6ee7b7;
+    }
+
+    /* CHAMPS DE FORMULAIRE */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: #cbd5e1;
+      margin-bottom: 6px;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 10px 14px;
+      background-color: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #f8fafc;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus {
+      border-color: #6366f1;
+    }
+
+    /* BOUTON PRINCIPAL */
+    .btn-primary {
+      width: 100%;
+      padding: 12px;
+      background-color: #4f46e5;
+      border: none;
+      border-radius: 8px;
+      color: #ffffff;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .btn-primary:hover {
+      background-color: #6366f1;
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* BOUTON BASCULE (FOOTER) */
+    .auth-footer {
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid #334155;
+      text-align: center;
+    }
+
+    .btn-toggle {
+      background: none;
+      border: none;
+      color: #818cf8;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    .btn-toggle:hover {
+      color: #a5b4fc;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="auth-container">
+    
+    <!-- En-tête -->
+    <div class="auth-header">
+      <h1 class="auth-title">Kumu Clone</h1>
+      <p id="form-subtitle" class="auth-subtitle">Connecte-toi à ton espace de travail</p>
+    </div>
+
+    <!-- Message d'alerte (Erreur / Succès) -->
+    <div id="alert-message" class="alert"></div>
+
+    <!-- Formulaire -->
+    <form id="auth-form">
+      <div class="form-group">
+        <label for="email">Adresse e-mail</label>
+        <input type="email" id="email" required placeholder="nom@exemple.com" />
+      </div>
+
+      <div class="form-group">
+        <label for="password">Mot de passe</label>
+        <input type="password" id="password" required minlength="6" placeholder="••••••••" />
+      </div>
+
+      <button type="submit" id="submit-btn" class="btn-primary">Se connecter</button>
+    </form>
+
+    <!-- Bascule Connexion / Inscription -->
+    <div class="auth-footer">
+      <button type="button" id="toggle-mode-btn" class="btn-toggle">
+        Pas encore de compte ? S'inscrire
+      </button>
+    </div>
+
+  </div>
+
+  <script>
+    // 1. Initialisation de Supabase
+    const SUPABASE_URL = 'https://VOTRE-PROJET.supabase.co';
+    const SUPABASE_ANON_KEY = 'VOTRE_CLE_ANON_PUBLIC';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // 2. Éléments du DOM
+    const authForm = document.getElementById('auth-form');
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+    const submitBtn = document.getElementById('submit-btn');
+    const toggleBtn = document.getElementById('toggle-mode-btn');
+    const formSubtitle = document.getElementById('form-subtitle');
+    const alertMessage = document.getElementById('alert-message');
+
+    let isSignUpMode = false;
+
+    // Affiche les messages d'erreur ou de confirmation
+    function showAlert(message, isError = true) {
+      alertMessage.textContent = message;
+      alertMessage.className = 'alert ' + (isError ? 'error' : 'success');
+    }
+
+    function hideAlert() {
+      alertMessage.className = 'alert';
+      alertMessage.textContent = '';
+    }
+
+    // 3. Bascule Inscription <-> Connexion
+    toggleBtn.addEventListener('click', () => {
+      isSignUpMode = !isSignUpMode;
+      hideAlert();
+
+      if (isSignUpMode) {
+        formSubtitle.textContent = 'Crée ton compte pour démarrer tes cartes';
+        submitBtn.textContent = 'Créer mon compte';
+        toggleBtn.textContent = 'Déjà un compte ? Se connecter';
+      } else {
+        formSubtitle.textContent = 'Connecte-toi à ton espace de travail';
+        submitBtn.textContent = 'Se connecter';
+        toggleBtn.textContent = "Pas encore de compte ? S'inscrire";
+      }
+    });
+
+    // 4. Envoi du formulaire vers Supabase
+    authForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideAlert();
+
+      const email = emailInput.value.trim();
+      const password = passwordInput.value;
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Chargement...';
+
+      if (isSignUpMode) {
+        // Inscription
+        const { data, error } = await supabase.auth.signUp({ email, password });
+
+        if (error) {
+          showAlert(error.message, true);
+        } else if (data.session) {
+          window.location.href = '/dashboard.html';
+        } else {
+          showAlert('Compte créé ! Vérifie tes e-mails pour confirmer ton compte.', false);
+        }
+      } else {
+        // Connexion
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+        if (error) {
+          showAlert('Email ou mot de passe incorrect.', true);
+        } else if (data.session) {
+          window.location.href = '/dashboard.html';
+        }
+      }
+
+      submitBtn.disabled = false;
+      submitBtn.textContent = isSignUpMode ? 'Créer mon compte' : 'Se connecter';
+    });
+  </script>
+</body>
+</html>
