@@ -192,85 +192,85 @@
   </div>
 
   <script>
-    // 1. Initialisation de Supabase
-    const SUPABASE_URL = 'https://nlrizxxrpbgwkcmgwxqg.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_t9XOimwLkG-a0mXIuwSw4w_B-fTU97f';
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // 1. Initialisation de Supabase (Nom de variable changé pour éviter le conflit)
+  const SUPABASE_URL = 'https://nlrizxxrpbgwkcmgwxqg.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_t9XOimwLkG-a0mXIuwSw4w_B-fTU97f';
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // 2. Éléments du DOM
-    const authForm = document.getElementById('auth-form');
-    const emailInput = document.getElementById('email');
-    const passwordInput = document.getElementById('password');
-    const submitBtn = document.getElementById('submit-btn');
-    const toggleBtn = document.getElementById('toggle-mode-btn');
-    const formSubtitle = document.getElementById('form-subtitle');
-    const alertMessage = document.getElementById('alert-message');
+  // 2. Éléments du DOM
+  const authForm = document.getElementById('auth-form');
+  const emailInput = document.getElementById('email');
+  const passwordInput = document.getElementById('password');
+  const submitBtn = document.getElementById('submit-btn');
+  const toggleBtn = document.getElementById('toggle-mode-btn');
+  const formSubtitle = document.getElementById('form-subtitle');
+  const alertMessage = document.getElementById('alert-message');
 
-    let isSignUpMode = false;
+  let isSignUpMode = false;
 
-    // Affiche les messages d'erreur ou de confirmation
-    function showAlert(message, isError = true) {
-      alertMessage.textContent = message;
-      alertMessage.className = 'alert ' + (isError ? 'error' : 'success');
+  // Affiche les messages d'erreur ou de confirmation
+  function showAlert(message, isError = true) {
+    alertMessage.textContent = message;
+    alertMessage.className = 'alert ' + (isError ? 'error' : 'success');
+  }
+
+  function hideAlert() {
+    alertMessage.className = 'alert';
+    alertMessage.textContent = '';
+  }
+
+  // 3. Bascule Inscription <-> Connexion
+  toggleBtn.addEventListener('click', () => {
+    isSignUpMode = !isSignUpMode;
+    hideAlert();
+
+    if (isSignUpMode) {
+      formSubtitle.textContent = 'Crée ton compte pour démarrer tes cartes';
+      submitBtn.textContent = 'Créer mon compte';
+      toggleBtn.textContent = 'Déjà un compte ? Se connecter';
+    } else {
+      formSubtitle.textContent = 'Connecte-toi à ton espace de travail';
+      submitBtn.textContent = 'Se connecter';
+      toggleBtn.textContent = "Pas encore de compte ? S'inscrire";
+    }
+  });
+
+  // 4. Envoi du formulaire vers Supabase
+  authForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideAlert();
+
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Chargement...';
+
+    if (isSignUpMode) {
+      // Inscription
+      const { data, error } = await supabaseClient.auth.signUp({ email, password });
+
+      if (error) {
+        showAlert(error.message, true);
+      } else if (data.session) {
+        window.location.href = '/dashboard.html';
+      } else {
+        showAlert('Compte créé ! Vérifie tes e-mails pour confirmer ton compte.', false);
+      }
+    } else {
+      // Connexion
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        showAlert('Email ou mot de passe incorrect.', true);
+      } else if (data.session) {
+        window.location.href = '/dashboard.html';
+      }
     }
 
-    function hideAlert() {
-      alertMessage.className = 'alert';
-      alertMessage.textContent = '';
-    }
-
-    // 3. Bascule Inscription <-> Connexion
-    toggleBtn.addEventListener('click', () => {
-      isSignUpMode = !isSignUpMode;
-      hideAlert();
-
-      if (isSignUpMode) {
-        formSubtitle.textContent = 'Crée ton compte pour démarrer tes cartes';
-        submitBtn.textContent = 'Créer mon compte';
-        toggleBtn.textContent = 'Déjà un compte ? Se connecter';
-      } else {
-        formSubtitle.textContent = 'Connecte-toi à ton espace de travail';
-        submitBtn.textContent = 'Se connecter';
-        toggleBtn.textContent = "Pas encore de compte ? S'inscrire";
-      }
-    });
-
-    // 4. Envoi du formulaire vers Supabase
-    authForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      hideAlert();
-
-      const email = emailInput.value.trim();
-      const password = passwordInput.value;
-
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Chargement...';
-
-      if (isSignUpMode) {
-        // Inscription
-        const { data, error } = await supabase.auth.signUp({ email, password });
-
-        if (error) {
-          showAlert(error.message, true);
-        } else if (data.session) {
-          window.location.href = '/dashboard.html';
-        } else {
-          showAlert('Compte créé ! Vérifie tes e-mails pour confirmer ton compte.', false);
-        }
-      } else {
-        // Connexion
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-        if (error) {
-          showAlert('Email ou mot de passe incorrect.', true);
-        } else if (data.session) {
-          window.location.href = '/dashboard.html';
-        }
-      }
-
-      submitBtn.disabled = false;
-      submitBtn.textContent = isSignUpMode ? 'Créer mon compte' : 'Se connecter';
-    });
-  </script>
+    submitBtn.disabled = false;
+    submitBtn.textContent = isSignUpMode ? 'Créer mon compte' : 'Se connecter';
+  });
+</script>
 </body>
 </html>
