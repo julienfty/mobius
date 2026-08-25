@@ -415,49 +415,50 @@
       contextMenu.style.top = `${y}px`;
     }
     function hideContextMenu() {
-      contextMenu.style.display = 'none';
+      if (contextMenu) contextMenu.style.display = 'none';
     }
 
     async function createNodeFromContext() {
-  hideContextMenu();
+      hideContextMenu();
 
-  // 1. Insertion en base de données avec des coordonnées par défaut
-  const { data, error } = await supabaseClient
-    .from('entities')
-    .insert([{
-      map_id: mapId,
-      first_name: 'Nouvelle',
-      last_name: 'Personne'
-    }])
-    .select()
-    .single();
+      // 1. Insertion BDD
+      const { data, error } = await supabaseClient
+        .from('entities')
+        .insert([{
+          map_id: mapId,
+          first_name: 'Nouvelle',
+          last_name: 'Personne'
+        }])
+        .select()
+        .single();
 
-  if (error) {
-    console.error("Erreur lors de la création de la personne :", error);
-    alert("Impossible de créer la personne : " + error.message);
-    return;
-  }
+      if (error) {
+        console.error("Erreur lors de la création de la personne :", error);
+        alert("Impossible de créer la personne : " + error.message);
+        return;
+      }
 
-  if (data) {
-    // 2. Ajout dynamique au jeu de données Vis.js avec les coordonnées du clic
-    nodesDataSet.add({
-      id: data.id,
-      label: `${data.first_name} ${data.last_name}`,
-      x: rightClickPosition.x,
-      y: rightClickPosition.y,
-      details: data
-    });
+      if (data) {
+        // 2. Ajout dynamique au jeu de données Vis.js
+        nodesDataSet.add({
+          id: data.id,
+          label: `${data.first_name} ${data.last_name}`,
+          x: rightClickPosition.x,
+          y: rightClickPosition.y,
+          details: data
+        });
 
-    // 3. Zoom / Centrage doux sur le nouveau nœud
-    network.focus(data.id, {
-      scale: 1.0,
-      animation: { duration: 300, easingFunction: 'easeInOutQuad' }
-    });
+        // 3. Zoom / Centrage doux
+        network.focus(data.id, {
+          scale: 1.0,
+          animation: { duration: 300, easingFunction: 'easeInOutQuad' }
+        });
 
-    // 4. Ouverture automatique de l'inspecteur pour éditer directement ses infos
-    openInspector(data.id);
-  }
-}
+        // 4. Ouverture de l'inspecteur
+        openInspector(data.id);
+      }
+    }
+
     // CHARGEMENT DONNÉES
     async function loadGraphData() {
       const { data: entities } = await supabaseClient.from('entities').select('*').eq('map_id', mapId);
@@ -479,7 +480,7 @@
           from: r.from_entity_id,
           to: r.to_entity_id,
           label: r.label || '',
-          color: { color: r.color || '#334155', highlight: r.color || '#7075f2' }
+          color: { color: r.color || '#5846f6', highlight: r.color || '#7075f2' }
         })));
       }
 
@@ -494,14 +495,25 @@
 
       const sidebarContent = document.getElementById('sidebar-content');
 
-      // Obtenir la liste des autres personnes pour créer un lien
+      // 1. Liste des autres personnes pour les relier
       const otherNodes = nodesDataSet.get().filter(n => n.id !== nodeId);
       let optionsHtml = '<option value="">Choisir une personne...</option>';
       otherNodes.forEach(n => {
         optionsHtml += `<option value="${n.id}">${n.label}</option>`;
       });
 
-      // Obtenir les liens existants pour cette personne
+      // 2. Extraction des types de liens déjà existants sur la carte
+      const existingTypes = new Map();
+      edgesDataSet.get().forEach(e => {
+        if (e.label) existingTypes.set(e.label, e.color?.color || '#5846f6');
+      });
+
+      let linkTypeOptionsHtml = '<option value="NEW">+ Créer un nouveau type</option>';
+      existingTypes.forEach((color, label) => {
+        linkTypeOptionsHtml += `<option value="${label}">${label}</option>`;
+      });
+
+      // 3. Récupération des liens existants de ce nœud
       const nodeEdges = edgesDataSet.get().filter(e => e.from === nodeId || e.to === nodeId);
       let linksHtml = '';
       nodeEdges.forEach(e => {
@@ -509,8 +521,8 @@
         const targetNode = nodesDataSet.get(targetId);
         linksHtml += `
           <div class="link-item">
-            <div class="link-info">
-              <span class="color-dot" style="background-color: ${e.color?.color || '#334155'};"></span>
+            <div class="link-info" style="display:flex; align-items:center; gap:8px;">
+              <span class="color-dot" style="background-color: ${e.color?.color || '#5846f6'}; width:12px; height:12px; border-radius:50%;"></span>
               <span>${e.label || 'Lien'} → <strong>${targetNode ? targetNode.label : ''}</strong></span>
             </div>
             <button class="btn-delete-link" onclick="deleteLink('${e.id}')">&times;</button>
@@ -523,12 +535,12 @@
         
         <div class="form-row">
           <div class="form-group" style="flex:1;">
-            <label>Nom</label>
-            <input type="text" id="inp-last-name" value="${d.last_name || ''}" onchange="saveNodeDetails()" />
+            <label>Prénom</label>
+            <input type="text" id="inp-first-name" value="${d.first_name || ''}" oninput="saveNodeDetails()" />
           </div>
           <div class="form-group" style="flex:1;">
-            <label>Prénom</label>
-            <input type="text" id="inp-first-name" value="${d.first_name || ''}" onchange="saveNodeDetails()" />
+            <label>Nom</label>
+            <input type="text" id="inp-last-name" value="${d.last_name || ''}" oninput="saveNodeDetails()" />
           </div>
         </div>
 
@@ -556,20 +568,40 @@
               <label>Relier à</label>
               <select id="link-target">${optionsHtml}</select>
             </div>
+
             <div class="form-group">
               <label>Type de relation</label>
-              <input type="text" id="link-label" placeholder="Ex: Frère, Suspect, Associé..." />
+              <select id="link-type-select" onchange="toggleNewTypeFields(this.value)">
+                ${linkTypeOptionsHtml}
+              </select>
             </div>
-            <div class="form-group">
-              <label>Couleur du lien</label>
-              <input type="color" id="link-color" value="#5846f6" style="height: 36px; padding: 2px; cursor: pointer;" />
+
+            <div id="new-type-fields">
+              <div class="form-group">
+                <label>Nom du nouveau type</label>
+                <input type="text" id="link-custom-label" placeholder="Ex: Frère, Suspect, Associé..." />
+              </div>
+              <div class="form-group">
+                <label>Couleur du lien</label>
+                <input type="color" id="link-color" value="#5846f6" style="height: 36px; padding: 2px; cursor: pointer;" />
+              </div>
             </div>
+
             <button class="btn-add-link" onclick="addNewLink()">+ Ajouter ce lien</button>
           </div>
         </div>
 
         <button class="btn-danger" onclick="deletePerson('${nodeId}')">Supprimer la personne</button>
       `;
+
+      toggleNewTypeFields(document.getElementById('link-type-select').value);
+    }
+
+    function toggleNewTypeFields(selectedValue) {
+      const container = document.getElementById('new-type-fields');
+      if (container) {
+        container.style.display = selectedValue === 'NEW' ? 'block' : 'none';
+      }
     }
 
     async function saveNodeDetails() {
@@ -583,7 +615,7 @@
 
       const newLabel = `${firstName} ${lastName}`.trim() || 'Sans nom';
 
-      // Mise à jour locale
+      // Mise à jour locale dans le dataset Vis.js
       const node = nodesDataSet.get(selectedNodeId);
       const updatedDetails = { ...node.details, first_name: firstName, last_name: lastName, age, info, comment };
       nodesDataSet.update({ id: selectedNodeId, label: newLabel, details: updatedDetails });
@@ -600,10 +632,24 @@
 
     async function addNewLink() {
       const targetId = document.getElementById('link-target').value;
-      const label = document.getElementById('link-label').value.trim();
-      const color = document.getElementById('link-color').value;
+      const typeSelectValue = document.getElementById('link-type-select').value;
 
       if (!targetId) { alert("Veuillez choisir une personne à relier."); return; }
+
+      let label = typeSelectValue;
+      let color = '#5846f6';
+
+      if (typeSelectValue === 'NEW') {
+        label = document.getElementById('link-custom-label').value.trim();
+        color = document.getElementById('link-color').value;
+        if (!label) { alert("Veuillez saisir un nom pour le nouveau type de lien."); return; }
+      } else {
+        // Si type existant, récupérer la couleur associée déjà utilisée sur la carte
+        const existingEdge = edgesDataSet.get().find(e => e.label === typeSelectValue);
+        if (existingEdge) {
+          color = existingEdge.color?.color || '#5846f6';
+        }
+      }
 
       const { data } = await supabaseClient
         .from('relations')
@@ -622,7 +668,7 @@
           id: data.id,
           from: data.from_entity_id,
           to: data.to_entity_id,
-          label: data.label,
+          label: label,
           color: { color: color, highlight: color }
         });
         openInspector(selectedNodeId);
@@ -653,7 +699,7 @@
 
       edges.forEach(e => {
         const label = e.label || 'Relation sans nom';
-        const color = e.color?.color || '#334155';
+        const color = e.color?.color || '#5846f6';
         if (!legendMap.has(label)) {
           legendMap.set(label, color);
         }
@@ -665,9 +711,9 @@
       } else {
         legendMap.forEach((color, label) => {
           legendHtml += `
-            <div class="legend-item">
-              <span class="color-dot" style="background-color: ${color}; width: 14px; height: 14px;"></span>
-              <span class="legend-label">${label}</span>
+            <div class="legend-item" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+              <span class="color-dot" style="background-color: ${color}; width: 14px; height: 14px; border-radius:50%;"></span>
+              <span class="legend-label" style="font-size:13px;">${label}</span>
             </div>
           `;
         });
@@ -681,11 +727,12 @@
 
     // COLLABORATEURS
     const modalCollab = document.getElementById('modal-collab');
-    function openCollabModal() { modalCollab.classList.add('active'); loadCollaboratorsList(); }
-    function closeCollabModal() { modalCollab.classList.remove('active'); }
+    function openCollabModal() { if(modalCollab) modalCollab.classList.add('active'); loadCollaboratorsList(); }
+    function closeCollabModal() { if(modalCollab) modalCollab.classList.remove('active'); }
 
     async function loadCollaboratorsList() {
       const collabList = document.getElementById('collab-list');
+      if (!collabList) return;
       collabList.innerHTML = 'Chargement...';
       const { data: collabs } = await supabaseClient.from('map_collaborators').select('id, user_id').eq('map_id', mapId);
 
@@ -696,19 +743,20 @@
       collabList.innerHTML = '';
       collabs.forEach(c => {
         const item = document.createElement('div');
-        item.style.cssText = 'display:flex; justify-space-between; align-items:center; background:#0d1322; padding:8px; border-radius:6px; margin-top:6px;';
+        item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#0d1322; padding:8px; border-radius:6px; margin-top:6px;';
         item.innerHTML = `<span style="font-size:12px;">${c.user_id}</span><button onclick="removeCollaborator('${c.id}')" style="background:none; border:none; color:#ef4444; cursor:pointer;">Retirer</button>`;
         collabList.appendChild(item);
       });
     }
 
     async function addCollaborator() {
-      const email = document.getElementById('collab-email-input').value.trim();
+      const emailInput = document.getElementById('collab-email-input');
+      const email = emailInput ? emailInput.value.trim() : '';
       if (!email) return;
       const { data: profile } = await supabaseClient.from('profiles').select('id').eq('email', email).single();
       if (!profile) { alert("Aucun compte trouvé avec cet e-mail."); return; }
       await supabaseClient.from('map_collaborators').insert([{ map_id: mapId, user_id: profile.id }]);
-      document.getElementById('collab-email-input').value = '';
+      if (emailInput) emailInput.value = '';
       loadCollaboratorsList();
     }
 
@@ -718,6 +766,6 @@
     }
 
     init();
-  </script>
+</script>
 </body>
 </html>
