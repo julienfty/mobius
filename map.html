@@ -433,7 +433,7 @@
     
     let selectedNodeId = null;
     let rightClickPosition = { x: 0, y: 0 };
-    let activeLinkMode = 'existing'; // 'existing' ou 'new'
+    let activeLinkMode = 'existing';
 
     async function init() {
       if (!mapId) { window.location.href = 'dashboard.html'; return; }
@@ -445,10 +445,11 @@
       const { data: map, error } = await supabaseClient.from('maps').select('*').eq('id', mapId).single();
       if (error || !map) { window.location.href = 'dashboard.html'; return; }
 
-      document.getElementById('map-title').textContent = map.name;
+      const titleEl = document.getElementById('map-title');
+      if (titleEl) titleEl.textContent = map.name;
 
       initNetwork();
-      loadGraphData();
+      await loadGraphData();
     }
 
     function initNetwork() {
@@ -484,7 +485,6 @@
 
       network = new vis.Network(container, data, options);
 
-      // Clic gauche -> Sélection ou Réinitialisation
       network.on("click", (params) => {
         hideContextMenu();
         if (params.nodes.length > 0) {
@@ -495,7 +495,6 @@
         }
       });
 
-      // Clic droit sur le canvas
       network.on("oncontext", (params) => {
         params.event.preventDefault();
         const nodeId = network.getNodeAt(params.pointer.DOM);
@@ -510,7 +509,6 @@
       });
     }
 
-    // MENU CONTEXTUEL CLIC DROIT
     const contextMenu = document.getElementById('context-menu');
     function showContextMenu(x, y) {
       if (contextMenu) {
@@ -526,7 +524,6 @@
     async function createNodeFromContext() {
       hideContextMenu();
 
-      // 1. Enregistrement BDD Supabase
       const { data, error } = await supabaseClient
         .from('entities')
         .insert([{
@@ -543,7 +540,6 @@
       }
 
       if (data) {
-        // 2. Affichage graphique au point cliqué
         nodesDataSet.add({
           id: data.id,
           label: `${data.first_name} ${data.last_name}`,
@@ -552,18 +548,19 @@
           details: data
         });
 
-        // 3. Zoom sur le nœud créé
         network.focus(data.id, { scale: 1.0, animation: { duration: 300 } });
-
-        // 4. Inspecteur actif
         openInspector(data.id);
       }
     }
 
-    // CHARGEMENT DE TOUTES LES DONNÉES DU GRAPH
     async function loadGraphData() {
-      const { data: entities } = await supabaseClient.from('entities').select('*').eq('map_id', mapId);
-      const { data: relations } = await supabaseClient.from('relations').select('*').eq('map_id', mapId);
+      const { data: entities, error: errEntities } = await supabaseClient.from('entities').select('*').eq('map_id', mapId);
+      const { data: relations, error: errRelations } = await supabaseClient.from('relations').select('*').eq('map_id', mapId);
+
+      if (errEntities || errRelations) {
+        console.error("Erreur de chargement :", errEntities || errRelations);
+        return;
+      }
 
       if (entities) {
         nodesDataSet.clear();
@@ -588,24 +585,24 @@
       renderLegend();
     }
 
-    // INSPECTEUR INDIVIDU
     async function openInspector(nodeId) {
       selectedNodeId = nodeId;
       const node = nodesDataSet.get(nodeId);
-      const d = node.details || {};
+      if (!node) { renderLegend(); return; }
 
+      const d = node.details || {};
       const sidebarContent = document.getElementById('sidebar-content');
 
-      // Obtenir tous les liens attachés à ce nœud
       const nodeEdges = edgesDataSet.get().filter(e => e.from === nodeId || e.to === nodeId);
       let linksHtml = '';
       nodeEdges.forEach(e => {
         const targetId = e.from === nodeId ? e.to : e.from;
         const targetNode = nodesDataSet.get(targetId);
+        const edgeColor = typeof e.color === 'object' ? e.color.color : (e.color || '#5846f6');
         linksHtml += `
           <div class="link-item">
             <div class="link-info">
-              <span class="color-dot" style="background-color: ${e.color?.color || '#5846f6'};"></span>
+              <span class="color-dot" style="background-color: ${edgeColor};"></span>
               <span><strong>${e.label || 'Lien'}</strong> → ${targetNode ? targetNode.label : 'Inconnu'}</span>
             </div>
             <button class="btn-delete-link" onclick="deleteLink('${e.id}')">&times;</button>
@@ -629,7 +626,7 @@
 
         <div class="form-group">
           <label>Âge</label>
-          <input type="number" id="inp-age" value="${d.age || ''}" onchange="saveNodeDetails()" />
+          <input type="number" id="inp-age" value="${d.age ?? ''}" onchange="saveNodeDetails()" />
         </div>
 
         <div class="form-group">
@@ -666,22 +663,19 @@
 
       const newLabel = `${firstName} ${lastName}`.trim() || 'Sans nom';
 
-      // Mise à jour locale Vis.js (l'affichage sur la carte s'actualise)
       const node = nodesDataSet.get(selectedNodeId);
       const updatedDetails = { ...node.details, first_name: firstName, last_name: lastName, age, info, comment };
       nodesDataSet.update({ id: selectedNodeId, label: newLabel, details: updatedDetails });
 
-      // Sauvegarde BDD
       await supabaseClient.from('entities').update({
         first_name: firstName,
         last_name: lastName,
-        age: age ? parseInt(age) : null,
+        age: age ? parseInt(age, 10) : null,
         info: info,
         comment: comment
       }).eq('id', selectedNodeId);
     }
 
-    // GESTION POPUP CRÉATION DE LIEN AVEC LES 2 OPTIONS
     function switchLinkMode(mode) {
       activeLinkMode = mode;
       const btnExisting = document.getElementById('tab-btn-existing');
@@ -690,22 +684,21 @@
       const viewNew = document.getElementById('view-link-new');
 
       if (mode === 'existing') {
-        btnExisting.classList.add('active');
-        btnNew.classList.remove('active');
-        viewExisting.style.display = 'block';
-        viewNew.style.display = 'none';
+        if (btnExisting) btnExisting.classList.add('active');
+        if (btnNew) btnNew.classList.remove('active');
+        if (viewExisting) viewExisting.style.display = 'block';
+        if (viewNew) viewNew.style.display = 'none';
       } else {
-        btnNew.classList.add('active');
-        btnExisting.classList.remove('active');
-        viewNew.style.display = 'block';
-        viewExisting.style.display = 'none';
+        if (btnNew) btnNew.classList.add('active');
+        if (btnExisting) btnExisting.classList.remove('active');
+        if (viewNew) viewNew.style.display = 'block';
+        if (viewExisting) viewExisting.style.display = 'none';
       }
     }
 
     function openLinkModal() {
       if (!selectedNodeId) return;
 
-      // Charger la liste des autres personnes
       const otherNodes = nodesDataSet.get().filter(n => n.id !== selectedNodeId);
       const targetSelectExisting = document.getElementById('pop-link-target-existing');
       const targetSelectNew = document.getElementById('pop-link-target-new');
@@ -715,26 +708,28 @@
         targetOptionsHtml += `<option value="${n.id}">${n.label}</option>`;
       });
 
-      targetSelectExisting.innerHTML = targetOptionsHtml;
-      targetSelectNew.innerHTML = targetOptionsHtml;
+      if (targetSelectExisting) targetSelectExisting.innerHTML = targetOptionsHtml;
+      if (targetSelectNew) targetSelectNew.innerHTML = targetOptionsHtml;
 
-      // Charger les types existants
       const existingTypesMap = new Map();
       edgesDataSet.get().forEach(e => {
-        if (e.label) existingTypesMap.set(e.label, e.color?.color || '#5846f6');
+        const edgeColor = typeof e.color === 'object' ? e.color.color : (e.color || '#5846f6');
+        if (e.label) existingTypesMap.set(e.label, edgeColor);
       });
 
       const existingSelect = document.getElementById('pop-link-existing-select');
-      existingSelect.innerHTML = '';
+      if (existingSelect) {
+        existingSelect.innerHTML = '';
 
-      if (existingTypesMap.size === 0) {
-        existingSelect.innerHTML = '<option value="">Aucun type existant - Créez-en un</option>';
-        switchLinkMode('new');
-      } else {
-        existingTypesMap.forEach((color, label) => {
-          existingSelect.innerHTML += `<option value="${label}">${label}</option>`;
-        });
-        switchLinkMode('existing');
+        if (existingTypesMap.size === 0) {
+          existingSelect.innerHTML = '<option value="">Aucun type existant - Créez-en un</option>';
+          switchLinkMode('new');
+        } else {
+          existingTypesMap.forEach((color, label) => {
+            existingSelect.innerHTML += `<option value="${label}">${label}</option>`;
+          });
+          switchLinkMode('existing');
+        }
       }
 
       const modalLink = document.getElementById('modal-link');
@@ -759,7 +754,9 @@
         if (!targetId) { alert("Veuillez choisir la personne à relier."); return; }
 
         const match = edgesDataSet.get().find(e => e.label === label);
-        if (match) color = match.color?.color || '#5846f6';
+        if (match) {
+          color = typeof match.color === 'object' ? match.color.color : (match.color || '#5846f6');
+        }
 
       } else {
         label = document.getElementById('pop-link-new-name').value.trim();
@@ -770,7 +767,6 @@
         if (!targetId) { alert("Veuillez choisir la personne à relier."); return; }
       }
 
-      // Sauvegarde BDD Supabase
       const { data, error } = await supabaseClient
         .from('relations')
         .insert([{
@@ -789,7 +785,6 @@
       }
 
       if (data) {
-        // Ajout dynamique du lien sur la carte Vis.js
         edgesDataSet.add({
           id: data.id,
           from: data.from_entity_id,
@@ -806,27 +801,34 @@
 
     async function deleteLink(linkId) {
       edgesDataSet.remove(linkId);
-      await supabaseClient.from('relations').delete().eq('id', linkId);
-      openInspector(selectedNodeId);
+      const { error } = await supabaseClient.from('relations').delete().eq('id', linkId);
+      if (error) console.error("Erreur suppression lien BDD :", error.message);
+
+      if (selectedNodeId) {
+        openInspector(selectedNodeId);
+      }
       renderLegend();
     }
 
     async function deletePerson(nodeId) {
       nodesDataSet.remove(nodeId);
-      await supabaseClient.from('entities').delete().eq('id', nodeId);
+      const { error } = await supabaseClient.from('entities').delete().eq('id', nodeId);
+      if (error) console.error("Erreur suppression entité BDD :", error.message);
+
       selectedNodeId = null;
       renderLegend();
     }
 
-    // LÉGENDE DYNAMIQUE
     function renderLegend() {
       const sidebarContent = document.getElementById('sidebar-content');
+      if (!sidebarContent) return;
+
       const edges = edgesDataSet.get();
       const legendMap = new Map();
 
       edges.forEach(e => {
         const label = e.label || 'Relation sans nom';
-        const color = e.color?.color || '#5846f6';
+        const color = typeof e.color === 'object' ? e.color.color : (e.color || '#5846f6');
         if (!legendMap.has(label)) {
           legendMap.set(label, color);
         }
@@ -852,7 +854,6 @@
       `;
     }
 
-    // COLLABORATEURS
     const modalCollab = document.getElementById('modal-collab');
     function openCollabModal() { if(modalCollab) modalCollab.classList.add('active'); loadCollaboratorsList(); }
     function closeCollabModal() { if(modalCollab) modalCollab.classList.remove('active'); }
@@ -861,12 +862,14 @@
       const collabList = document.getElementById('collab-list');
       if (!collabList) return;
       collabList.innerHTML = 'Chargement...';
-      const { data: collabs } = await supabaseClient.from('map_collaborators').select('id, user_id').eq('map_id', mapId);
 
-      if (!collabs || collabs.length === 0) {
+      const { data: collabs, error } = await supabaseClient.from('map_collaborators').select('id, user_id').eq('map_id', mapId);
+
+      if (error || !collabs || collabs.length === 0) {
         collabList.innerHTML = '<p style="font-size: 13px; color: #64748b; margin-top: 10px;">Aucun collaborateur.</p>';
         return;
       }
+
       collabList.innerHTML = '';
       collabs.forEach(c => {
         const item = document.createElement('div');
@@ -880,19 +883,24 @@
       const emailInput = document.getElementById('collab-email-input');
       const email = emailInput ? emailInput.value.trim() : '';
       if (!email) return;
-      const { data: profile } = await supabaseClient.from('profiles').select('id').eq('email', email).single();
-      if (!profile) { alert("Aucun compte trouvé avec cet e-mail."); return; }
-      await supabaseClient.from('map_collaborators').insert([{ map_id: mapId, user_id: profile.id }]);
+
+      const { data: profile, error: profileErr } = await supabaseClient.from('profiles').select('id').eq('email', email).single();
+      if (profileErr || !profile) { alert("Aucun compte trouvé avec cet e-mail."); return; }
+
+      const { error: insertErr } = await supabaseClient.from('map_collaborators').insert([{ map_id: mapId, user_id: profile.id }]);
+      if (insertErr) { alert("Erreur lors de l'ajout : " + insertErr.message); return; }
+
       if (emailInput) emailInput.value = '';
       loadCollaboratorsList();
     }
 
     async function removeCollaborator(collabId) {
-      await supabaseClient.from('map_collaborators').delete().eq('id', collabId);
+      const { error } = await supabaseClient.from('map_collaborators').delete().eq('id', collabId);
+      if (error) alert("Erreur lors de la suppression : " + error.message);
       loadCollaboratorsList();
     }
 
     init();
-  </script>
+</script>
 </body>
 </html>
