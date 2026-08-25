@@ -7,7 +7,7 @@
 
   <!-- Supabase JS CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <!-- Vis.js Network CDN (pour le graphe interactif) -->
+  <!-- Vis.js Network CDN -->
   <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 
   <style>
@@ -27,7 +27,6 @@
       overflow: hidden;
     }
 
-    /* BARRE D'OUTILS ET MENU SUPERIEUR */
     header {
       height: 60px;
       background-color: #1a2338;
@@ -66,26 +65,6 @@
       color: #7075f2;
     }
 
-    .header-actions {
-      display: flex;
-      gap: 12px;
-    }
-
-    .btn-action {
-      background-color: #5846f6;
-      color: white;
-      border: none;
-      padding: 8px 14px;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 13px;
-      cursor: pointer;
-    }
-
-    .btn-action:hover {
-      background-color: #4937e8;
-    }
-
     .btn-secondary {
       background-color: #24304f;
       color: #f8fafc;
@@ -100,7 +79,6 @@
       background-color: #2e3a59;
     }
 
-    /* ZONE PRINCIPALE (CANVAS + PANNEAU DÉTAILS) */
     .main-container {
       flex: 1;
       display: flex;
@@ -113,57 +91,167 @@
       background-color: #0d1322;
     }
 
-    /* PANNEAU LATÉRAL DE DÉTAILS */
+    /* PANNEAU LATÉRAL : INSPECTEUR OU LÉGENDE */
     .sidebar {
-      width: 320px;
+      width: 360px;
       background-color: #1a2338;
       border-left: 1px solid #2e3a59;
       padding: 24px;
       display: flex;
       flex-direction: column;
       gap: 16px;
+      overflow-y: auto;
     }
 
     .sidebar h3 {
-      font-size: 16px;
+      font-size: 18px;
       color: #7075f2;
+      margin-bottom: 8px;
     }
 
-    .sidebar-field {
+    .form-group {
       display: flex;
       flex-direction: column;
       gap: 6px;
+      margin-bottom: 12px;
     }
 
-    .sidebar-field label {
+    .form-group label {
       font-size: 12px;
       color: #94a3b8;
+      font-weight: 600;
     }
 
-    .sidebar-field input, .sidebar-field textarea {
+    .form-group input, .form-group textarea, .form-group select {
       background-color: #0d1322;
       border: 1px solid #2e3a59;
       color: #fff;
-      padding: 8px;
+      padding: 8px 10px;
       border-radius: 6px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .form-group input:focus, .form-group textarea:focus {
+      border-color: #5846f6;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    /* SECTION LIENS DANS L'INSPECTEUR */
+    .links-section {
+      border-top: 1px solid #2e3a59;
+      padding-top: 16px;
+      margin-top: 8px;
+    }
+
+    .links-header {
+      font-size: 14px;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 12px;
+    }
+
+    .link-item {
+      background-color: #0d1322;
+      border: 1px solid #2e3a59;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .link-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       font-size: 13px;
     }
 
-    .sidebar-actions {
-      margin-top: auto;
-      display: flex;
-      gap: 8px;
+    .color-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .btn-delete-link {
+      background: none;
+      border: none;
+      color: #ef4444;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .btn-add-link {
+      width: 100%;
+      background-color: #5846f6;
+      color: white;
+      border: none;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
     }
 
     .btn-danger {
       background-color: #ef4444;
       color: white;
       border: none;
-      padding: 8px 12px;
-      border-radius: 6px;
+      padding: 10px;
+      border-radius: 8px;
       cursor: pointer;
       font-size: 13px;
       width: 100%;
+      margin-top: 16px;
+    }
+
+    /* LÉGENDE */
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px;
+      background-color: #0d1322;
+      border: 1px solid #2e3a59;
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+
+    .legend-label {
+      font-size: 13px;
+      color: #cbd5e1;
+    }
+
+    /* MENU CONTEXTUEL CLIC DROIT */
+    #context-menu {
+      position: absolute;
+      display: none;
+      background-color: #1a2338;
+      border: 1px solid #2e3a59;
+      border-radius: 8px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      overflow: hidden;
+    }
+
+    .context-item {
+      padding: 10px 16px;
+      font-size: 13px;
+      color: #f8fafc;
+      cursor: pointer;
+      transition: background-color 0.1s;
+    }
+
+    .context-item:hover {
+      background-color: #5846f6;
     }
 
     /* MODALE COLLABORATEURS */
@@ -194,57 +282,38 @@
       max-width: 440px;
       padding: 28px;
     }
-
-    .collab-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background-color: #0d1322;
-      padding: 10px;
-      border-radius: 8px;
-      margin-top: 8px;
-      border: 1px solid #2e3a59;
-    }
-
-    .collab-item button {
-      background: none;
-      border: none;
-      color: #ef4444;
-      cursor: pointer;
-      font-size: 12px;
-    }
   </style>
 </head>
 <body>
 
-  <!-- NAVBAR SUPÉRIEURE -->
   <header>
     <div class="header-left">
       <button class="btn-back" onclick="window.location.href='dashboard.html'">← Dashboard</button>
       <span id="map-title" class="map-title">Chargement...</span>
     </div>
 
-    <div class="header-actions">
-      <button class="btn-action" onclick="addPerson()">+ Personne</button>
-      <button class="btn-action" onclick="addRelation()">+ Lien</button>
+    <div>
       <button class="btn-secondary" onclick="openCollabModal()">Collaborateurs</button>
     </div>
   </header>
 
-  <!-- WORKSPACE -->
   <div class="main-container">
     <div id="network-canvas"></div>
 
-    <!-- PANNEAU INSPECTEUR -->
+    <!-- PANNEAU LATÉRAL (INSPECTEUR OU LÉGENDE) -->
     <div class="sidebar" id="sidebar">
-      <h3>Inspecteur</h3>
       <div id="sidebar-content">
-        <p style="font-size: 13px; color: #64748b;">Sélectionnez un élément sur la carte pour modifier ses propriétés.</p>
+        <!-- Rempli en JS -->
       </div>
     </div>
   </div>
 
-  <!-- MODAL DE GESTION DES COLLABORATEURS -->
+  <!-- MENU CONTEXTUEL CLIC DROIT -->
+  <div id="context-menu">
+    <div class="context-item" onclick="createNodeFromContext()">+ Ajouter une personne</div>
+  </div>
+
+  <!-- MODAL COLLABORATEURS -->
   <div id="modal-collab" class="modal-overlay">
     <div class="modal-card">
       <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
@@ -254,12 +323,10 @@
 
       <div style="display: flex; gap: 8px; margin-bottom: 16px;">
         <input type="email" id="collab-email-input" placeholder="Adresse email..." style="flex:1; padding: 8px; background:#0d1322; border:1px solid #2e3a59; border-radius:6px; color:#fff;" />
-        <button class="btn-action" onclick="addCollaborator()">Ajouter</button>
+        <button class="btn-secondary" onclick="addCollaborator()">Ajouter</button>
       </div>
 
-      <div id="collab-list">
-        <!-- Rempli en JS -->
-      </div>
+      <div id="collab-list"></div>
     </div>
   </div>
 
@@ -270,224 +337,351 @@
 
     const mapId = new URLSearchParams(window.location.search).get('id');
     let currentUser = null;
-    let mapData = null;
     let network = null;
     let nodesDataSet = new vis.DataSet([]);
     let edgesDataSet = new vis.DataSet([]);
-    let selectedElement = null;
+    
+    let selectedNodeId = null;
+    let rightClickPosition = { x: 0, y: 0 };
 
-    // 1. VERIFICATION ACCÈS ET CHARGEMENT
     async function init() {
-      if (!mapId) {
-        window.location.href = 'dashboard.html';
-        return;
-      }
+      if (!mapId) { window.location.href = 'dashboard.html'; return; }
 
       const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!session) {
-        window.location.href = 'index.html';
-        return;
-      }
+      if (!session) { window.location.href = 'index.html'; return; }
       currentUser = session.user;
 
-      // Vérifier les droits d'accès sur la carte
-      const { data: map, error } = await supabaseClient
-        .from('maps')
-        .select('*')
-        .eq('id', mapId)
-        .single();
+      const { data: map, error } = await supabaseClient.from('maps').select('*').eq('id', mapId).single();
+      if (error || !map) { window.location.href = 'dashboard.html'; return; }
 
-      if (error || !map) {
-        alert("Accès refusé ou carte introuvable.");
-        window.location.href = 'dashboard.html';
-        return;
-      }
-
-      mapData = map;
       document.getElementById('map-title').textContent = map.name;
 
       initNetwork();
       loadGraphData();
+      renderLegend();
     }
 
-    // 2. INITIALISATION DU GRAPH VIS.JS
     function initNetwork() {
       const container = document.getElementById('network-canvas');
       const data = { nodes: nodesDataSet, edges: edgesDataSet };
       const options = {
         nodes: {
           shape: 'dot',
-          size: 20,
+          size: 22,
           font: { color: '#f8fafc', size: 14 },
           color: { background: '#5846f6', border: '#7075f2', highlight: { background: '#4937e8', border: '#fff' } }
         },
         edges: {
-          color: { color: '#334155', highlight: '#7075f2' },
           width: 2,
-          smooth: true
+          smooth: true,
+          font: { color: '#cbd5e1', size: 11, align: 'top' }
         },
         physics: { enabled: true }
       };
 
       network = new vis.Network(container, data, options);
 
-      // Clic sur un élément
+      // Clic gauche -> Sélection ou Réinitialisation
       network.on("click", (params) => {
+        hideContextMenu();
         if (params.nodes.length > 0) {
-          showNodeDetails(params.nodes[0]);
-        } else if (params.edges.length > 0) {
-          showEdgeDetails(params.edges[0]);
+          openInspector(params.nodes[0]);
         } else {
-          resetSidebar();
+          selectedNodeId = null;
+          renderLegend();
+        }
+      });
+
+      // Clic droit sur le canvas
+      network.on("oncontext", (params) => {
+        params.event.preventDefault();
+        const nodeId = network.getNodeAt(params.pointer.DOM);
+
+        if (nodeId) {
+          hideContextMenu();
+          openInspector(nodeId);
+        } else {
+          rightClickPosition = params.pointer.canvas;
+          showContextMenu(params.event.clientX, params.event.clientY);
         }
       });
     }
 
-    // 3. CHARGEMENT DONNÉES
+    // MENU CONTEXTUEL CLIC DROIT
+    const contextMenu = document.getElementById('context-menu');
+    function showContextMenu(x, y) {
+      contextMenu.style.display = 'block';
+      contextMenu.style.left = `${x}px`;
+      contextMenu.style.top = `${y}px`;
+    }
+    function hideContextMenu() {
+      contextMenu.style.display = 'none';
+    }
+
+    async function createNodeFromContext() {
+      hideContextMenu();
+      const { data } = await supabaseClient
+        .from('entities')
+        .insert([{
+          map_id: mapId,
+          first_name: 'Nouvelle',
+          last_name: 'Personne'
+        }])
+        .select()
+        .single();
+
+      if (data) {
+        nodesDataSet.add({
+          id: data.id,
+          label: `${data.first_name} ${data.last_name}`,
+          x: rightClickPosition.x,
+          y: rightClickPosition.y,
+          details: data
+        });
+        openInspector(data.id);
+      }
+    }
+
+    // CHARGEMENT DONNÉES
     async function loadGraphData() {
       const { data: entities } = await supabaseClient.from('entities').select('*').eq('map_id', mapId);
       const { data: relations } = await supabaseClient.from('relations').select('*').eq('map_id', mapId);
 
       if (entities) {
         nodesDataSet.clear();
-        nodesDataSet.add(entities.map(e => ({ id: e.id, label: e.name || 'Sans nom' })));
+        nodesDataSet.add(entities.map(e => ({
+          id: e.id,
+          label: `${e.first_name || ''} ${e.last_name || ''}`.trim() || 'Sans nom',
+          details: e
+        })));
       }
+
       if (relations) {
         edgesDataSet.clear();
-        edgesDataSet.add(relations.map(r => ({ id: r.id, from: r.from_entity_id, to: r.to_entity_id, label: r.label || '' })));
+        edgesDataSet.add(relations.map(r => ({
+          id: r.id,
+          from: r.from_entity_id,
+          to: r.to_entity_id,
+          label: r.label || '',
+          color: { color: r.color || '#334155', highlight: r.color || '#7075f2' }
+        })));
       }
+
+      renderLegend();
     }
 
-    // 4. ACTIONS GRAPHE
-    async function addPerson() {
-      const { data, error } = await supabaseClient
-        .from('entities')
-        .insert([{ map_id: mapId, name: 'Nouvelle Personne' }])
-        .select()
-        .single();
-
-      if (data) {
-        nodesDataSet.add({ id: data.id, label: data.name });
-      }
-    }
-
-    async function addRelation() {
-      const selectedNodes = network.getSelectedNodes();
-      if (selectedNodes.length < 2) {
-        alert("Sélectionnez deux personnes sur la carte pour les relier.");
-        return;
-      }
-
-      const { data, error } = await supabaseClient
-        .from('relations')
-        .insert([{ map_id: mapId, from_entity_id: selectedNodes[0], to_entity_id: selectedNodes[1], label: 'Lien' }])
-        .select()
-        .single();
-
-      if (data) {
-        edgesDataSet.add({ id: data.id, from: data.from_entity_id, to: data.to_entity_id, label: data.label });
-      }
-    }
-
-    // 5. INSPECTEUR & EDITION
-    function showNodeDetails(nodeId) {
-      selectedElement = { type: 'node', id: nodeId };
+    // INSPECTEUR INDIVIDU
+    async function openInspector(nodeId) {
+      selectedNodeId = nodeId;
       const node = nodesDataSet.get(nodeId);
+      const d = node.details || {};
 
-      const sidebar = document.getElementById('sidebar-content');
-      sidebar.innerHTML = `
-        <div class="sidebar-field">
-          <label>Nom</label>
-          <input type="text" id="edit-name" value="${node.label}" onchange="updateElementLabel(this.value)" />
+      const sidebarContent = document.getElementById('sidebar-content');
+
+      // Obtenir la liste des autres personnes pour créer un lien
+      const otherNodes = nodesDataSet.get().filter(n => n.id !== nodeId);
+      let optionsHtml = '<option value="">Choisir une personne...</option>';
+      otherNodes.forEach(n => {
+        optionsHtml += `<option value="${n.id}">${n.label}</option>`;
+      });
+
+      // Obtenir les liens existants pour cette personne
+      const nodeEdges = edgesDataSet.get().filter(e => e.from === nodeId || e.to === nodeId);
+      let linksHtml = '';
+      nodeEdges.forEach(e => {
+        const targetId = e.from === nodeId ? e.to : e.from;
+        const targetNode = nodesDataSet.get(targetId);
+        linksHtml += `
+          <div class="link-item">
+            <div class="link-info">
+              <span class="color-dot" style="background-color: ${e.color?.color || '#334155'};"></span>
+              <span>${e.label || 'Lien'} → <strong>${targetNode ? targetNode.label : ''}</strong></span>
+            </div>
+            <button class="btn-delete-link" onclick="deleteLink('${e.id}')">&times;</button>
+          </div>
+        `;
+      });
+
+      sidebarContent.innerHTML = `
+        <h3>Inspecteur</h3>
+        
+        <div class="form-row">
+          <div class="form-group" style="flex:1;">
+            <label>Nom</label>
+            <input type="text" id="inp-last-name" value="${d.last_name || ''}" onchange="saveNodeDetails()" />
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label>Prénom</label>
+            <input type="text" id="inp-first-name" value="${d.first_name || ''}" onchange="saveNodeDetails()" />
+          </div>
         </div>
-        <div class="sidebar-actions">
-          <button class="btn-danger" onclick="deleteSelectedElement()">Supprimer</button>
+
+        <div class="form-group">
+          <label>Âge</label>
+          <input type="number" id="inp-age" value="${d.age || ''}" onchange="saveNodeDetails()" />
         </div>
+
+        <div class="form-group">
+          <label>Informations</label>
+          <input type="text" id="inp-info" value="${d.info || ''}" placeholder="Ex: Profession, rôle..." onchange="saveNodeDetails()" />
+        </div>
+
+        <div class="form-group">
+          <label>Commentaire</label>
+          <textarea id="inp-comment" rows="3" onchange="saveNodeDetails()">${d.comment || ''}</textarea>
+        </div>
+
+        <div class="links-section">
+          <div class="links-header">Liens (${nodeEdges.length})</div>
+          ${linksHtml}
+
+          <div style="margin-top: 12px; background-color: #0d1322; padding: 10px; border-radius: 8px; border: 1px solid #2e3a59;">
+            <div class="form-group">
+              <label>Relier à</label>
+              <select id="link-target">${optionsHtml}</select>
+            </div>
+            <div class="form-group">
+              <label>Type de relation</label>
+              <input type="text" id="link-label" placeholder="Ex: Frère, Suspect, Associé..." />
+            </div>
+            <div class="form-group">
+              <label>Couleur du lien</label>
+              <input type="color" id="link-color" value="#5846f6" style="height: 36px; padding: 2px; cursor: pointer;" />
+            </div>
+            <button class="btn-add-link" onclick="addNewLink()">+ Ajouter ce lien</button>
+          </div>
+        </div>
+
+        <button class="btn-danger" onclick="deletePerson('${nodeId}')">Supprimer la personne</button>
       `;
     }
 
-    function showEdgeDetails(edgeId) {
-      selectedElement = { type: 'edge', id: edgeId };
-      const edge = edgesDataSet.get(edgeId);
+    async function saveNodeDetails() {
+      if (!selectedNodeId) return;
 
-      const sidebar = document.getElementById('sidebar-content');
-      sidebar.innerHTML = `
-        <div class="sidebar-field">
-          <label>Relation</label>
-          <input type="text" id="edit-name" value="${edge.label || ''}" onchange="updateElementLabel(this.value)" />
-        </div>
-        <div class="sidebar-actions">
-          <button class="btn-danger" onclick="deleteSelectedElement()">Supprimer</button>
-        </div>
-      `;
+      const firstName = document.getElementById('inp-first-name').value;
+      const lastName = document.getElementById('inp-last-name').value;
+      const age = document.getElementById('inp-age').value;
+      const info = document.getElementById('inp-info').value;
+      const comment = document.getElementById('inp-comment').value;
+
+      const newLabel = `${firstName} ${lastName}`.trim() || 'Sans nom';
+
+      // Mise à jour locale
+      const node = nodesDataSet.get(selectedNodeId);
+      const updatedDetails = { ...node.details, first_name: firstName, last_name: lastName, age, info, comment };
+      nodesDataSet.update({ id: selectedNodeId, label: newLabel, details: updatedDetails });
+
+      // Sauvegarde BDD
+      await supabaseClient.from('entities').update({
+        first_name: firstName,
+        last_name: lastName,
+        age: age ? parseInt(age) : null,
+        info: info,
+        comment: comment
+      }).eq('id', selectedNodeId);
     }
 
-    function resetSidebar() {
-      selectedElement = null;
-      document.getElementById('sidebar-content').innerHTML = `
-        <p style="font-size: 13px; color: #64748b;">Sélectionnez un élément sur la carte pour modifier ses propriétés.</p>
-      `;
-    }
+    async function addNewLink() {
+      const targetId = document.getElementById('link-target').value;
+      const label = document.getElementById('link-label').value.trim();
+      const color = document.getElementById('link-color').value;
 
-    async function updateElementLabel(newVal) {
-      if (!selectedElement) return;
+      if (!targetId) { alert("Veuillez choisir une personne à relier."); return; }
 
-      if (selectedElement.type === 'node') {
-        nodesDataSet.update({ id: selectedElement.id, label: newVal });
-        await supabaseClient.from('entities').update({ name: newVal }).eq('id', selectedElement.id);
-      } else {
-        edgesDataSet.update({ id: selectedElement.id, label: newVal });
-        await supabaseClient.from('relations').update({ label: newVal }).eq('id', selectedElement.id);
+      const { data } = await supabaseClient
+        .from('relations')
+        .insert([{
+          map_id: mapId,
+          from_entity_id: selectedNodeId,
+          to_entity_id: targetId,
+          label: label,
+          color: color
+        }])
+        .select()
+        .single();
+
+      if (data) {
+        edgesDataSet.add({
+          id: data.id,
+          from: data.from_entity_id,
+          to: data.to_entity_id,
+          label: data.label,
+          color: { color: color, highlight: color }
+        });
+        openInspector(selectedNodeId);
+        renderLegend();
       }
     }
 
-    async function deleteSelectedElement() {
-      if (!selectedElement) return;
-
-      if (selectedElement.type === 'node') {
-        nodesDataSet.remove(selectedElement.id);
-        await supabaseClient.from('entities').delete().eq('id', selectedElement.id);
-      } else {
-        edgesDataSet.remove(selectedElement.id);
-        await supabaseClient.from('relations').delete().eq('id', selectedElement.id);
-      }
-      resetSidebar();
+    async function deleteLink(linkId) {
+      edgesDataSet.remove(linkId);
+      await supabaseClient.from('relations').delete().eq('id', linkId);
+      openInspector(selectedNodeId);
+      renderLegend();
     }
 
-    // 6. GESTION DES COLLABORATEURS
+    async function deletePerson(nodeId) {
+      nodesDataSet.remove(nodeId);
+      await supabaseClient.from('entities').delete().eq('id', nodeId);
+      selectedNodeId = null;
+      renderLegend();
+    }
+
+    // LÉGENDE DYNAMIQUE
+    function renderLegend() {
+      const sidebarContent = document.getElementById('sidebar-content');
+
+      const edges = edgesDataSet.get();
+      const legendMap = new Map();
+
+      edges.forEach(e => {
+        const label = e.label || 'Relation sans nom';
+        const color = e.color?.color || '#334155';
+        if (!legendMap.has(label)) {
+          legendMap.set(label, color);
+        }
+      });
+
+      let legendHtml = '';
+      if (legendMap.size === 0) {
+        legendHtml = '<p style="font-size: 13px; color: #64748b;">Aucun lien créé pour le moment. Fais un clic droit sur une personne pour lui ajouter un lien.</p>';
+      } else {
+        legendMap.forEach((color, label) => {
+          legendHtml += `
+            <div class="legend-item">
+              <span class="color-dot" style="background-color: ${color}; width: 14px; height: 14px;"></span>
+              <span class="legend-label">${label}</span>
+            </div>
+          `;
+        });
+      }
+
+      sidebarContent.innerHTML = `
+        <h3>Légende</h3>
+        ${legendHtml}
+      `;
+    }
+
+    // COLLABORATEURS
     const modalCollab = document.getElementById('modal-collab');
-
-    function openCollabModal() {
-      modalCollab.classList.add('active');
-      loadCollaboratorsList();
-    }
-
-    function closeCollabModal() {
-      modalCollab.classList.remove('active');
-    }
+    function openCollabModal() { modalCollab.classList.add('active'); loadCollaboratorsList(); }
+    function closeCollabModal() { modalCollab.classList.remove('active'); }
 
     async function loadCollaboratorsList() {
       const collabList = document.getElementById('collab-list');
       collabList.innerHTML = 'Chargement...';
-
-      const { data: collabs } = await supabaseClient
-        .from('map_collaborators')
-        .select('id, user_id')
-        .eq('map_id', mapId);
+      const { data: collabs } = await supabaseClient.from('map_collaborators').select('id, user_id').eq('map_id', mapId);
 
       if (!collabs || collabs.length === 0) {
-        collabList.innerHTML = '<p style="font-size: 13px; color: #64748b; margin-top: 10px;">Aucun collaborateur pour le moment.</p>';
+        collabList.innerHTML = '<p style="font-size: 13px; color: #64748b; margin-top: 10px;">Aucun collaborateur.</p>';
         return;
       }
-
       collabList.innerHTML = '';
       collabs.forEach(c => {
         const item = document.createElement('div');
-        item.className = 'collab-item';
-        item.innerHTML = `
-          <span style="font-size: 13px;">${c.user_id}</span>
-          <button onclick="removeCollaborator('${c.id}')">Retirer</button>
-        `;
+        item.style.cssText = 'display:flex; justify-space-between; align-items:center; background:#0d1322; padding:8px; border-radius:6px; margin-top:6px;';
+        item.innerHTML = `<span style="font-size:12px;">${c.user_id}</span><button onclick="removeCollaborator('${c.id}')" style="background:none; border:none; color:#ef4444; cursor:pointer;">Retirer</button>`;
         collabList.appendChild(item);
       });
     }
@@ -495,15 +689,8 @@
     async function addCollaborator() {
       const email = document.getElementById('collab-email-input').value.trim();
       if (!email) return;
-
-      // Recherche du profil par e-mail
       const { data: profile } = await supabaseClient.from('profiles').select('id').eq('email', email).single();
-
-      if (!profile) {
-        alert("Aucun compte trouvé avec cet e-mail.");
-        return;
-      }
-
+      if (!profile) { alert("Aucun compte trouvé avec cet e-mail."); return; }
       await supabaseClient.from('map_collaborators').insert([{ map_id: mapId, user_id: profile.id }]);
       document.getElementById('collab-email-input').value = '';
       loadCollaboratorsList();
