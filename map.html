@@ -430,8 +430,8 @@
     let network = null;
     let nodesDataSet = new vis.DataSet([]);
     let edgesDataSet = new vis.DataSet([]);
-    let linkTypesCache = []; // Pour stocker les types de liens (link_types)
-    
+    let linkTypesCache = [];
+
     let selectedNodeId = null;
     let rightClickPosition = { x: 0, y: 0 };
     let activeLinkMode = 'existing';
@@ -470,7 +470,7 @@
             border: '#2a365c', 
             highlight: { 
               background: '#131b2e', 
-              border: '#5846f6' // Contour violet du nœud sélectionné
+              border: '#5846f6'
             } 
           }
         },
@@ -514,7 +514,8 @@
           network.selectNodes([nodeId]);
           openInspector(nodeId);
         } else {
-          rightClickPosition = params.pointer.canvas;
+          // Conversion directe de la position du clic vers le repère canvas
+          rightClickPosition = network.DOMtoCanvas(params.pointer.DOM);
           showContextMenu(params.event.clientX, params.event.clientY);
         }
       });
@@ -535,14 +536,17 @@
     async function createNodeFromContext() {
       hideContextMenu();
 
+      const posX = Math.round(rightClickPosition.x);
+      const posY = Math.round(rightClickPosition.y);
+
       const { data, error } = await supabaseClient
         .from('entities')
         .insert([{
           map_id: mapId,
           first_name: 'Nouvelle',
           last_name: 'Personne',
-          x_pos: rightClickPosition.x,
-          y_pos: rightClickPosition.y
+          x_pos: posX,
+          y_pos: posY
         }])
         .select()
         .single();
@@ -556,27 +560,23 @@
         const newNode = {
           id: data.id,
           label: `${data.first_name} ${data.last_name}`,
-          x: data.x_pos,
-          y: data.y_pos,
+          x: posX,
+          y: posY,
           details: data
         };
 
         nodesDataSet.add(newNode);
+        selectedNodeId = data.id;
         network.selectNodes([data.id]);
-        network.focus(data.id, { scale: 1.0, animation: { duration: 300 } });
         openInspector(data.id);
       }
     }
 
     async function loadGraphData() {
-      // 1. Récupérer les entités
       const { data: entities } = await supabaseClient.from('entities').select('*').eq('map_id', mapId);
-      
-      // 2. Récupérer les types de liens
       const { data: types } = await supabaseClient.from('link_types').select('*').eq('map_id', mapId);
       linkTypesCache = types || [];
 
-      // 3. Récupérer les connexions avec jointure sur link_types
       const { data: connections } = await supabaseClient.from('connections').select('*, link_types(*)').eq('map_id', mapId);
 
       if (entities) {
@@ -584,8 +584,8 @@
         nodesDataSet.add(entities.map(e => ({
           id: e.id,
           label: `${e.first_name || ''} ${e.last_name || ''}`.trim() || 'Sans nom',
-          x: e.x_pos || undefined,
-          y: e.y_pos || undefined,
+          x: e.x_pos !== null ? e.x_pos : undefined,
+          y: e.y_pos !== null ? e.y_pos : undefined,
           details: e
         })));
       }
@@ -772,7 +772,6 @@
         if (!label) { alert("Saisissez un nom pour le type de lien."); return; }
         if (!targetId) { alert("Veuillez choisir la personne à relier."); return; }
 
-        // Créer un nouveau type dans link_types
         const { data: newType, error: typeErr } = await supabaseClient
           .from('link_types')
           .insert([{ map_id: mapId, label: label, color: color }])
@@ -784,7 +783,6 @@
         linkTypesCache.push(newType);
       }
 
-      // Insérer la connexion
       const { data, error } = await supabaseClient
         .from('connections')
         .insert([{
