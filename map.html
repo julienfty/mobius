@@ -420,7 +420,7 @@
     </div>
   </div>
 
-  <script>
+<script>
     const SUPABASE_URL = 'https://nlrizxxrpbgwkcmgwxqg.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_t9XOimwLkG-a0mXIuwSw4w_B-fTU97f';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -430,6 +430,7 @@
     let network = null;
     let nodesDataSet = new vis.DataSet([]);
     let edgesDataSet = new vis.DataSet([]);
+    let linkTypesCache = []; // Pour stocker les types de liens (link_types)
     
     let selectedNodeId = null;
     let rightClickPosition = { x: 0, y: 0 };
@@ -529,7 +530,9 @@
         .insert([{
           map_id: mapId,
           first_name: 'Nouvelle',
-          last_name: 'Personne'
+          last_name: 'Personne',
+          x_pos: rightClickPosition.x,
+          y_pos: rightClickPosition.y
         }])
         .select()
         .single();
@@ -543,8 +546,8 @@
         nodesDataSet.add({
           id: data.id,
           label: `${data.first_name} ${data.last_name}`,
-          x: rightClickPosition.x,
-          y: rightClickPosition.y,
+          x: data.x_pos,
+          y: data.y_pos,
           details: data
         });
 
@@ -554,32 +557,41 @@
     }
 
     async function loadGraphData() {
-      const { data: entities, error: errEntities } = await supabaseClient.from('entities').select('*').eq('map_id', mapId);
-      const { data: relations, error: errRelations } = await supabaseClient.from('relations').select('*').eq('map_id', mapId);
+      // 1. Récupérer les entités
+      const { data: entities } = await supabaseClient.from('entities').select('*').eq('map_id', mapId);
+      
+      // 2. Récupérer les types de liens
+      const { data: types } = await supabaseClient.from('link_types').select('*').eq('map_id', mapId);
+      linkTypesCache = types || [];
 
-      if (errEntities || errRelations) {
-        console.error("Erreur de chargement :", errEntities || errRelations);
-        return;
-      }
+      // 3. Récupérer les connexions avec jointure sur link_types
+      const { data: connections } = await supabaseClient.from('connections').select('*, link_types(*)').eq('map_id', mapId);
 
       if (entities) {
         nodesDataSet.clear();
         nodesDataSet.add(entities.map(e => ({
           id: e.id,
           label: `${e.first_name || ''} ${e.last_name || ''}`.trim() || 'Sans nom',
+          x: e.x_pos || undefined,
+          y: e.y_pos || undefined,
           details: e
         })));
       }
 
-      if (relations) {
+      if (connections) {
         edgesDataSet.clear();
-        edgesDataSet.add(relations.map(r => ({
-          id: r.id,
-          from: r.from_entity_id,
-          to: r.to_entity_id,
-          label: r.label || '',
-          color: { color: r.color || '#5846f6', highlight: r.color || '#7075f2' }
-        })));
+        edgesDataSet.add(connections.map(c => {
+          const lType = c.link_types || {};
+          const color = lType.color || '#5846f6';
+          return {
+            id: c.id,
+            from: c.from_entity_id,
+            to: c.to_entity_id,
+            label: lType.label || '',
+            link_type_id: c.link_type_id,
+            color: { color: color, highlight: color }
+          };
+        }));
       }
 
       renderLegend();
@@ -625,13 +637,8 @@
         </div>
 
         <div class="form-group">
-          <label>Âge</label>
-          <input type="number" id="inp-age" value="${d.age ?? ''}" onchange="saveNodeDetails()" />
-        </div>
-
-        <div class="form-group">
-          <label>Informations</label>
-          <input type="text" id="inp-info" value="${d.info || ''}" placeholder="Ex: Profession, rôle..." onchange="saveNodeDetails()" />
+          <label>Surnom</label>
+          <input type="text" id="inp-nickname" value="${d.nickname || ''}" onchange="saveNodeDetails()" />
         </div>
 
         <div class="form-group">
@@ -657,21 +664,19 @@
 
       const firstName = document.getElementById('inp-first-name').value;
       const lastName = document.getElementById('inp-last-name').value;
-      const age = document.getElementById('inp-age').value;
-      const info = document.getElementById('inp-info').value;
+      const nickname = document.getElementById('inp-nickname').value;
       const comment = document.getElementById('inp-comment').value;
 
       const newLabel = `${firstName} ${lastName}`.trim() || 'Sans nom';
 
       const node = nodesDataSet.get(selectedNodeId);
-      const updatedDetails = { ...node.details, first_name: firstName, last_name: lastName, age, info, comment };
+      const updatedDetails = { ...node.details, first_name: firstName, last_name: lastName, nickname, comment };
       nodesDataSet.update({ id: selectedNodeId, label: newLabel, details: updatedDetails });
 
       await supabaseClient.from('entities').update({
         first_name: firstName,
         last_name: lastName,
-        age: age ? parseInt(age, 10) : null,
-        info: info,
+        nickname: nickname,
         comment: comment
       }).eq('id', selectedNodeId);
     }
@@ -711,22 +716,16 @@
       if (targetSelectExisting) targetSelectExisting.innerHTML = targetOptionsHtml;
       if (targetSelectNew) targetSelectNew.innerHTML = targetOptionsHtml;
 
-      const existingTypesMap = new Map();
-      edgesDataSet.get().forEach(e => {
-        const edgeColor = typeof e.color === 'object' ? e.color.color : (e.color || '#5846f6');
-        if (e.label) existingTypesMap.set(e.label, edgeColor);
-      });
-
       const existingSelect = document.getElementById('pop-link-existing-select');
       if (existingSelect) {
         existingSelect.innerHTML = '';
 
-        if (existingTypesMap.size === 0) {
+        if (linkTypesCache.length === 0) {
           existingSelect.innerHTML = '<option value="">Aucun type existant - Créez-en un</option>';
           switchLinkMode('new');
         } else {
-          existingTypesMap.forEach((color, label) => {
-            existingSelect.innerHTML += `<option value="${label}">${label}</option>`;
+          linkTypesCache.forEach(t => {
+            existingSelect.innerHTML += `<option value="${t.id}">${t.label}</option>`;
           });
           switchLinkMode('existing');
         }
@@ -743,40 +742,45 @@
 
     async function confirmAddNewLink() {
       let targetId = null;
-      let label = "";
-      let color = "#5846f6";
+      let linkTypeId = null;
 
       if (activeLinkMode === 'existing') {
-        label = document.getElementById('pop-link-existing-select').value;
+        linkTypeId = document.getElementById('pop-link-existing-select').value;
         targetId = document.getElementById('pop-link-target-existing').value;
 
-        if (!label) { alert("Aucun type existant sélectionné."); return; }
+        if (!linkTypeId) { alert("Aucun type de lien sélectionné."); return; }
         if (!targetId) { alert("Veuillez choisir la personne à relier."); return; }
 
-        const match = edgesDataSet.get().find(e => e.label === label);
-        if (match) {
-          color = typeof match.color === 'object' ? match.color.color : (match.color || '#5846f6');
-        }
-
       } else {
-        label = document.getElementById('pop-link-new-name').value.trim();
-        color = document.getElementById('pop-link-new-color').value;
+        const label = document.getElementById('pop-link-new-name').value.trim();
+        const color = document.getElementById('pop-link-new-color').value;
         targetId = document.getElementById('pop-link-target-new').value;
 
         if (!label) { alert("Saisissez un nom pour le type de lien."); return; }
         if (!targetId) { alert("Veuillez choisir la personne à relier."); return; }
+
+        // Créer un nouveau type dans link_types
+        const { data: newType, error: typeErr } = await supabaseClient
+          .from('link_types')
+          .insert([{ map_id: mapId, label: label, color: color }])
+          .select()
+          .single();
+
+        if (typeErr) { alert("Erreur type lien : " + typeErr.message); return; }
+        linkTypeId = newType.id;
+        linkTypesCache.push(newType);
       }
 
+      // Insérer la connexion
       const { data, error } = await supabaseClient
-        .from('relations')
+        .from('connections')
         .insert([{
           map_id: mapId,
           from_entity_id: selectedNodeId,
           to_entity_id: targetId,
-          label: label,
-          color: color
+          link_type_id: linkTypeId
         }])
-        .select()
+        .select('*, link_types(*)')
         .single();
 
       if (error) {
@@ -785,11 +789,14 @@
       }
 
       if (data) {
+        const lType = data.link_types || {};
+        const color = lType.color || '#5846f6';
         edgesDataSet.add({
           id: data.id,
           from: data.from_entity_id,
           to: data.to_entity_id,
-          label: label,
+          label: lType.label || '',
+          link_type_id: data.link_type_id,
           color: { color: color, highlight: color }
         });
 
@@ -801,8 +808,8 @@
 
     async function deleteLink(linkId) {
       edgesDataSet.remove(linkId);
-      const { error } = await supabaseClient.from('relations').delete().eq('id', linkId);
-      if (error) console.error("Erreur suppression lien BDD :", error.message);
+      const { error } = await supabaseClient.from('connections').delete().eq('id', linkId);
+      if (error) console.error("Erreur suppression connexion BDD :", error.message);
 
       if (selectedNodeId) {
         openInspector(selectedNodeId);
@@ -823,26 +830,15 @@
       const sidebarContent = document.getElementById('sidebar-content');
       if (!sidebarContent) return;
 
-      const edges = edgesDataSet.get();
-      const legendMap = new Map();
-
-      edges.forEach(e => {
-        const label = e.label || 'Relation sans nom';
-        const color = typeof e.color === 'object' ? e.color.color : (e.color || '#5846f6');
-        if (!legendMap.has(label)) {
-          legendMap.set(label, color);
-        }
-      });
-
       let legendHtml = '';
-      if (legendMap.size === 0) {
-        legendHtml = '<p style="font-size: 13px; color: #64748b;">Aucun lien pour le moment. Sélectionnez une personne pour lui ajouter un lien.</p>';
+      if (linkTypesCache.length === 0) {
+        legendHtml = '<p style="font-size: 13px; color: #64748b;">Aucun type de lien pour le moment.</p>';
       } else {
-        legendMap.forEach((color, label) => {
+        linkTypesCache.forEach(t => {
           legendHtml += `
             <div class="legend-item">
-              <span class="color-dot" style="background-color: ${color}; width: 14px; height: 14px;"></span>
-              <span class="legend-label">${label}</span>
+              <span class="color-dot" style="background-color: ${t.color}; width: 14px; height: 14px;"></span>
+              <span class="legend-label">${t.label}</span>
             </div>
           `;
         });
@@ -852,52 +848,6 @@
         <h3>Légende</h3>
         ${legendHtml}
       `;
-    }
-
-    const modalCollab = document.getElementById('modal-collab');
-    function openCollabModal() { if(modalCollab) modalCollab.classList.add('active'); loadCollaboratorsList(); }
-    function closeCollabModal() { if(modalCollab) modalCollab.classList.remove('active'); }
-
-    async function loadCollaboratorsList() {
-      const collabList = document.getElementById('collab-list');
-      if (!collabList) return;
-      collabList.innerHTML = 'Chargement...';
-
-      const { data: collabs, error } = await supabaseClient.from('map_collaborators').select('id, user_id').eq('map_id', mapId);
-
-      if (error || !collabs || collabs.length === 0) {
-        collabList.innerHTML = '<p style="font-size: 13px; color: #64748b; margin-top: 10px;">Aucun collaborateur.</p>';
-        return;
-      }
-
-      collabList.innerHTML = '';
-      collabs.forEach(c => {
-        const item = document.createElement('div');
-        item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#0d1322; padding:8px; border-radius:6px; margin-top:6px;';
-        item.innerHTML = `<span style="font-size:12px;">${c.user_id}</span><button onclick="removeCollaborator('${c.id}')" style="background:none; border:none; color:#ef4444; cursor:pointer;">Retirer</button>`;
-        collabList.appendChild(item);
-      });
-    }
-
-    async function addCollaborator() {
-      const emailInput = document.getElementById('collab-email-input');
-      const email = emailInput ? emailInput.value.trim() : '';
-      if (!email) return;
-
-      const { data: profile, error: profileErr } = await supabaseClient.from('profiles').select('id').eq('email', email).single();
-      if (profileErr || !profile) { alert("Aucun compte trouvé avec cet e-mail."); return; }
-
-      const { error: insertErr } = await supabaseClient.from('map_collaborators').insert([{ map_id: mapId, user_id: profile.id }]);
-      if (insertErr) { alert("Erreur lors de l'ajout : " + insertErr.message); return; }
-
-      if (emailInput) emailInput.value = '';
-      loadCollaboratorsList();
-    }
-
-    async function removeCollaborator(collabId) {
-      const { error } = await supabaseClient.from('map_collaborators').delete().eq('id', collabId);
-      if (error) alert("Erreur lors de la suppression : " + error.message);
-      loadCollaboratorsList();
     }
 
     init();
