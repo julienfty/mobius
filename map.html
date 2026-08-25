@@ -462,16 +462,21 @@
           shape: 'box',
           margin: 12,
           borderWidth: 2,
+          borderWidthSelected: 3,
           shadow: true,
           font: { color: '#ffffff', size: 14, face: 'system-ui' },
           color: { 
-            background: '#1a2338', 
-            border: '#5846f6', 
-            highlight: { background: '#24304f', border: '#7075f2' } 
+            background: '#131b2e', 
+            border: '#2a365c', 
+            highlight: { 
+              background: '#131b2e', 
+              border: '#5846f6' // Contour violet du nœud sélectionné
+            } 
           }
         },
         edges: {
           width: 2,
+          selectionWidth: 3,
           smooth: { type: 'continuous' },
           font: { 
             color: '#f8fafc', 
@@ -480,6 +485,10 @@
             background: '#0d1322', 
             strokeWidth: 0 
           }
+        },
+        interaction: {
+          hover: true,
+          selectConnectedEdges: false
         },
         physics: { enabled: true, solver: 'forceAtlas2Based' }
       };
@@ -502,6 +511,7 @@
 
         if (nodeId) {
           hideContextMenu();
+          network.selectNodes([nodeId]);
           openInspector(nodeId);
         } else {
           rightClickPosition = params.pointer.canvas;
@@ -543,14 +553,16 @@
       }
 
       if (data) {
-        nodesDataSet.add({
+        const newNode = {
           id: data.id,
           label: `${data.first_name} ${data.last_name}`,
           x: data.x_pos,
           y: data.y_pos,
           details: data
-        });
+        };
 
+        nodesDataSet.add(newNode);
+        network.selectNodes([data.id]);
         network.focus(data.id, { scale: 1.0, animation: { duration: 300 } });
         openInspector(data.id);
       }
@@ -638,12 +650,12 @@
 
         <div class="form-group">
           <label>Surnom</label>
-          <input type="text" id="inp-nickname" value="${d.nickname || ''}" onchange="saveNodeDetails()" />
+          <input type="text" id="inp-nickname" value="${d.nickname || ''}" oninput="saveNodeDetails()" />
         </div>
 
         <div class="form-group">
           <label>Commentaire</label>
-          <textarea id="inp-comment" rows="3" onchange="saveNodeDetails()">${d.comment || ''}</textarea>
+          <textarea id="inp-comment" rows="3" oninput="saveNodeDetails()">${d.comment || ''}</textarea>
         </div>
 
         <div class="links-section">
@@ -671,6 +683,7 @@
 
       const node = nodesDataSet.get(selectedNodeId);
       const updatedDetails = { ...node.details, first_name: firstName, last_name: lastName, nickname, comment };
+      
       nodesDataSet.update({ id: selectedNodeId, label: newLabel, details: updatedDetails });
 
       await supabaseClient.from('entities').update({
@@ -848,6 +861,78 @@
         <h3>Légende</h3>
         ${legendHtml}
       `;
+    }
+
+    function openCollabModal() {
+      const modal = document.getElementById('modal-collab');
+      if (modal) modal.classList.add('active');
+      loadCollaborators();
+    }
+
+    function closeCollabModal() {
+      const modal = document.getElementById('modal-collab');
+      if (modal) modal.classList.remove('active');
+    }
+
+    async function loadCollaborators() {
+      const collabList = document.getElementById('collab-list');
+      if (!collabList) return;
+
+      const { data: collabs, error } = await supabaseClient
+        .from('map_collaborators')
+        .select('*')
+        .eq('map_id', mapId);
+
+      if (error) {
+        collabList.innerHTML = `<p style="font-size:12px; color:#ef4444;">Erreur : ${error.message}</p>`;
+        return;
+      }
+
+      if (!collabs || collabs.length === 0) {
+        collabList.innerHTML = '<p style="font-size:13px; color:#64748b;">Aucun collaborateur pour l\'instant.</p>';
+        return;
+      }
+
+      let html = '';
+      collabs.forEach(c => {
+        html += `
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #2e3a59;">
+            <span style="font-size:13px; color:#fff;">${c.user_email || c.user_id}</span>
+            <button class="btn-delete-link" onclick="removeCollaborator('${c.id}')">&times;</button>
+          </div>
+        `;
+      });
+      collabList.innerHTML = html;
+    }
+
+    async function addCollaborator() {
+      const emailInput = document.getElementById('collab-email-input');
+      const email = emailInput ? emailInput.value.trim() : '';
+      if (!email) return;
+
+      const { error } = await supabaseClient
+        .from('map_collaborators')
+        .insert([{ map_id: mapId, user_email: email }]);
+
+      if (error) {
+        alert("Erreur lors de l'ajout : " + error.message);
+      } else {
+        if (emailInput) emailInput.value = '';
+        loadCollaborators();
+      }
+    }
+
+    async function removeCollaborator(collabId) {
+      const { error } = await supabaseClient
+        .from('map_collaborators')
+        .delete()
+        .eq('id', collabId);
+
+      if (error) {
+        alert("Erreur lors de la suppression : " + error.message);
+      } else {
+        loadCollaborators();
+      }
     }
 
     init();
