@@ -353,7 +353,7 @@
     async function checkAuth() {
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (!session) {
-        window.location.href = '/index.html';
+        window.location.href = 'index.html';
       } else {
         currentUser = session.user;
       }
@@ -428,7 +428,7 @@
       }
 
       // Redirection vers la carte créée
-      window.location.href = `/map.html?id=${newMap.id}`;
+      window.location.href = `map.html?id=${newMap.id}`;
     });
 
     // 5. CHARGEMENT DE LA LISTE DES CARTES ACCESSIBLES
@@ -465,7 +465,7 @@
         `;
         
         item.addEventListener('click', () => {
-          window.location.href = `/map.html?id=${map.id}`;
+          window.location.href = `map.html?id=${map.id}`;
         });
 
         mapsContainer.appendChild(item);
@@ -475,7 +475,7 @@
     // 6. DÉCONNEXION
     document.getElementById('logout-btn').addEventListener('click', async () => {
       await supabaseClient.auth.signOut();
-      window.location.href = '/index.html';
+      window.location.href = 'index.html';
     });
   </script>
 </body>
