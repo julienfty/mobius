@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Éditeur de Carte - Kumu Clone</title>
+
+  <!-- Supabase JS CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Vis.js Network CDN (pour le graphe interactif) -->
+  <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    body {
+      background-color: #0d1322;
+      color: #f8fafc;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* BARRE D'OUTILS ET MENU SUPERIEUR */
+    header {
+      height: 60px;
+      background-color: #1a2338;
+      border-bottom: 1px solid #2e3a59;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      z-index: 20;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .btn-back {
+      background: transparent;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .btn-back:hover {
+      background-color: #24304f;
+      color: #fff;
+    }
+
+    .map-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #7075f2;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn-action {
+      background-color: #5846f6;
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .btn-action:hover {
+      background-color: #4937e8;
+    }
+
+    .btn-secondary {
+      background-color: #24304f;
+      color: #f8fafc;
+      border: 1px solid #2e3a59;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .btn-secondary:hover {
+      background-color: #2e3a59;
+    }
+
+    /* ZONE PRINCIPALE (CANVAS + PANNEAU DÉTAILS) */
+    .main-container {
+      flex: 1;
+      display: flex;
+      position: relative;
+    }
+
+    #network-canvas {
+      flex: 1;
+      height: 100%;
+      background-color: #0d1322;
+    }
+
+    /* PANNEAU LATÉRAL DE DÉTAILS */
+    .sidebar {
+      width: 320px;
+      background-color: #1a2338;
+      border-left: 1px solid #2e3a59;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .sidebar h3 {
+      font-size: 16px;
+      color: #7075f2;
+    }
+
+    .sidebar-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .sidebar-field label {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+
+    .sidebar-field input, .sidebar-field textarea {
+      background-color: #0d1322;
+      border: 1px solid #2e3a59;
+      color: #fff;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+
+    .sidebar-actions {
+      margin-top: auto;
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-danger {
+      background-color: #ef4444;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      width: 100%;
+    }
+
+    /* MODALE COLLABORATEURS */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background-color: rgba(13, 19, 34, 0.85);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-card {
+      background-color: #1a2338;
+      border: 1px solid #2e3a59;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 440px;
+      padding: 28px;
+    }
+
+    .collab-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: #0d1322;
+      padding: 10px;
+      border-radius: 8px;
+      margin-top: 8px;
+      border: 1px solid #2e3a59;
+    }
+
+    .collab-item button {
+      background: none;
+      border: none;
+      color: #ef4444;
+      cursor: pointer;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAVBAR SUPÉRIEURE -->
+  <header>
+    <div class="header-left">
+      <button class="btn-back" onclick="window.location.href='dashboard.html'">← Dashboard</button>
+      <span id="map-title" class="map-title">Chargement...</span>
+    </div>
+
+    <div class="header-actions">
+      <button class="btn-action" onclick="addPerson()">+ Personne</button>
+      <button class="btn-action" onclick="addRelation()">+ Lien</button>
+      <button class="btn-secondary" onclick="openCollabModal()">Collaborateurs</button>
+    </div>
+  </header>
+
+  <!-- WORKSPACE -->
+  <div class="main-container">
+    <div id="network-canvas"></div>
+
+    <!-- PANNEAU INSPECTEUR -->
+    <div class="sidebar" id="sidebar">
+      <h3>Inspecteur</h3>
+      <div id="sidebar-content">
+        <p style="font-size: 13px; color: #64748b;">Sélectionnez un élément sur la carte pour modifier ses propriétés.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DE GESTION DES COLLABORATEURS -->
+  <div id="modal-collab" class="modal-overlay">
+    <div class="modal-card">
+      <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+        <h2 style="font-size: 18px;">Gérer les collaborateurs</h2>
+        <button style="background:none; border:none; color:#94a3b8; cursor:pointer;" onclick="closeCollabModal()">&times;</button>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+        <input type="email" id="collab-email-input" placeholder="Adresse email..." style="flex:1; padding: 8px; background:#0d1322; border:1px solid #2e3a59; border-radius:6px; color:#fff;" />
+        <button class="btn-action" onclick="addCollaborator()">Ajouter</button>
+      </div>
+
+      <div id="collab-list">
+        <!-- Rempli en JS -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://nlrizxxrpbgwkcmgwxqg.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_t9XOimwLkG-a0mXIuwSw4w_B-fTU97f';
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const mapId = new URLSearchParams(window.location.search).get('id');
+    let currentUser = null;
+    let mapData = null;
+    let network = null;
+    let nodesDataSet = new vis.DataSet([]);
+    let edgesDataSet = new vis.DataSet([]);
+    let selectedElement = null;
+
+    // 1. VERIFICATION ACCÈS ET CHARGEMENT
+    async function init() {
+      if (!mapId) {
+        window.location.href = 'dashboard.html';
+        return;
+      }
+
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) {
+        window.location.href = 'index.html';
+        return;
+      }
+      currentUser = session.user;
+
+      // Vérifier les droits d'accès sur la carte
+      const { data: map, error } = await supabaseClient
+        .from('maps')
+        .select('*')
+        .eq('id', mapId)
+        .single();
+
+      if (error || !map) {
+        alert("Accès refusé ou carte introuvable.");
+        window.location.href = 'dashboard.html';
+        return;
+      }
+
+      mapData = map;
+      document.getElementById('map-title').textContent = map.name;
+
+      initNetwork();
+      loadGraphData();
+    }
+
+    // 2. INITIALISATION DU GRAPH VIS.JS
+    function initNetwork() {
+      const container = document.getElementById('network-canvas');
+      const data = { nodes: nodesDataSet, edges: edgesDataSet };
+      const options = {
+        nodes: {
+          shape: 'dot',
+          size: 20,
+          font: { color: '#f8fafc', size: 14 },
+          color: { background: '#5846f6', border: '#7075f2', highlight: { background: '#4937e8', border: '#fff' } }
+        },
+        edges: {
+          color: { color: '#334155', highlight: '#7075f2' },
+          width: 2,
+          smooth: true
+        },
+        physics: { enabled: true }
+      };
+
+      network = new vis.Network(container, data, options);
+
+      // Clic sur un élément
+      network.on("click", (params) => {
+        if (params.nodes.length > 0) {
+          showNodeDetails(params.nodes[0]);
+        } else if (params.edges.length > 0) {
+          showEdgeDetails(params.edges[0]);
+        } else {
+          resetSidebar();
+        }
+      });
+    }
+
+    // 3. CHARGEMENT DONNÉES
+    async function loadGraphData() {
+      const { data: entities } = await supabaseClient.from('entities').select('*').eq('map_id', mapId);
+      const { data: relations } = await supabaseClient.from('relations').select('*').eq('map_id', mapId);
+
+      if (entities) {
+        nodesDataSet.clear();
+        nodesDataSet.add(entities.map(e => ({ id: e.id, label: e.name || 'Sans nom' })));
+      }
+      if (relations) {
+        edgesDataSet.clear();
+        edgesDataSet.add(relations.map(r => ({ id: r.id, from: r.from_entity_id, to: r.to_entity_id, label: r.label || '' })));
+      }
+    }
+
+    // 4. ACTIONS GRAPHE
+    async function addPerson() {
+      const { data, error } = await supabaseClient
+        .from('entities')
+        .insert([{ map_id: mapId, name: 'Nouvelle Personne' }])
+        .select()
+        .single();
+
+      if (data) {
+        nodesDataSet.add({ id: data.id, label: data.name });
+      }
+    }
+
+    async function addRelation() {
+      const selectedNodes = network.getSelectedNodes();
+      if (selectedNodes.length < 2) {
+        alert("Sélectionnez deux personnes sur la carte pour les relier.");
+        return;
+      }
+
+      const { data, error } = await supabaseClient
+        .from('relations')
+        .insert([{ map_id: mapId, from_entity_id: selectedNodes[0], to_entity_id: selectedNodes[1], label: 'Lien' }])
+        .select()
+        .single();
+
+      if (data) {
+        edgesDataSet.add({ id: data.id, from: data.from_entity_id, to: data.to_entity_id, label: data.label });
+      }
+    }
+
+    // 5. INSPECTEUR & EDITION
+    function showNodeDetails(nodeId) {
+      selectedElement = { type: 'node', id: nodeId };
+      const node = nodesDataSet.get(nodeId);
+
+      const sidebar = document.getElementById('sidebar-content');
+      sidebar.innerHTML = `
+        <div class="sidebar-field">
+          <label>Nom</label>
+          <input type="text" id="edit-name" value="${node.label}" onchange="updateElementLabel(this.value)" />
+        </div>
+        <div class="sidebar-actions">
+          <button class="btn-danger" onclick="deleteSelectedElement()">Supprimer</button>
+        </div>
+      `;
+    }
+
+    function showEdgeDetails(edgeId) {
+      selectedElement = { type: 'edge', id: edgeId };
+      const edge = edgesDataSet.get(edgeId);
+
+      const sidebar = document.getElementById('sidebar-content');
+      sidebar.innerHTML = `
+        <div class="sidebar-field">
+          <label>Relation</label>
+          <input type="text" id="edit-name" value="${edge.label || ''}" onchange="updateElementLabel(this.value)" />
+        </div>
+        <div class="sidebar-actions">
+          <button class="btn-danger" onclick="deleteSelectedElement()">Supprimer</button>
+        </div>
+      `;
+    }
+
+    function resetSidebar() {
+      selectedElement = null;
+      document.getElementById('sidebar-content').innerHTML = `
+        <p style="font-size: 13px; color: #64748b;">Sélectionnez un élément sur la carte pour modifier ses propriétés.</p>
+      `;
+    }
+
+    async function updateElementLabel(newVal) {
+      if (!selectedElement) return;
+
+      if (selectedElement.type === 'node') {
+        nodesDataSet.update({ id: selectedElement.id, label: newVal });
+        await supabaseClient.from('entities').update({ name: newVal }).eq('id', selectedElement.id);
+      } else {
+        edgesDataSet.update({ id: selectedElement.id, label: newVal });
+        await supabaseClient.from('relations').update({ label: newVal }).eq('id', selectedElement.id);
+      }
+    }
+
+    async function deleteSelectedElement() {
+      if (!selectedElement) return;
+
+      if (selectedElement.type === 'node') {
+        nodesDataSet.remove(selectedElement.id);
+        await supabaseClient.from('entities').delete().eq('id', selectedElement.id);
+      } else {
+        edgesDataSet.remove(selectedElement.id);
+        await supabaseClient.from('relations').delete().eq('id', selectedElement.id);
+      }
+      resetSidebar();
+    }
+
+    // 6. GESTION DES COLLABORATEURS
+    const modalCollab = document.getElementById('modal-collab');
+
+    function openCollabModal() {
+      modalCollab.classList.add('active');
+      loadCollaboratorsList();
+    }
+
+    function closeCollabModal() {
+      modalCollab.classList.remove('active');
+    }
+
+    async function loadCollaboratorsList() {
+      const collabList = document.getElementById('collab-list');
+      collabList.innerHTML = 'Chargement...';
+
+      const { data: collabs } = await supabaseClient
+        .from('map_collaborators')
+        .select('id, user_id')
+        .eq('map_id', mapId);
+
+      if (!collabs || collabs.length === 0) {
+        collabList.innerHTML = '<p style="font-size: 13px; color: #64748b; margin-top: 10px;">Aucun collaborateur pour le moment.</p>';
+        return;
+      }
+
+      collabList.innerHTML = '';
+      collabs.forEach(c => {
+        const item = document.createElement('div');
+        item.className = 'collab-item';
+        item.innerHTML = `
+          <span style="font-size: 13px;">${c.user_id}</span>
+          <button onclick="removeCollaborator('${c.id}')">Retirer</button>
+        `;
+        collabList.appendChild(item);
+      });
+    }
+
+    async function addCollaborator() {
+      const email = document.getElementById('collab-email-input').value.trim();
+      if (!email) return;
+
+      // Recherche du profil par e-mail
+      const { data: profile } = await supabaseClient.from('profiles').select('id').eq('email', email).single();
+
+      if (!profile) {
+        alert("Aucun compte trouvé avec cet e-mail.");
+        return;
+      }
+
+      await supabaseClient.from('map_collaborators').insert([{ map_id: mapId, user_id: profile.id }]);
+      document.getElementById('collab-email-input').value = '';
+      loadCollaboratorsList();
+    }
+
+    async function removeCollaborator(collabId) {
+      await supabaseClient.from('map_collaborators').delete().eq('id', collabId);
+      loadCollaboratorsList();
+    }
+
+    init();
+  </script>
+</body>
+</html>
