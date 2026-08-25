@@ -419,29 +419,45 @@
     }
 
     async function createNodeFromContext() {
-      hideContextMenu();
-      const { data } = await supabaseClient
-        .from('entities')
-        .insert([{
-          map_id: mapId,
-          first_name: 'Nouvelle',
-          last_name: 'Personne'
-        }])
-        .select()
-        .single();
+  hideContextMenu();
 
-      if (data) {
-        nodesDataSet.add({
-          id: data.id,
-          label: `${data.first_name} ${data.last_name}`,
-          x: rightClickPosition.x,
-          y: rightClickPosition.y,
-          details: data
-        });
-        openInspector(data.id);
-      }
-    }
+  // 1. Insertion en base de données avec des coordonnées par défaut
+  const { data, error } = await supabaseClient
+    .from('entities')
+    .insert([{
+      map_id: mapId,
+      first_name: 'Nouvelle',
+      last_name: 'Personne'
+    }])
+    .select()
+    .single();
 
+  if (error) {
+    console.error("Erreur lors de la création de la personne :", error);
+    alert("Impossible de créer la personne : " + error.message);
+    return;
+  }
+
+  if (data) {
+    // 2. Ajout dynamique au jeu de données Vis.js avec les coordonnées du clic
+    nodesDataSet.add({
+      id: data.id,
+      label: `${data.first_name} ${data.last_name}`,
+      x: rightClickPosition.x,
+      y: rightClickPosition.y,
+      details: data
+    });
+
+    // 3. Zoom / Centrage doux sur le nouveau nœud
+    network.focus(data.id, {
+      scale: 1.0,
+      animation: { duration: 300, easingFunction: 'easeInOutQuad' }
+    });
+
+    // 4. Ouverture automatique de l'inspecteur pour éditer directement ses infos
+    openInspector(data.id);
+  }
+}
     // CHARGEMENT DONNÉES
     async function loadGraphData() {
       const { data: entities } = await supabaseClient.from('entities').select('*').eq('map_id', mapId);
