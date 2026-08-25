@@ -253,7 +253,7 @@
       if (error) {
         showAlert(error.message, true);
       } else if (data.session) {
-        window.location.href = '/dashboard.html';
+        window.location.href = 'dashboard.html';
       } else {
         showAlert('Compte créé ! Vérifie tes e-mails pour confirmer ton compte.', false);
       }
@@ -264,7 +264,7 @@
       if (error) {
         showAlert('Email ou mot de passe incorrect.', true);
       } else if (data.session) {
-        window.location.href = '/dashboard.html';
+        window.location.href = 'dashboard.html';
       }
     }
 
