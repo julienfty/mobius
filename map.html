@@ -185,20 +185,25 @@
       border: none;
       color: #ef4444;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 16px;
     }
 
-    .btn-add-link {
+    .btn-add-link-trigger {
       width: 100%;
-      background-color: #5846f6;
-      color: white;
-      border: none;
-      padding: 8px;
-      border-radius: 6px;
-      font-size: 12px;
+      background-color: #24304f;
+      color: #7075f2;
+      border: 1px dashed #7075f2;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 13px;
       font-weight: 600;
       cursor: pointer;
       margin-top: 8px;
+      transition: background-color 0.2s;
+    }
+
+    .btn-add-link-trigger:hover {
+      background-color: #2e3a59;
     }
 
     .btn-danger {
@@ -254,7 +259,7 @@
       background-color: #5846f6;
     }
 
-    /* MODALE COLLABORATEURS */
+    /* MODALE COLLABORATEURS ET LIENS */
     .modal-overlay {
       position: fixed;
       inset: 0;
@@ -263,7 +268,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 100;
+      z-index: 2000;
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.2s;
@@ -330,6 +335,44 @@
     </div>
   </div>
 
+  <!-- POPUP / MODALE DE CRÉATION DE LIEN -->
+  <div id="modal-link" class="modal-overlay">
+    <div class="modal-card">
+      <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+        <h3 style="font-size: 18px; color: #7075f2; margin: 0;">Créer un nouveau lien</h3>
+        <button style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size: 18px;" onclick="closeLinkModal()">&times;</button>
+      </div>
+
+      <div class="form-group">
+        <label>Type de relation</label>
+        <select id="pop-link-type-select" onchange="togglePopNewTypeFields(this.value)">
+        </select>
+      </div>
+
+      <div id="pop-new-type-fields" style="display:none;">
+        <div class="form-group">
+          <label>Nom du nouveau type</label>
+          <input type="text" id="pop-link-custom-label" placeholder="Ex: Frère, Suspect, Associé..." />
+        </div>
+        <div class="form-group">
+          <label>Couleur du lien</label>
+          <input type="color" id="pop-link-color" value="#5846f6" style="height:36px; padding:2px; cursor:pointer;" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Relier à</label>
+        <select id="pop-link-target">
+        </select>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:16px;">
+        <button class="btn-secondary" onclick="closeLinkModal()" style="flex:1;">Annuler</button>
+        <button onclick="confirmAddNewLink()" style="flex:1; background:#5846f6; color:#fff; border:none; padding:10px; border-radius:8px; font-weight:600; cursor:pointer;">Valider</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const SUPABASE_URL = 'https://nlrizxxrpbgwkcmgwxqg.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_t9XOimwLkG-a0mXIuwSw4w_B-fTU97f';
@@ -358,7 +401,6 @@
 
       initNetwork();
       loadGraphData();
-      renderLegend();
     }
 
     function initNetwork() {
@@ -410,9 +452,11 @@
     // MENU CONTEXTUEL CLIC DROIT
     const contextMenu = document.getElementById('context-menu');
     function showContextMenu(x, y) {
-      contextMenu.style.display = 'block';
-      contextMenu.style.left = `${x}px`;
-      contextMenu.style.top = `${y}px`;
+      if (contextMenu) {
+        contextMenu.style.display = 'block';
+        contextMenu.style.left = `${x}px`;
+        contextMenu.style.top = `${y}px`;
+      }
     }
     function hideContextMenu() {
       if (contextMenu) contextMenu.style.display = 'none';
@@ -454,7 +498,7 @@
           animation: { duration: 300, easingFunction: 'easeInOutQuad' }
         });
 
-        // 4. Ouverture de l'inspecteur
+        // 4. Ouverture immédiate de l'inspecteur
         openInspector(data.id);
       }
     }
@@ -495,25 +539,7 @@
 
       const sidebarContent = document.getElementById('sidebar-content');
 
-      // 1. Liste des autres personnes pour les relier
-      const otherNodes = nodesDataSet.get().filter(n => n.id !== nodeId);
-      let optionsHtml = '<option value="">Choisir une personne...</option>';
-      otherNodes.forEach(n => {
-        optionsHtml += `<option value="${n.id}">${n.label}</option>`;
-      });
-
-      // 2. Extraction des types de liens déjà existants sur la carte
-      const existingTypes = new Map();
-      edgesDataSet.get().forEach(e => {
-        if (e.label) existingTypes.set(e.label, e.color?.color || '#5846f6');
-      });
-
-      let linkTypeOptionsHtml = '<option value="NEW">+ Créer un nouveau type</option>';
-      existingTypes.forEach((color, label) => {
-        linkTypeOptionsHtml += `<option value="${label}">${label}</option>`;
-      });
-
-      // 3. Récupération des liens existants de ce nœud
+      // Récupération des liens existants de ce nœud
       const nodeEdges = edgesDataSet.get().filter(e => e.from === nodeId || e.to === nodeId);
       let linksHtml = '';
       nodeEdges.forEach(e => {
@@ -521,9 +547,9 @@
         const targetNode = nodesDataSet.get(targetId);
         linksHtml += `
           <div class="link-item">
-            <div class="link-info" style="display:flex; align-items:center; gap:8px;">
-              <span class="color-dot" style="background-color: ${e.color?.color || '#5846f6'}; width:12px; height:12px; border-radius:50%;"></span>
-              <span>${e.label || 'Lien'} → <strong>${targetNode ? targetNode.label : ''}</strong></span>
+            <div class="link-info">
+              <span class="color-dot" style="background-color: ${e.color?.color || '#5846f6'};"></span>
+              <span><strong>${e.label || 'Lien'}</strong> → ${targetNode ? targetNode.label : 'Inconnu'}</span>
             </div>
             <button class="btn-delete-link" onclick="deleteLink('${e.id}')">&times;</button>
           </div>
@@ -563,45 +589,13 @@
           <div class="links-header">Liens (${nodeEdges.length})</div>
           ${linksHtml}
 
-          <div style="margin-top: 12px; background-color: #0d1322; padding: 10px; border-radius: 8px; border: 1px solid #2e3a59;">
-            <div class="form-group">
-              <label>Relier à</label>
-              <select id="link-target">${optionsHtml}</select>
-            </div>
-
-            <div class="form-group">
-              <label>Type de relation</label>
-              <select id="link-type-select" onchange="toggleNewTypeFields(this.value)">
-                ${linkTypeOptionsHtml}
-              </select>
-            </div>
-
-            <div id="new-type-fields">
-              <div class="form-group">
-                <label>Nom du nouveau type</label>
-                <input type="text" id="link-custom-label" placeholder="Ex: Frère, Suspect, Associé..." />
-              </div>
-              <div class="form-group">
-                <label>Couleur du lien</label>
-                <input type="color" id="link-color" value="#5846f6" style="height: 36px; padding: 2px; cursor: pointer;" />
-              </div>
-            </div>
-
-            <button class="btn-add-link" onclick="addNewLink()">+ Ajouter ce lien</button>
-          </div>
+          <button class="btn-add-link-trigger" onclick="openLinkModal()">
+            + Ajouter un lien
+          </button>
         </div>
 
         <button class="btn-danger" onclick="deletePerson('${nodeId}')">Supprimer la personne</button>
       `;
-
-      toggleNewTypeFields(document.getElementById('link-type-select').value);
-    }
-
-    function toggleNewTypeFields(selectedValue) {
-      const container = document.getElementById('new-type-fields');
-      if (container) {
-        container.style.display = selectedValue === 'NEW' ? 'block' : 'none';
-      }
     }
 
     async function saveNodeDetails() {
@@ -630,25 +624,61 @@
       }).eq('id', selectedNodeId);
     }
 
-    async function addNewLink() {
-      const targetId = document.getElementById('link-target').value;
-      const typeSelectValue = document.getElementById('link-type-select').value;
+    // MODALE DE CRÉATION DE LIEN
+    function openLinkModal() {
+      if (!selectedNodeId) return;
 
-      if (!targetId) { alert("Veuillez choisir une personne à relier."); return; }
+      // Charger les autres personnes
+      const otherNodes = nodesDataSet.get().filter(n => n.id !== selectedNodeId);
+      const targetSelect = document.getElementById('pop-link-target');
+      targetSelect.innerHTML = '<option value="">Choisir une personne...</option>';
+      otherNodes.forEach(n => {
+        targetSelect.innerHTML += `<option value="${n.id}">${n.label}</option>`;
+      });
+
+      // Charger les types existants
+      const existingTypes = new Map();
+      edgesDataSet.get().forEach(e => {
+        if (e.label) existingTypes.set(e.label, e.color?.color || '#5846f6');
+      });
+
+      const typeSelect = document.getElementById('pop-link-type-select');
+      typeSelect.innerHTML = '<option value="NEW">+ Créer un nouveau type</option>';
+      existingTypes.forEach((color, label) => {
+        typeSelect.innerHTML += `<option value="${label}">${label}</option>`;
+      });
+
+      togglePopNewTypeFields(typeSelect.value);
+      const modalLink = document.getElementById('modal-link');
+      if (modalLink) modalLink.classList.add('active');
+    }
+
+    function closeLinkModal() {
+      const modalLink = document.getElementById('modal-link');
+      if (modalLink) modalLink.classList.remove('active');
+    }
+
+    function togglePopNewTypeFields(val) {
+      const container = document.getElementById('pop-new-type-fields');
+      if (container) container.style.display = val === 'NEW' ? 'block' : 'none';
+    }
+
+    async function confirmAddNewLink() {
+      const targetId = document.getElementById('pop-link-target').value;
+      const typeSelectValue = document.getElementById('pop-link-type-select').value;
+
+      if (!targetId) { alert("Veuillez choisir la personne à relier."); return; }
 
       let label = typeSelectValue;
       let color = '#5846f6';
 
       if (typeSelectValue === 'NEW') {
-        label = document.getElementById('link-custom-label').value.trim();
-        color = document.getElementById('link-color').value;
-        if (!label) { alert("Veuillez saisir un nom pour le nouveau type de lien."); return; }
+        label = document.getElementById('pop-link-custom-label').value.trim();
+        color = document.getElementById('pop-link-color').value;
+        if (!label) { alert("Saisissez un nom pour le type de lien."); return; }
       } else {
-        // Si type existant, récupérer la couleur associée déjà utilisée sur la carte
         const existingEdge = edgesDataSet.get().find(e => e.label === typeSelectValue);
-        if (existingEdge) {
-          color = existingEdge.color?.color || '#5846f6';
-        }
+        if (existingEdge) color = existingEdge.color?.color || '#5846f6';
       }
 
       const { data } = await supabaseClient
@@ -671,6 +701,7 @@
           label: label,
           color: { color: color, highlight: color }
         });
+        closeLinkModal();
         openInspector(selectedNodeId);
         renderLegend();
       }
@@ -707,13 +738,13 @@
 
       let legendHtml = '';
       if (legendMap.size === 0) {
-        legendHtml = '<p style="font-size: 13px; color: #64748b;">Aucun lien créé pour le moment. Fais un clic droit sur une personne pour lui ajouter un lien.</p>';
+        legendHtml = '<p style="font-size: 13px; color: #64748b;">Aucun lien créé pour le moment. Sélectionne une personne pour lui ajouter un lien.</p>';
       } else {
         legendMap.forEach((color, label) => {
           legendHtml += `
-            <div class="legend-item" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-              <span class="color-dot" style="background-color: ${color}; width: 14px; height: 14px; border-radius:50%;"></span>
-              <span class="legend-label" style="font-size:13px;">${label}</span>
+            <div class="legend-item">
+              <span class="color-dot" style="background-color: ${color}; width: 14px; height: 14px;"></span>
+              <span class="legend-label">${label}</span>
             </div>
           `;
         });
@@ -766,6 +797,6 @@
     }
 
     init();
-</script>
+  </script>
 </body>
 </html>
