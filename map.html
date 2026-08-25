@@ -91,7 +91,7 @@
       background-color: #0d1322;
     }
 
-    /* PANNEAU LATÉRAL : INSPECTEUR OU LÉGENDE */
+    /* PANNEAU LATÉRAL */
     .sidebar {
       width: 360px;
       background-color: #1a2338;
@@ -259,7 +259,7 @@
       background-color: #5846f6;
     }
 
-    /* MODALE COLLABORATEURS ET LIENS */
+    /* MODALES */
     .modal-overlay {
       position: fixed;
       inset: 0;
@@ -287,6 +287,34 @@
       max-width: 440px;
       padding: 28px;
     }
+
+    /* TABS OPTION CRÉATION DE LIEN */
+    .link-mode-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      background-color: #0d1322;
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid #2e3a59;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 8px;
+      font-size: 12px;
+      border: none;
+      background: none;
+      color: #94a3b8;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .tab-btn.active {
+      background-color: #5846f6;
+      color: #fff;
+    }
   </style>
 </head>
 <body>
@@ -305,17 +333,17 @@
   <div class="main-container">
     <div id="network-canvas"></div>
 
-    <!-- PANNEAU LATÉRAL (INSPECTEUR OU LÉGENDE) -->
+    <!-- PANNEAU LATÉRAL -->
     <div class="sidebar" id="sidebar">
       <div id="sidebar-content">
-        <!-- Rempli en JS -->
+        <!-- Rempli dynamique en JS -->
       </div>
     </div>
   </div>
 
   <!-- MENU CONTEXTUEL CLIC DROIT -->
   <div id="context-menu">
-    <div class="context-item" onclick="createNodeFromContext()">+ Ajouter une personne</div>
+    <div class="context-item" onclick="createNodeFromContext()">+ Ajouter une personne ici</div>
   </div>
 
   <!-- MODAL COLLABORATEURS -->
@@ -335,40 +363,59 @@
     </div>
   </div>
 
-  <!-- POPUP / MODALE DE CRÉATION DE LIEN -->
+  <!-- POPUP / MODALE DE CRÉATION DE LIEN AVEC LES 2 OPTIONS -->
   <div id="modal-link" class="modal-overlay">
     <div class="modal-card">
-      <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-        <h3 style="font-size: 18px; color: #7075f2; margin: 0;">Créer un nouveau lien</h3>
+      <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
+        <h3 style="font-size: 18px; color: #7075f2; margin: 0;">Ajouter un lien</h3>
         <button style="background:none; border:none; color:#94a3b8; cursor:pointer; font-size: 18px;" onclick="closeLinkModal()">&times;</button>
       </div>
 
-      <div class="form-group">
-        <label>Type de relation</label>
-        <select id="pop-link-type-select" onchange="togglePopNewTypeFields(this.value)">
-        </select>
+      <div class="link-mode-tabs">
+        <button id="tab-btn-existing" class="tab-btn active" onclick="switchLinkMode('existing')">Type existant</button>
+        <button id="tab-btn-new" class="tab-btn" onclick="switchLinkMode('new')">Nouveau type</button>
       </div>
 
-      <div id="pop-new-type-fields" style="display:none;">
+      <!-- OPTION A : TYPE EXISTANT -->
+      <div id="view-link-existing">
         <div class="form-group">
-          <label>Nom du nouveau type</label>
-          <input type="text" id="pop-link-custom-label" placeholder="Ex: Frère, Suspect, Associé..." />
+          <label>Type de relation existant</label>
+          <select id="pop-link-existing-select">
+            <!-- Rempli dynamiquement -->
+          </select>
         </div>
+
+        <div class="form-group">
+          <label>Relier à la personne</label>
+          <select id="pop-link-target-existing">
+            <!-- Rempli dynamiquement -->
+          </select>
+        </div>
+      </div>
+
+      <!-- OPTION B : NOUVEAU TYPE -->
+      <div id="view-link-new" style="display:none;">
+        <div class="form-group">
+          <label>Nom du type de lien</label>
+          <input type="text" id="pop-link-new-name" placeholder="Ex: Frère, Suspect, Collègue..." />
+        </div>
+
         <div class="form-group">
           <label>Couleur du lien</label>
-          <input type="color" id="pop-link-color" value="#5846f6" style="height:36px; padding:2px; cursor:pointer;" />
+          <input type="color" id="pop-link-new-color" value="#5846f6" style="height:38px; padding:2px; cursor:pointer; width:100%; border-radius:6px;" />
+        </div>
+
+        <div class="form-group">
+          <label>Relier à la personne</label>
+          <select id="pop-link-target-new">
+            <!-- Rempli dynamiquement -->
+          </select>
         </div>
       </div>
 
-      <div class="form-group">
-        <label>Relier à</label>
-        <select id="pop-link-target">
-        </select>
-      </div>
-
-      <div style="display:flex; gap:10px; margin-top:16px;">
+      <div style="display:flex; gap:10px; margin-top:20px;">
         <button class="btn-secondary" onclick="closeLinkModal()" style="flex:1;">Annuler</button>
-        <button onclick="confirmAddNewLink()" style="flex:1; background:#5846f6; color:#fff; border:none; padding:10px; border-radius:8px; font-weight:600; cursor:pointer;">Valider</button>
+        <button onclick="confirmAddNewLink()" style="flex:1; background:#5846f6; color:#fff; border:none; padding:10px; border-radius:8px; font-weight:600; cursor:pointer;">Créer le lien</button>
       </div>
     </div>
   </div>
@@ -386,6 +433,7 @@
     
     let selectedNodeId = null;
     let rightClickPosition = { x: 0, y: 0 };
+    let activeLinkMode = 'existing'; // 'existing' ou 'new'
 
     async function init() {
       if (!mapId) { window.location.href = 'dashboard.html'; return; }
@@ -406,19 +454,32 @@
     function initNetwork() {
       const container = document.getElementById('network-canvas');
       const data = { nodes: nodesDataSet, edges: edgesDataSet };
+      
       const options = {
         nodes: {
-          shape: 'dot',
-          size: 22,
-          font: { color: '#f8fafc', size: 14 },
-          color: { background: '#5846f6', border: '#7075f2', highlight: { background: '#4937e8', border: '#fff' } }
+          shape: 'box',
+          margin: 12,
+          borderWidth: 2,
+          shadow: true,
+          font: { color: '#ffffff', size: 14, face: 'system-ui' },
+          color: { 
+            background: '#1a2338', 
+            border: '#5846f6', 
+            highlight: { background: '#24304f', border: '#7075f2' } 
+          }
         },
         edges: {
           width: 2,
-          smooth: true,
-          font: { color: '#cbd5e1', size: 11, align: 'top' }
+          smooth: { type: 'continuous' },
+          font: { 
+            color: '#f8fafc', 
+            size: 11, 
+            align: 'top', 
+            background: '#0d1322', 
+            strokeWidth: 0 
+          }
         },
-        physics: { enabled: true }
+        physics: { enabled: true, solver: 'forceAtlas2Based' }
       };
 
       network = new vis.Network(container, data, options);
@@ -465,7 +526,7 @@
     async function createNodeFromContext() {
       hideContextMenu();
 
-      // 1. Insertion BDD
+      // 1. Enregistrement BDD Supabase
       const { data, error } = await supabaseClient
         .from('entities')
         .insert([{
@@ -477,13 +538,12 @@
         .single();
 
       if (error) {
-        console.error("Erreur lors de la création de la personne :", error);
-        alert("Impossible de créer la personne : " + error.message);
+        alert("Erreur lors de la création : " + error.message);
         return;
       }
 
       if (data) {
-        // 2. Ajout dynamique au jeu de données Vis.js
+        // 2. Affichage graphique au point cliqué
         nodesDataSet.add({
           id: data.id,
           label: `${data.first_name} ${data.last_name}`,
@@ -492,18 +552,15 @@
           details: data
         });
 
-        // 3. Zoom / Centrage doux
-        network.focus(data.id, {
-          scale: 1.0,
-          animation: { duration: 300, easingFunction: 'easeInOutQuad' }
-        });
+        // 3. Zoom sur le nœud créé
+        network.focus(data.id, { scale: 1.0, animation: { duration: 300 } });
 
-        // 4. Ouverture immédiate de l'inspecteur
+        // 4. Inspecteur actif
         openInspector(data.id);
       }
     }
 
-    // CHARGEMENT DONNÉES
+    // CHARGEMENT DE TOUTES LES DONNÉES DU GRAPH
     async function loadGraphData() {
       const { data: entities } = await supabaseClient.from('entities').select('*').eq('map_id', mapId);
       const { data: relations } = await supabaseClient.from('relations').select('*').eq('map_id', mapId);
@@ -539,7 +596,7 @@
 
       const sidebarContent = document.getElementById('sidebar-content');
 
-      // Récupération des liens existants de ce nœud
+      // Obtenir tous les liens attachés à ce nœud
       const nodeEdges = edgesDataSet.get().filter(e => e.from === nodeId || e.to === nodeId);
       let linksHtml = '';
       nodeEdges.forEach(e => {
@@ -586,7 +643,7 @@
         </div>
 
         <div class="links-section">
-          <div class="links-header">Liens (${nodeEdges.length})</div>
+          <div class="links-header">Liens de cette personne (${nodeEdges.length})</div>
           ${linksHtml}
 
           <button class="btn-add-link-trigger" onclick="openLinkModal()">
@@ -609,7 +666,7 @@
 
       const newLabel = `${firstName} ${lastName}`.trim() || 'Sans nom';
 
-      // Mise à jour locale dans le dataset Vis.js
+      // Mise à jour locale Vis.js (l'affichage sur la carte s'actualise)
       const node = nodesDataSet.get(selectedNodeId);
       const updatedDetails = { ...node.details, first_name: firstName, last_name: lastName, age, info, comment };
       nodesDataSet.update({ id: selectedNodeId, label: newLabel, details: updatedDetails });
@@ -624,31 +681,62 @@
       }).eq('id', selectedNodeId);
     }
 
-    // MODALE DE CRÉATION DE LIEN
+    // GESTION POPUP CRÉATION DE LIEN AVEC LES 2 OPTIONS
+    function switchLinkMode(mode) {
+      activeLinkMode = mode;
+      const btnExisting = document.getElementById('tab-btn-existing');
+      const btnNew = document.getElementById('tab-btn-new');
+      const viewExisting = document.getElementById('view-link-existing');
+      const viewNew = document.getElementById('view-link-new');
+
+      if (mode === 'existing') {
+        btnExisting.classList.add('active');
+        btnNew.classList.remove('active');
+        viewExisting.style.display = 'block';
+        viewNew.style.display = 'none';
+      } else {
+        btnNew.classList.add('active');
+        btnExisting.classList.remove('active');
+        viewNew.style.display = 'block';
+        viewExisting.style.display = 'none';
+      }
+    }
+
     function openLinkModal() {
       if (!selectedNodeId) return;
 
-      // Charger les autres personnes
+      // Charger la liste des autres personnes
       const otherNodes = nodesDataSet.get().filter(n => n.id !== selectedNodeId);
-      const targetSelect = document.getElementById('pop-link-target');
-      targetSelect.innerHTML = '<option value="">Choisir une personne...</option>';
+      const targetSelectExisting = document.getElementById('pop-link-target-existing');
+      const targetSelectNew = document.getElementById('pop-link-target-new');
+
+      let targetOptionsHtml = '<option value="">Choisir la personne...</option>';
       otherNodes.forEach(n => {
-        targetSelect.innerHTML += `<option value="${n.id}">${n.label}</option>`;
+        targetOptionsHtml += `<option value="${n.id}">${n.label}</option>`;
       });
+
+      targetSelectExisting.innerHTML = targetOptionsHtml;
+      targetSelectNew.innerHTML = targetOptionsHtml;
 
       // Charger les types existants
-      const existingTypes = new Map();
+      const existingTypesMap = new Map();
       edgesDataSet.get().forEach(e => {
-        if (e.label) existingTypes.set(e.label, e.color?.color || '#5846f6');
+        if (e.label) existingTypesMap.set(e.label, e.color?.color || '#5846f6');
       });
 
-      const typeSelect = document.getElementById('pop-link-type-select');
-      typeSelect.innerHTML = '<option value="NEW">+ Créer un nouveau type</option>';
-      existingTypes.forEach((color, label) => {
-        typeSelect.innerHTML += `<option value="${label}">${label}</option>`;
-      });
+      const existingSelect = document.getElementById('pop-link-existing-select');
+      existingSelect.innerHTML = '';
 
-      togglePopNewTypeFields(typeSelect.value);
+      if (existingTypesMap.size === 0) {
+        existingSelect.innerHTML = '<option value="">Aucun type existant - Créez-en un</option>';
+        switchLinkMode('new');
+      } else {
+        existingTypesMap.forEach((color, label) => {
+          existingSelect.innerHTML += `<option value="${label}">${label}</option>`;
+        });
+        switchLinkMode('existing');
+      }
+
       const modalLink = document.getElementById('modal-link');
       if (modalLink) modalLink.classList.add('active');
     }
@@ -658,30 +746,32 @@
       if (modalLink) modalLink.classList.remove('active');
     }
 
-    function togglePopNewTypeFields(val) {
-      const container = document.getElementById('pop-new-type-fields');
-      if (container) container.style.display = val === 'NEW' ? 'block' : 'none';
-    }
-
     async function confirmAddNewLink() {
-      const targetId = document.getElementById('pop-link-target').value;
-      const typeSelectValue = document.getElementById('pop-link-type-select').value;
+      let targetId = null;
+      let label = "";
+      let color = "#5846f6";
 
-      if (!targetId) { alert("Veuillez choisir la personne à relier."); return; }
+      if (activeLinkMode === 'existing') {
+        label = document.getElementById('pop-link-existing-select').value;
+        targetId = document.getElementById('pop-link-target-existing').value;
 
-      let label = typeSelectValue;
-      let color = '#5846f6';
+        if (!label) { alert("Aucun type existant sélectionné."); return; }
+        if (!targetId) { alert("Veuillez choisir la personne à relier."); return; }
 
-      if (typeSelectValue === 'NEW') {
-        label = document.getElementById('pop-link-custom-label').value.trim();
-        color = document.getElementById('pop-link-color').value;
-        if (!label) { alert("Saisissez un nom pour le type de lien."); return; }
+        const match = edgesDataSet.get().find(e => e.label === label);
+        if (match) color = match.color?.color || '#5846f6';
+
       } else {
-        const existingEdge = edgesDataSet.get().find(e => e.label === typeSelectValue);
-        if (existingEdge) color = existingEdge.color?.color || '#5846f6';
+        label = document.getElementById('pop-link-new-name').value.trim();
+        color = document.getElementById('pop-link-new-color').value;
+        targetId = document.getElementById('pop-link-target-new').value;
+
+        if (!label) { alert("Saisissez un nom pour le type de lien."); return; }
+        if (!targetId) { alert("Veuillez choisir la personne à relier."); return; }
       }
 
-      const { data } = await supabaseClient
+      // Sauvegarde BDD Supabase
+      const { data, error } = await supabaseClient
         .from('relations')
         .insert([{
           map_id: mapId,
@@ -693,7 +783,13 @@
         .select()
         .single();
 
+      if (error) {
+        alert("Erreur lors de la création du lien : " + error.message);
+        return;
+      }
+
       if (data) {
+        // Ajout dynamique du lien sur la carte Vis.js
         edgesDataSet.add({
           id: data.id,
           from: data.from_entity_id,
@@ -701,6 +797,7 @@
           label: label,
           color: { color: color, highlight: color }
         });
+
         closeLinkModal();
         openInspector(selectedNodeId);
         renderLegend();
@@ -724,7 +821,6 @@
     // LÉGENDE DYNAMIQUE
     function renderLegend() {
       const sidebarContent = document.getElementById('sidebar-content');
-
       const edges = edgesDataSet.get();
       const legendMap = new Map();
 
@@ -738,7 +834,7 @@
 
       let legendHtml = '';
       if (legendMap.size === 0) {
-        legendHtml = '<p style="font-size: 13px; color: #64748b;">Aucun lien créé pour le moment. Sélectionne une personne pour lui ajouter un lien.</p>';
+        legendHtml = '<p style="font-size: 13px; color: #64748b;">Aucun lien pour le moment. Sélectionnez une personne pour lui ajouter un lien.</p>';
       } else {
         legendMap.forEach((color, label) => {
           legendHtml += `
