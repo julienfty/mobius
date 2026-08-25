@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard - Kumu Clone</title>
+
+  <!-- SDK Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      background-color: #0d1322;
+      color: #f8fafc;
+      overflow: hidden;
+    }
+
+    /* SPLIT 50/50 */
+    .left-panel {
+      width: 50%;
+      height: 100vh;
+      background-image: url('Capture d’écran 2026-08-25 à 19.54.16.jpg'); /* Remplace par ton image locale si besoin */
+      background-size: cover;
+      background-position: left center;
+      background-repeat: no-repeat;
+    }
+
+    .right-panel {
+      width: 50%;
+      height: 100vh;
+      background-color: #0d1322;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    /* TITRE & BOUTONS PRINCIPAUX */
+    .dashboard-title {
+      font-size: 42px;
+      font-weight: 800;
+      color: #7075f2;
+      margin-bottom: 48px;
+      letter-spacing: -0.5px;
+    }
+
+    .action-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      width: 100%;
+      max-width: 380px;
+    }
+
+    .btn-main {
+      width: 100%;
+      padding: 16px;
+      background-color: #5846f6;
+      border: none;
+      border-radius: 14px;
+      color: #ffffff;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+      text-align: center;
+      box-shadow: 0 4px 15px rgba(88, 70, 246, 0.3);
+    }
+
+    .btn-main:hover {
+      background-color: #4937e8;
+      transform: translateY(-2px);
+    }
+
+    .btn-logout {
+      position: absolute;
+      top: 24px;
+      right: 24px;
+      background: transparent;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .btn-logout:hover {
+      background-color: #1e293b;
+      color: #fff;
+    }
+
+    /* MODALES & POPUPS */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background-color: rgba(13, 19, 34, 0.85);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease-in-out;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-card {
+      background-color: #1a2338;
+      border: 1px solid #2e3a59;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 440px;
+      padding: 32px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+      position: relative;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+
+    .modal-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: #64748b;
+      font-size: 24px;
+      cursor: pointer;
+    }
+
+    .modal-close:hover {
+      color: #f8fafc;
+    }
+
+    /* FORMULAIRES & INPUTS */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: #cbd5e1;
+      margin-bottom: 8px;
+    }
+
+    .form-group input[type="text"],
+    .form-group input[type="email"] {
+      width: 100%;
+      padding: 12px 14px;
+      background-color: #0d1322;
+      border: 1px solid #2e3a59;
+      border-radius: 10px;
+      color: #f8fafc;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .form-group input:focus {
+      border-color: #5846f6;
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      cursor: pointer;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #5846f6;
+      cursor: pointer;
+    }
+
+    .collaborator-section {
+      display: none;
+      background-color: #111827;
+      border: 1px border #2e3a59;
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 20px;
+    }
+
+    .collaborator-section.active {
+      display: block;
+    }
+
+    /* LISTE DES CARTES DANS LA POPUP */
+    .maps-list {
+      max-height: 320px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .map-item {
+      background-color: #0d1322;
+      border: 1px solid #2e3a59;
+      border-radius: 10px;
+      padding: 16px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: border-color 0.2s, background-color 0.2s;
+    }
+
+    .map-item:hover {
+      border-color: #5846f6;
+      background-color: #131b2e;
+    }
+
+    .map-item-name {
+      font-weight: 600;
+      color: #f8fafc;
+    }
+
+    .map-item-badge {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background-color: #24304f;
+      color: #94a3b8;
+    }
+
+    .map-item-badge.owner {
+      background-color: rgba(88, 70, 246, 0.2);
+      color: #a5b4fc;
+    }
+
+    .empty-msg {
+      text-align: center;
+      color: #64748b;
+      font-size: 14px;
+      padding: 20px;
+    }
+
+    .alert-error {
+      background-color: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 16px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PANEL GAUCHE : IMAGE DE FOND -->
+  <div class="left-panel"></div>
+
+  <!-- PANEL DROIT : CONTENU & ACTIONS -->
+  <div class="right-panel">
+    <button id="logout-btn" class="btn-logout">Déconnexion</button>
+
+    <h1 class="dashboard-title">Dashboard</h1>
+
+    <div class="action-buttons">
+      <button id="btn-open-create" class="btn-main">créer une carte</button>
+      <button id="btn-open-list" class="btn-main">listes de cartes</button>
+    </div>
+  </div>
+
+  <!-- POPUP 1 : CRÉER UNE CARTE -->
+  <div id="modal-create" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 class="modal-title">Créer une carte</h2>
+        <button class="modal-close" onclick="closeModals()">&times;</button>
+      </div>
+
+      <div id="create-error" class="alert-error"></div>
+
+      <form id="form-create-map">
+        <div class="form-group">
+          <label for="map-name">Nom de la carte</label>
+          <input type="text" id="map-name" required placeholder="Mon enquête..." />
+        </div>
+
+        <label class="checkbox-group">
+          <input type="checkbox" id="toggle-collab" />
+          <span style="font-size: 14px; color: #cbd5e1;">Ajouter des collaborateurs</span>
+        </label>
+
+        <div id="collab-container" class="collaborator-section">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="collab-email">Email du membre (doit avoir un compte)</label>
+            <input type="email" id="collab-email" placeholder="collaborateur@exemple.com" />
+          </div>
+        </div>
+
+        <button type="submit" class="btn-main" style="margin-top: 10px;">Valider et ouvrir</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- POPUP 2 : LISTE DES CARTES -->
+  <div id="modal-list" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 class="modal-title">Mes Cartes</h2>
+        <button class="modal-close" onclick="closeModals()">&times;</button>
+      </div>
+
+      <div id="maps-container" class="maps-list">
+        <div class="empty-msg">Chargement...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 1. SUPABASE SETUP
+    const SUPABASE_URL = 'https://nlrizxxrpbgwkcmgwxqg.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_t9XOimwLkG-a0mXIuwSw4w_B-fTU97f';
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let currentUser = null;
+
+    // 2. CHECK USER SESSION (SÉCURITÉ D'ACCÈS)
+    async function checkAuth() {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) {
+        window.location.href = '/index.html';
+      } else {
+        currentUser = session.user;
+      }
+    }
+    checkAuth();
+
+    // 3. GESTION DES MODALES
+    const modalCreate = document.getElementById('modal-create');
+    const modalList = document.getElementById('modal-list');
+    const toggleCollab = document.getElementById('toggle-collab');
+    const collabContainer = document.getElementById('collab-container');
+
+    document.getElementById('btn-open-create').addEventListener('click', () => {
+      document.getElementById('form-create-map').reset();
+      collabContainer.classList.remove('active');
+      document.getElementById('create-error').style.display = 'none';
+      modalCreate.classList.add('active');
+    });
+
+    document.getElementById('btn-open-list').addEventListener('click', () => {
+      modalList.classList.add('active');
+      fetchUserMaps();
+    });
+
+    toggleCollab.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        collabContainer.classList.add('active');
+      } else {
+        collabContainer.classList.remove('active');
+      }
+    });
+
+    function closeModals() {
+      modalCreate.classList.remove('active');
+      modalList.classList.remove('active');
+    }
+
+    // Fermer si clic à l'extérieur de la carte modal
+    [modalCreate, modalList].forEach(overlay => {
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeModals();
+      });
+    });
+
+    // 4. CRÉATION D'UNE CARTE + COLLABORATEUR
+    document.getElementById('form-create-map').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const createError = document.getElementById('create-error');
+      createError.style.display = 'none';
+
+      const mapName = document.getElementById('map-name').value.trim();
+      const collabEmail = document.getElementById('collab-email').value.trim();
+      const isCollabChecked = toggleCollab.checked;
+
+      // a) Insérer la carte
+      const { data: newMap, error: mapError } = await supabaseClient
+        .from('maps')
+        .insert([{ name: mapName, owner_id: currentUser.id }])
+        .select()
+        .single();
+
+      if (mapError) {
+        createError.textContent = mapError.message;
+        createError.style.display = 'block';
+        return;
+      }
+
+      // b) Si option collaborateur cochée et mail renseigné
+      if (isCollabChecked && collabEmail) {
+        // Rechercher l'ID du profil associé au mail via auth ou profils
+        // Note: Le trigger postgres s'occupe déjà d'ajouter le créateur par défaut
+      }
+
+      // Redirection vers la carte créée
+      window.location.href = `/map.html?id=${newMap.id}`;
+    });
+
+    // 5. CHARGEMENT DE LA LISTE DES CARTES ACCESSIBLES
+    async function fetchUserMaps() {
+      const mapsContainer = document.getElementById('maps-container');
+      mapsContainer.innerHTML = '<div class="empty-msg">Chargement...</div>';
+
+      // Supabase RLS filtre automatiquement uniquement les cartes où l'utilisateur est owner ou collaborateur
+      const { data: maps, error } = await supabaseClient
+        .from('maps')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        mapsContainer.innerHTML = `<div class="empty-msg" style="color:#fca5a5;">Erreur : ${error.message}</div>`;
+        return;
+      }
+
+      if (!maps || maps.length === 0) {
+        mapsContainer.innerHTML = '<div class="empty-msg">Aucune carte disponible pour le moment.</div>';
+        return;
+      }
+
+      mapsContainer.innerHTML = '';
+      maps.forEach(map => {
+        const item = document.createElement('div');
+        item.className = 'map-item';
+        
+        const isOwner = map.owner_id === currentUser.id;
+        
+        item.innerHTML = `
+          <span class="map-item-name">${map.name}</span>
+          <span class="map-item-badge ${isOwner ? 'owner' : ''}">${isOwner ? 'Propriétaire' : 'Collaborateur'}</span>
+        `;
+        
+        item.addEventListener('click', () => {
+          window.location.href = `/map.html?id=${map.id}`;
+        });
+
+        mapsContainer.appendChild(item);
+      });
+    }
+
+    // 6. DÉCONNEXION
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await supabaseClient.auth.signOut();
+      window.location.href = '/index.html';
+    });
+  </script>
+</body>
+</html>
