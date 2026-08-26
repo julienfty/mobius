@@ -426,7 +426,8 @@
       </div>
     </div>
   </div>
-<script>
+
+  <script>
     window.addEventListener('error', function (event) {
       if (event.message && (event.message.includes('ResizeObserver') || event.message.includes('undelivered notifications'))) {
         event.stopImmediatePropagation();
@@ -484,8 +485,9 @@
           },
           font: { 
             color: '#ffffff', 
-            size: 13, 
-            face: 'system-ui, sans-serif'
+            size: 14, 
+            face: 'system-ui, sans-serif',
+            strokeWidth: 0
           },
           color: { 
             background: '#182035', 
@@ -595,12 +597,12 @@
           physics: false,
           fixed: { x: true, y: true },
           color: {
-            background: '#1a2338',
-            border: '#2e3a59',
-            highlight: { background: '#1a2338', border: '#5846f6' },
-            hover: { background: '#1a2338', border: '#5846f6' }
+            background: '#182035',
+            border: '#2a365c',
+            highlight: { background: '#182035', border: '#5846f6' },
+            hover: { background: '#182035', border: '#5846f6' }
           },
-          font: { color: '#f8fafc', size: 13 },
+          font: { color: '#ffffff', size: 14, strokeWidth: 0 },
           details: data
         });
 
@@ -608,6 +610,7 @@
 
         network.redraw();
         network.selectNodes([data.id]);
+        network.fit({ animation: true });
         openInspector(data.id);
       }
     }
@@ -658,12 +661,12 @@
               physics: false,
               fixed: { x: true, y: true },
               color: {
-                background: '#1a2338',
-                border: '#2e3a59',
-                highlight: { background: '#1a2338', border: '#5846f6' },
-                hover: { background: '#1a2338', border: '#5846f6' }
+                background: '#182035',
+                border: '#2a365c',
+                highlight: { background: '#182035', border: '#5846f6' },
+                hover: { background: '#182035', border: '#5846f6' }
               },
-              font: { color: '#f8fafc', size: 13 },
+              font: { color: '#ffffff', size: 14, strokeWidth: 0 },
               details: e
             };
           })
@@ -692,6 +695,9 @@
       }
 
       network.redraw();
+      if (entities && entities.length > 0) {
+        network.fit();
+      }
       renderLegend();
     }
 
@@ -762,10 +768,15 @@
     async function saveNodeDetails() {
       if (!selectedNodeId) return;
 
-      const firstName = document.getElementById('inp-first-name')?.value.trim() || '';
-      const lastName = document.getElementById('inp-last-name')?.value.trim() || '';
-      const nickname = document.getElementById('inp-nickname')?.value.trim() || '';
-      const comment = document.getElementById('inp-comment')?.value.trim() || '';
+      const elFirstName = document.getElementById('inp-first-name');
+      const elLastName = document.getElementById('inp-last-name');
+      const elNickname = document.getElementById('inp-nickname');
+      const elComment = document.getElementById('inp-comment');
+
+      const firstName = elFirstName ? elFirstName.value.trim() : '';
+      const lastName = elLastName ? elLastName.value.trim() : '';
+      const nickname = elNickname ? elNickname.value.trim() : '';
+      const comment = elComment ? elComment.value.trim() : '';
 
       const newLabel = `${firstName} ${lastName}`.trim() || 'Sans nom';
 
@@ -806,9 +817,6 @@
         alert("Erreur lors de l'enregistrement : " + error.message);
         return;
       }
-
-      const updatedNode = nodesDataSet.get(selectedNodeId);
-      console.log("Nœud après sauvegarde :", updatedNode);
 
       alert("Modifications enregistrées !");
     }
@@ -1053,6 +1061,6 @@
     }
 
     init();
-</script>
+  </script>
 </body>
 </html>
