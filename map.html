@@ -89,6 +89,7 @@
       flex: 1;
       height: 100%;
       background-color: #0d1322;
+      overflow: hidden; /* Limite la taille maximale du canvas vis.js */
     }
 
     /* PANNEAU LATÉRAL */
@@ -421,6 +422,13 @@
   </div>
 
 <script>
+    // Filtre les erreurs d'observation de taille inoffensives pour éviter de polluer la console
+    window.addEventListener('error', (event) => {
+      if (event.message && event.message.includes('ResizeObserver')) {
+        event.stopImmediatePropagation();
+      }
+    });
+
     const SUPABASE_URL = 'https://nlrizxxrpbgwkcmgwxqg.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_t9XOimwLkG-a0mXIuwSw4w_B-fTU97f';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -458,6 +466,9 @@
       const data = { nodes: nodesDataSet, edges: edgesDataSet };
       
       const options = {
+        autoResize: true,
+        height: '100%',
+        width: '100%',
         nodes: {
           shape: 'box',
           margin: 12,
@@ -490,7 +501,9 @@
           hover: true,
           selectConnectedEdges: false
         },
-        physics: { enabled: true, solver: 'forceAtlas2Based' }
+        physics: {
+          enabled: false // Desactive la simulation continue pour garder des positions fixes
+        }
       };
 
       network = new vis.Network(container, data, options);
@@ -543,6 +556,7 @@
         .from('entities')
         .insert([{
           map_id: mapId,
+          user_id: currentUser ? currentUser.id : null,
           first_name: 'Nouvelle',
           last_name: 'Personne',
           x_pos: posX,
@@ -562,6 +576,7 @@
           label: `${data.first_name} ${data.last_name}`,
           x: posX,
           y: posY,
+          physics: false, // Fixe le noeud directement aux coordonnées précises
           details: data
         };
 
@@ -586,6 +601,7 @@
           label: `${e.first_name || ''} ${e.last_name || ''}`.trim() || 'Sans nom',
           x: e.x_pos !== null ? e.x_pos : undefined,
           y: e.y_pos !== null ? e.y_pos : undefined,
+          physics: false,
           details: e
         })));
       }
