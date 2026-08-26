@@ -477,14 +477,17 @@
         width: '100%',
         nodes: {
           shape: 'box',
-          margin: 14,
+          margin: 12,
           borderWidth: 2,
           borderWidthSelected: 2,
           shapeProperties: {
             borderRadius: 8
           },
-          shadow: false,
-          font: { color: '#ffffff', size: 13, face: 'system-ui', multi: false },
+          font: { 
+            color: '#ffffff', 
+            size: 13, 
+            face: 'system-ui, sans-serif'
+          },
           color: { 
             background: '#182035', 
             border: '#2a365c', 
@@ -582,9 +585,12 @@
       }
 
       if (data) {
+        const labelText = `${data.first_name || ''} ${data.last_name || ''}`.trim() || 'Nouvelle Personne';
+        
         const newNode = {
           id: data.id,
-          label: `${data.first_name} ${data.last_name}`,
+          label: labelText,
+          shape: 'box',
           x: posX,
           y: posY,
           physics: false,
@@ -594,6 +600,7 @@
         nodesDataSet.add(newNode);
         selectedNodeId = data.id;
         network.selectNodes([data.id]);
+        network.redraw();
         openInspector(data.id);
       }
     }
@@ -607,14 +614,18 @@
 
       if (entities) {
         nodesDataSet.clear();
-        nodesDataSet.add(entities.map(e => ({
-          id: e.id,
-          label: `${e.first_name || ''} ${e.last_name || ''}`.trim() || 'Sans nom',
-          x: e.x_pos !== null ? e.x_pos : undefined,
-          y: e.y_pos !== null ? e.y_pos : undefined,
-          physics: false,
-          details: e
-        })));
+        nodesDataSet.add(entities.map(e => {
+          const labelText = `${e.first_name || ''} ${e.last_name || ''}`.trim() || 'Personne';
+          return {
+            id: e.id,
+            label: labelText,
+            shape: 'box',
+            x: e.x_pos !== null ? e.x_pos : undefined,
+            y: e.y_pos !== null ? e.y_pos : undefined,
+            physics: false,
+            details: e
+          };
+        }));
       }
 
       if (connections) {
@@ -714,6 +725,7 @@
       const updatedDetails = { ...node.details, first_name: firstName, last_name: lastName, nickname, comment };
       
       nodesDataSet.update({ id: selectedNodeId, label: newLabel, details: updatedDetails });
+      network.redraw();
 
       const { error } = await supabaseClient.from('entities').update({
         first_name: firstName,
