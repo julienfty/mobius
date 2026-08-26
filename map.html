@@ -89,7 +89,7 @@
       flex: 1;
       height: 100%;
       background-color: #0d1322;
-      overflow: hidden; /* Limite la taille maximale du canvas vis.js */
+      overflow: hidden;
     }
 
     /* PANNEAU LATÉRAL */
@@ -140,6 +140,25 @@
     .form-row {
       display: flex;
       gap: 10px;
+    }
+
+    .btn-save {
+      background-color: #5846f6;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      width: 100%;
+      margin-top: 4px;
+      margin-bottom: 12px;
+      transition: background-color 0.2s;
+    }
+
+    .btn-save:hover {
+      background-color: #4338ca;
     }
 
     /* SECTION LIENS DANS L'INSPECTEUR */
@@ -289,7 +308,6 @@
       padding: 28px;
     }
 
-    /* TABS OPTION CRÉATION DE LIEN */
     .link-mode-tabs {
       display: flex;
       gap: 8px;
@@ -334,7 +352,6 @@
   <div class="main-container">
     <div id="network-canvas"></div>
 
-    <!-- PANNEAU LATÉRAL -->
     <div class="sidebar" id="sidebar">
       <div id="sidebar-content">
         <!-- Rempli dynamique en JS -->
@@ -342,12 +359,10 @@
     </div>
   </div>
 
-  <!-- MENU CONTEXTUEL CLIC DROIT -->
   <div id="context-menu">
     <div class="context-item" onclick="createNodeFromContext()">+ Ajouter une personne ici</div>
   </div>
 
-  <!-- MODAL COLLABORATEURS -->
   <div id="modal-collab" class="modal-overlay">
     <div class="modal-card">
       <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
@@ -364,7 +379,6 @@
     </div>
   </div>
 
-  <!-- POPUP / MODALE DE CRÉATION DE LIEN AVEC LES 2 OPTIONS -->
   <div id="modal-link" class="modal-overlay">
     <div class="modal-card">
       <div style="display: flex; justify-content: space-between; margin-bottom: 16px;">
@@ -377,24 +391,18 @@
         <button id="tab-btn-new" class="tab-btn" onclick="switchLinkMode('new')">Nouveau type</button>
       </div>
 
-      <!-- OPTION A : TYPE EXISTANT -->
       <div id="view-link-existing">
         <div class="form-group">
           <label>Type de relation existant</label>
-          <select id="pop-link-existing-select">
-            <!-- Rempli dynamiquement -->
-          </select>
+          <select id="pop-link-existing-select"></select>
         </div>
 
         <div class="form-group">
           <label>Relier à la personne</label>
-          <select id="pop-link-target-existing">
-            <!-- Rempli dynamiquement -->
-          </select>
+          <select id="pop-link-target-existing"></select>
         </div>
       </div>
 
-      <!-- OPTION B : NOUVEAU TYPE -->
       <div id="view-link-new" style="display:none;">
         <div class="form-group">
           <label>Nom du type de lien</label>
@@ -408,9 +416,7 @@
 
         <div class="form-group">
           <label>Relier à la personne</label>
-          <select id="pop-link-target-new">
-            <!-- Rempli dynamiquement -->
-          </select>
+          <select id="pop-link-target-new"></select>
         </div>
       </div>
 
@@ -422,12 +428,12 @@
   </div>
 
 <script>
-    // Filtre les erreurs d'observation de taille inoffensives pour éviter de polluer la console
-    window.addEventListener('error', (event) => {
-      if (event.message && event.message.includes('ResizeObserver')) {
+    window.addEventListener('error', function (event) {
+      if (event.message && (event.message.includes('ResizeObserver') || event.message.includes('undelivered notifications'))) {
         event.stopImmediatePropagation();
+        event.preventDefault();
       }
-    });
+    }, true);
 
     const SUPABASE_URL = 'https://nlrizxxrpbgwkcmgwxqg.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_t9XOimwLkG-a0mXIuwSw4w_B-fTU97f';
@@ -471,18 +477,25 @@
         width: '100%',
         nodes: {
           shape: 'box',
-          margin: 12,
+          margin: 14,
           borderWidth: 2,
-          borderWidthSelected: 3,
-          shadow: true,
-          font: { color: '#ffffff', size: 14, face: 'system-ui' },
+          borderWidthSelected: 2,
+          shapeProperties: {
+            borderRadius: 8
+          },
+          shadow: false,
+          font: { color: '#ffffff', size: 13, face: 'system-ui', multi: false },
           color: { 
-            background: '#131b2e', 
+            background: '#182035', 
             border: '#2a365c', 
             highlight: { 
-              background: '#131b2e', 
+              background: '#182035', 
               border: '#5846f6'
-            } 
+            },
+            hover: {
+              background: '#182035',
+              border: '#5846f6'
+            }
           }
         },
         edges: {
@@ -502,7 +515,7 @@
           selectConnectedEdges: false
         },
         physics: {
-          enabled: false // Desactive la simulation continue pour garder des positions fixes
+          enabled: false
         }
       };
 
@@ -527,7 +540,6 @@
           network.selectNodes([nodeId]);
           openInspector(nodeId);
         } else {
-          // Conversion directe de la position du clic vers le repère canvas
           rightClickPosition = network.DOMtoCanvas(params.pointer.DOM);
           showContextMenu(params.event.clientX, params.event.clientY);
         }
@@ -556,7 +568,6 @@
         .from('entities')
         .insert([{
           map_id: mapId,
-          user_id: currentUser ? currentUser.id : null,
           first_name: 'Nouvelle',
           last_name: 'Personne',
           x_pos: posX,
@@ -576,7 +587,7 @@
           label: `${data.first_name} ${data.last_name}`,
           x: posX,
           y: posY,
-          physics: false, // Fixe le noeud directement aux coordonnées précises
+          physics: false,
           details: data
         };
 
@@ -656,23 +667,25 @@
         <div class="form-row">
           <div class="form-group" style="flex:1;">
             <label>Prénom</label>
-            <input type="text" id="inp-first-name" value="${d.first_name || ''}" oninput="saveNodeDetails()" />
+            <input type="text" id="inp-first-name" value="${d.first_name || ''}" />
           </div>
           <div class="form-group" style="flex:1;">
             <label>Nom</label>
-            <input type="text" id="inp-last-name" value="${d.last_name || ''}" oninput="saveNodeDetails()" />
+            <input type="text" id="inp-last-name" value="${d.last_name || ''}" />
           </div>
         </div>
 
         <div class="form-group">
           <label>Surnom</label>
-          <input type="text" id="inp-nickname" value="${d.nickname || ''}" oninput="saveNodeDetails()" />
+          <input type="text" id="inp-nickname" value="${d.nickname || ''}" />
         </div>
 
         <div class="form-group">
           <label>Commentaire</label>
-          <textarea id="inp-comment" rows="3" oninput="saveNodeDetails()">${d.comment || ''}</textarea>
+          <textarea id="inp-comment" rows="3">${d.comment || ''}</textarea>
         </div>
+
+        <button class="btn-save" onclick="saveNodeDetails()">Enregistrer la personne</button>
 
         <div class="links-section">
           <div class="links-header">Liens de cette personne (${nodeEdges.length})</div>
@@ -702,12 +715,18 @@
       
       nodesDataSet.update({ id: selectedNodeId, label: newLabel, details: updatedDetails });
 
-      await supabaseClient.from('entities').update({
+      const { error } = await supabaseClient.from('entities').update({
         first_name: firstName,
         last_name: lastName,
         nickname: nickname,
         comment: comment
       }).eq('id', selectedNodeId);
+
+      if (error) {
+        alert("Erreur lors de l'enregistrement : " + error.message);
+      } else {
+        alert("Modifications enregistrées !");
+      }
     }
 
     function switchLinkMode(mode) {
