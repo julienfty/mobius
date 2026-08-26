@@ -561,63 +561,59 @@
       if (contextMenu) contextMenu.style.display = 'none';
     }
 
-  async function createNodeFromContext() {
-  hideContextMenu();
+    async function createNodeFromContext() {
+      hideContextMenu();
 
-  const posX = Math.round(rightClickPosition.x);
-  const posY = Math.round(rightClickPosition.y);
+      const posX = Math.round(rightClickPosition.x);
+      const posY = Math.round(rightClickPosition.y);
 
-  // 1. Insertion Supabase
-  const { data, error } = await supabaseClient
-    .from('entities')
-    .insert([{
-      map_id: mapId,
-      first_name: 'Nouvelle',
-      last_name: 'Personne',
-      x_pos: posX,
-      y_pos: posY
-    }])
-    .select()
-    .single();
+      const { data, error } = await supabaseClient
+        .from('entities')
+        .insert([{
+          map_id: mapId,
+          first_name: 'Nouvelle',
+          last_name: 'Personne',
+          x_pos: posX,
+          y_pos: posY
+        }])
+        .select()
+        .single();
 
-  if (error) {
-    alert("Erreur lors de la création : " + error.message);
-    return;
-  }
+      if (error) {
+        alert("Erreur lors de la création : " + error.message);
+        return;
+      }
 
-  if (data) {
-    const labelText = `${data.first_name} ${data.last_name}`;
+      if (data) {
+        const labelText = `${data.first_name} ${data.last_name}`;
 
-    // 2. Création du nœud avec forçage de la forme 'box' et des couleurs
-    const newNode = {
-      id: data.id,
-      label: labelText,
-      shape: 'box', // IMPÉRATIF pour forcer le rectangle vis.js
-      x: posX,
-      y: posY,
-      physics: false,
-      fixed: { x: true, y: true },
-      color: {
-        background: '#1a2338',
-        border: '#2e3a59',
-        highlight: { background: '#1a2338', border: '#5846f6' },
-        hover: { background: '#1a2338', border: '#5846f6' }
-      },
-      font: { color: '#f8fafc', size: 13 },
-      details: data
-    };
+        const newNode = {
+          id: data.id,
+          label: labelText,
+          shape: 'box',
+          x: posX,
+          y: posY,
+          physics: false,
+          fixed: { x: true, y: true },
+          color: {
+            background: '#1a2338',
+            border: '#2e3a59',
+            highlight: { background: '#1a2338', border: '#5846f6' },
+            hover: { background: '#1a2338', border: '#5846f6' }
+          },
+          font: { color: '#f8fafc', size: 13 },
+          details: data
+        };
 
-    // 3. Ajout et rendu immédiat
-    nodesDataSet.add(newNode);
-    selectedNodeId = data.id;
-    
-    // Forcer le focus et la sélection
-    network.selectNodes([data.id]);
-    network.redraw(); // Forcer le canvas à redessiner immédiatement le nœud
-    
-    openInspector(data.id);
-  }
-}
+        nodesDataSet.add(newNode);
+        selectedNodeId = data.id;
+        
+        network.selectNodes([data.id]);
+        network.redraw();
+        
+        openInspector(data.id);
+      }
+    }
 
     async function loadGraphData() {
       const { data: entities } = await supabaseClient.from('entities').select('*').eq('map_id', mapId);
@@ -627,32 +623,46 @@
       const { data: connections } = await supabaseClient.from('connections').select('*, link_types(*)').eq('map_id', mapId);
 
       if (entities) {
-  nodesDataSet.clear();
-  nodesDataSet.add(entities.map(e => {
-    const labelText = `${e.first_name || ''} ${e.last_name || ''}`.trim() || 'Personne';
-    return {
-      id: e.id,
-      label: labelText,
-      shape: 'box', // Requis ici aussi !
-      x: e.x_pos !== null ? e.x_pos : undefined,
-      y: e.y_pos !== null ? e.y_pos : undefined,
-      physics: false,
-      fixed: { x: true, y: true },
-      color: {
-        background: '#1a2338',
-        border: '#2e3a59',
-        highlight: { background: '#1a2338', border: '#5846f6' },
-        hover: { background: '#1a2338', border: '#5846f6' }
-      },
-      font: { color: '#f8fafc', size: 13 },
-      details: e
-    };
-  }));
-  network.redraw();
-}
+        nodesDataSet.clear();
+        nodesDataSet.add(entities.map(e => {
+          const labelText = `${e.first_name || ''} ${e.last_name || ''}`.trim() || 'Personne';
+          return {
+            id: e.id,
+            label: labelText,
+            shape: 'box',
+            x: e.x_pos !== null ? e.x_pos : undefined,
+            y: e.y_pos !== null ? e.y_pos : undefined,
+            physics: false,
+            fixed: { x: true, y: true },
+            color: {
+              background: '#1a2338',
+              border: '#2e3a59',
+              highlight: { background: '#1a2338', border: '#5846f6' },
+              hover: { background: '#1a2338', border: '#5846f6' }
+            },
+            font: { color: '#f8fafc', size: 13 },
+            details: e
+          };
         }));
       }
 
+      if (connections) {
+        edgesDataSet.clear();
+        edgesDataSet.add(connections.map(c => {
+          const lType = c.link_types || {};
+          const color = lType.color || '#5846f6';
+          return {
+            id: c.id,
+            from: c.from_entity_id,
+            to: c.to_entity_id,
+            label: lType.label || '',
+            link_type_id: c.link_type_id,
+            color: { color: color, highlight: color }
+          };
+        }));
+      }
+
+      network.redraw();
       renderLegend();
     }
 
