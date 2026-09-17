@@ -563,57 +563,70 @@
     }
 
     async function createNodeFromContext() {
-      hideContextMenu();
+  hideContextMenu();
 
-      const posX = Math.round(rightClickPosition.x);
-      const posY = Math.round(rightClickPosition.y);
+  // 1. Récupération des coordonnées précises
+  const posX = Math.round(rightClickPosition.x);
+  const posY = Math.round(rightClickPosition.y);
 
-      const { data, error } = await supabaseClient
-        .from('entities')
-        .insert([{
-          map_id: mapId,
-          first_name: 'Nouvelle',
-          last_name: 'Personne',
-          x_pos: posX,
-          y_pos: posY
-        }])
-        .select()
-        .single();
+  // 2. Insertion en base de données Supabase
+  const { data, error } = await supabaseClient
+    .from('entities')
+    .insert([{
+      map_id: mapId,
+      first_name: 'Nouvelle',
+      last_name: 'Personne',
+      x_pos: posX,
+      y_pos: posY
+    }])
+    .select()
+    .single();
 
-      if (error) {
-        alert("Erreur lors de la création : " + error.message);
-        return;
+  if (error) {
+    alert("Erreur lors de la création : " + error.message);
+    return;
+  }
+
+  if (data) {
+    const labelText = `${data.first_name || ''} ${data.last_name || ''}`.trim() || 'Personne';
+
+    // 3. Ajout au DataSet de Vis.js avec coordonnées explicites
+    nodesDataSet.add({
+      id: data.id,
+      label: labelText,
+      shape: 'box',
+      x: posX,
+      y: posY,
+      physics: false,
+      fixed: { x: true, y: true }, // Fixe la carte pour éviter le glissement
+      color: {
+        background: '#182035',
+        border: '#5846f6', // Bordure violette au départ pour bien repérer la personne
+        highlight: { background: '#182035', border: '#5846f6' },
+        hover: { background: '#182035', border: '#5846f6' }
+      },
+      font: { color: '#ffffff', size: 14, strokeWidth: 0 },
+      details: data
+    });
+
+    selectedNodeId = data.id;
+
+    // 4. Mettre à jour la sélection visuelle
+    network.selectNodes([data.id]);
+
+    // 5. Centrer la caméra sur le nouveau nœud créé pour un retour visuel direct
+    network.focus(data.id, {
+      scale: network.getScale(), // Conserve le niveau de zoom actuel
+      animation: {
+        duration: 300,
+        easingFunction: 'easeInOutQuad'
       }
+    });
 
-      if (data) {
-        const labelText = `${data.first_name || ''} ${data.last_name || ''}`.trim() || 'Personne';
-
-        nodesDataSet.add({
-          id: data.id,
-          label: labelText,
-          shape: 'box',
-          x: Number(data.x_pos),
-          y: Number(data.y_pos),
-          physics: false,
-          fixed: { x: true, y: true },
-          color: {
-            background: '#182035',
-            border: '#2a365c',
-            highlight: { background: '#182035', border: '#5846f6' },
-            hover: { background: '#182035', border: '#5846f6' }
-          },
-          font: { color: '#ffffff', size: 14, strokeWidth: 0 },
-          details: data
-        });
-
-        selectedNodeId = data.id;
-
-        network.redraw();
-        network.selectNodes([data.id]);
-        network.fit({ animation: true });
-        openInspector(data.id);
-      }
-    }
+    // 6. Ouvrir l'inspecteur
+    openInspector(data.id);
+  }
+}
 
     async function loadGraphData() {
       const { data: entities, error: entitiesError } = await supabaseClient
