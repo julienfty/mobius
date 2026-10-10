@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kumu Connect - Cartographie Relationnelle</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .node-card {
+            touch-action: none;
+            user-select: none;
+        }
+        .anchor-handle {
+            transition: transform 0.15s ease, background-color 0.15s ease;
+        }
+        .anchor-handle:hover {
+            transform: scale(1.3);
+            background-color: #4f46e5;
+        }
+    </style>
+</head>
+<body class="h-full bg-slate-50 text-slate-800 antialiased overflow-hidden">
+
+    <div id="app" class="h-full w-full flex flex-col">
+
+        <!-- ================= PAGE 1 : AUTHENTIFICATION ================= -->
+        <div id="view-auth" class="flex-1 flex items-center justify-center bg-gradient-to-br from-indigo-50 via-slate-50 to-blue-100 p-4">
+            <div class="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-100 p-8 space-y-6">
+                <div class="text-center space-y-2">
+                    <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-200 mb-2">
+                        <i data-lucide="network" class="w-7 h-7"></i>
+                    </div>
+                    <h1 class="text-2xl font-bold tracking-tight text-slate-900">Kumu Connect</h1>
+                    <p class="text-sm text-slate-500">Cartographiez vos relations et réseaux en toute simplicité</p>
+                </div>
+
+                <div id="supabase-status" class="hidden p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800 flex items-start space-x-2">
+                    <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+                    <div>
+                        <span class="font-semibold">Mode Démo Local Actif :</span> Vous pouvez tester l'ensemble du site sans configuration requise. Tout est sauvegardé localement.
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Adresse email</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                <i data-lucide="mail" class="w-4 h-4"></i>
+                            </span>
+                            <input type="email" id="auth-email" placeholder="votre@email.com" class="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Mot de passe</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                                <i data-lucide="lock" class="w-4 h-4"></i>
+                            </span>
+                            <input type="password" id="auth-password" placeholder="••••••••" class="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition">
+                        </div>
+                    </div>
+
+                    <div id="auth-error" class="hidden text-xs text-rose-600 bg-rose-50 p-2.5 rounded-lg border border-rose-100 flex items-center space-x-2">
+                        <i data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i>
+                        <span id="auth-error-text">Erreur d'authentification</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 pt-2">
+                        <button id="btn-login" onclick="handleLogin()" class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl shadow-md shadow-indigo-100 transition flex items-center justify-center space-x-2">
+                            <span>Connexion</span>
+                        </button>
+                        <button id="btn-signup" onclick="handleSignup()" class="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm rounded-xl transition flex items-center justify-center space-x-2">
+                            <span>Inscription</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="text-center pt-2 border-t border-slate-100">
+                    <p class="text-xs text-slate-400">Propulsé par Supabase & Tailwind CSS • Cartographie Réseau</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= PAGE 2 : TABLEAU DE BORD ================= -->
+        <div id="view-dashboard" class="hidden flex-1 flex flex-col bg-slate-50 overflow-hidden">
+            <header class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shadow-xs">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-100">
+                        <i data-lucide="network" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-bold text-slate-900 text-lg leading-tight">Mes Cartes Relationnelles</h2>
+                        <p class="text-xs text-slate-500" id="user-email-display">connecté</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button onclick="openCreateMapModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl shadow-sm transition flex items-center space-x-2">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span>Créer une carte</span>
+                    </button>
+                    <button onclick="handleLogout()" class="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition" title="Se déconnecter">
+                        <i data-lucide="log-out" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </header>
+
+            <main class="flex-1 max-w-6xl w-full mx-auto p-6 flex flex-col overflow-hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-500">Liste de vos projets</h3>
+                    <span id="maps-count" class="text-xs font-medium bg-slate-200 text-slate-700 px-2.5 py-1 rounded-full">0 cartes</span>
+                </div>
+
+                <div id="maps-container" class="flex-1 overflow-y-auto pr-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-6">
+                    <!-- Cards list -->
+                </div>
+
+                <div id="no-maps-state" class="hidden flex-1 flex flex-col items-center justify-center text-center p-12 bg-white rounded-2xl border border-dashed border-slate-300">
+                    <div class="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mb-4">
+                        <i data-lucide="map" class="w-8 h-8"></i>
+                    </div>
+                    <h4 class="text-base font-semibold text-slate-800 mb-1">Aucune carte pour le moment</h4>
+                    <p class="text-sm text-slate-500 max-w-sm mb-4">Créez votre première carte relationnelle pour commencer à lier des personnes entre elles.</p>
+                    <button onclick="openCreateMapModal()" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl shadow-sm">Créer ma première carte</button>
+                </div>
+            </main>
+        </div>
+
+        <!-- ================= PAGE 3 : EDITEUR DE MAP (KUMU STYLE) ================= -->
+        <div id="view-map" class="hidden flex-1 flex flex-col bg-slate-100 overflow-hidden relative">
+            
+            <header class="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-xs z-30">
+                <div class="flex items-center space-x-3">
+                    <button onclick="returnToDashboard()" class="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition flex items-center space-x-1.5 text-sm font-medium">
+                        <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                        <span>Quitter</span>
+                    </button>
+                    <div class="h-5 w-px bg-slate-200"></div>
+                    <div class="flex items-center space-x-2">
+                        <h2 id="current-map-title" class="font-bold text-slate-900 text-base">Nom de la carte</h2>
+                        <span id="current-map-badge" class="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">Collaborative</span>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-3">
+                    <div class="relative">
+                        <button onclick="toggleCollaboratorsDropdown()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-xl flex items-center space-x-2 transition">
+                            <i data-lucide="users" class="w-3.5 h-3.5"></i>
+                            <span id="collab-count-label">Collaborateurs (1)</span>
+                            <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <div id="collab-dropdown" class="hidden absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 z-50">
+                            <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Gestion des collaborateurs</h4>
+                            <div id="collaborators-list" class="space-y-2 max-h-40 overflow-y-auto mb-3"></div>
+                            <div id="collab-add-section" class="pt-2 border-t border-slate-100">
+                                <div class="flex space-x-2">
+                                    <input type="email" id="new-collab-email" placeholder="email@membre.com" class="flex-1 px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                                    <button onclick="addCollaborator()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg">Ajouter</button>
+                                </div>
+                                <p id="collab-error" class="text-[11px] text-rose-600 mt-1 hidden">Adresse email non valide ou non inscrite.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="flex-1 flex overflow-hidden relative z-10">
+                
+                <!-- 1. PANNEAU LÉGENDE (À GAUCHE) AVEC MODIFICATION & SUPPRESSION -->
+                <aside id="sidebar-legend-left" class="w-72 bg-white border-r border-slate-200 flex flex-col z-20 shadow-md">
+                    <div class="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="bookmark" class="w-4 h-4 text-indigo-600"></i>
+                            <h3 class="font-bold text-slate-800 text-xs uppercase tracking-wider">Légende & Relations</h3>
+                        </div>
+                        <button onclick="openAddRelationModal()" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg flex items-center space-x-1 transition shadow-xs">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                            <span>Nouveau</span>
+                        </button>
+                    </div>
+
+                    <div class="p-4 flex-1 overflow-y-auto space-y-3">
+                        <p class="text-[11px] text-slate-400">Gérez vos types de relations et leurs couleurs :</p>
+                        <div id="legend-types-container" class="space-y-2">
+                            <!-- Legend items injected -->
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- 2. TABLEAU BLANC / CANVAS -->
+                <div id="canvas-container" class="flex-1 relative bg-slate-50 overflow-auto cursor-default select-none" style="background-image: radial-gradient(#cbd5e1 1.2px, transparent 1.2px); background-size: 24px 24px;">
+                    <svg id="links-svg" class="absolute inset-0 w-full h-full pointer-events-none z-0" style="min-width: 3500px; min-height: 3500px;"></svg>
+                    
+                    <div id="nodes-layer" class="absolute inset-0 z-10" style="min-width: 3500px; min-height: 3500px;"></div>
+
+                    <div class="absolute bottom-6 left-6 bg-white/95 backdrop-blur-md px-4 py-2.5 rounded-2xl shadow-lg border border-slate-200/80 text-xs text-slate-600 pointer-events-none z-20 flex items-center space-x-2">
+                        <i data-lucide="mouse-pointer-click" class="w-4 h-4 text-indigo-600 shrink-0"></i>
+                        <span>Cliquez dans le vide pour ajouter une personne. Tirez depuis les poignées pour lier 2 cases existantes. Restez appuyé sur un lien pour le modifier.</span>
+                    </div>
+                </div>
+
+                <!-- 3. INSPECTEUR (À DROITE) -->
+                <aside id="sidebar-inspector-right" class="w-80 bg-white border-l border-slate-200 flex flex-col z-20 shadow-md">
+                    <div class="p-4 border-b border-slate-200 bg-slate-50 flex items-center space-x-2">
+                        <i data-lucide="user-cog" class="w-4 h-4 text-indigo-600"></i>
+                        <h3 class="font-bold text-slate-800 text-xs uppercase tracking-wider">Inspecteur de Personne</h3>
+                    </div>
+
+                    <div id="inspector-body" class="flex-1 overflow-y-auto p-5">
+                        <div id="inspector-empty" class="text-center py-16">
+                            <div class="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <i data-lucide="mouse-pointer" class="w-6 h-6"></i>
+                            </div>
+                            <h4 class="text-sm font-medium text-slate-700 mb-1">Aucune personne sélectionnée</h4>
+                            <p class="text-xs text-slate-400">Cliquez sur une case dans le tableau pour modifier ses détails et ses connexions.</p>
+                        </div>
+
+                        <div id="inspector-content" class="hidden space-y-5">
+                            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Informations</span>
+                                <button onclick="deleteSelectedNode()" class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition" title="Supprimer la personne">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+
+                            <div class="space-y-3">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Prénom *</label>
+                                        <input type="text" id="node-firstname" oninput="updateActiveNodeData()" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Nom *</label>
+                                        <input type="text" id="node-lastname" oninput="updateActiveNodeData()" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Surnom</label>
+                                        <input type="text" id="node-nickname" oninput="updateActiveNodeData()" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Âge</label>
+                                        <input type="number" id="node-age" oninput="updateActiveNodeData()" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Lieu de résidence</label>
+                                    <input type="text" id="node-location" oninput="updateActiveNodeData()" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600">
+                                </div>
+                            </div>
+
+                            <div class="pt-4 border-t border-slate-100 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Liens de cette personne</h4>
+                                    <button onclick="toggleAddLinkMenu()" class="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex items-center space-x-1">
+                                        <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+                                        <span>Créer un lien</span>
+                                    </button>
+                                </div>
+
+                                <div id="add-link-form" class="hidden p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                                    <div>
+                                        <label class="block text-[10px] font-semibold uppercase text-slate-500 mb-1">Associer à</label>
+                                        <select id="link-target-select" class="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"></select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] font-semibold uppercase text-slate-500 mb-1">Type de relation</label>
+                                        <select id="link-type-select" class="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"></select>
+                                    </div>
+                                    <button onclick="createLinkFromInspector()" class="w-full py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg shadow-xs">Valider la connexion</button>
+                                </div>
+
+                                <div id="node-links-list" class="space-y-2 max-h-52 overflow-y-auto"></div>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ================= MODALS ================= -->
+    
+    <div id="modal-create-map" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5">
+            <div class="flex items-center justify-between">
+                <h3 class="font-bold text-slate-900 text-base flex items-center space-x-2">
+                    <i data-lucide="map-plus" class="w-5 h-5 text-indigo-600"></i>
+                    <span>Créer une nouvelle carte</span>
+                </h3>
+                <button onclick="closeCreateMapModal()" class="p-1 text-slate-400 hover:text-slate-600 rounded-lg"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Titre de la carte *</label>
+                    <input type="text" id="new-map-title" placeholder="Ex: Réseau Familial ou Professionnel" class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600">
+                </div>
+
+                <div class="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                    <div>
+                        <span class="block text-sm font-semibold text-slate-800">Carte collaborative</span>
+                        <span class="text-xs text-slate-500">Autoriser d'autres membres inscrits à modifier la carte</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="new-map-collaborative" onchange="toggleCollaborativeInput()" class="sr-only peer">
+                        <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
+
+                <div id="collaborative-email-container" class="hidden space-y-2">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Email du collaborateur initial</label>
+                    <input type="email" id="new-map-collab-email" placeholder="ami@domaine.com" class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600">
+                    <p id="modal-collab-error" class="text-xs text-rose-600 hidden">Cette adresse email n'est pas valide ou n'est pas inscrite.</p>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3 pt-2 border-t border-slate-100">
+                <button onclick="closeCreateMapModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-xl transition">Annuler</button>
+                <button onclick="submitCreateMap()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl shadow-md shadow-indigo-100 transition">Créer le projet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Ajouter / Modifier Type de Relation -->
+    <div id="modal-relation-type" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <h3 id="relation-modal-title" class="font-bold text-slate-900 text-base">Type de relation</h3>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Intitulé du lien</label>
+                    <input type="text" id="rel-modal-name" placeholder="Ex: Mentor, Enfant, Associé..." class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Couleur</label>
+                    <div class="flex items-center space-x-3">
+                        <input type="color" id="rel-modal-color" value="#6366f1" class="w-10 h-10 rounded-xl border border-slate-200 p-1 cursor-pointer bg-white">
+                        <span class="text-xs text-slate-500">Couleur d'affichage sur le schéma</span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button onclick="closeRelationTypeModal()" class="px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-medium rounded-xl">Annuler</button>
+                <button onclick="submitRelationTypeModal()" class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-xl">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Popup Choix de Relation après tirage de poignée -->
+    <div id="modal-quick-link" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <h3 class="font-bold text-slate-900 text-base">Établir la relation</h3>
+            <p class="text-xs text-slate-500">Choisissez la relation reliant <span id="ql-source-name" class="font-semibold text-slate-800"></span> à <span id="ql-target-name" class="font-semibold text-slate-800"></span> :</p>
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Type de relation</label>
+                <select id="ql-type-select" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"></select>
+            </div>
+            <div class="flex justify-end space-x-2 pt-2">
+                <button onclick="cancelQuickLink()" class="px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-medium rounded-xl">Annuler</button>
+                <button onclick="confirmQuickLink()" class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-xl">Valider</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Édition / Suppression d'un lien (avec menu déroulant et bouton supprimer) -->
+    <div id="modal-edit-link" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <h3 class="font-bold text-slate-900 text-base">Modifier ce lien</h3>
+            <p class="text-xs text-slate-500">Relation entre <span id="el-source-name" class="font-semibold text-slate-800"></span> et <span id="el-target-name" class="font-semibold text-slate-800"></span>.</p>
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Type de relation</label>
+                <select id="el-type-select" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20"></select>
+            </div>
+            <div class="flex items-center justify-between pt-2">
+                <button onclick="deleteLinkFromModal()" class="px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-medium rounded-xl transition flex items-center space-x-1">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    <span>Supprimer le lien</span>
+                </button>
+                <div class="space-x-2">
+                    <button onclick="closeEditLinkModal()" class="px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-medium rounded-xl">Annuler</button>
+                    <button onclick="saveEditLinkModal()" class="px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-xl">Enregistrer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div id="toast-notification" class="hidden fixed bottom-6 right-6 bg-slate-900 text-white text-xs px-4 py-3 rounded-xl shadow-2xl z-50 flex items-center space-x-3 transition transform translate-y-2 opacity-0 pointer-events-none">
+        <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
+        <span id="toast-message">Notification</span>
+    </div>
+
+    <script>
+        // CONFIG & STATE
+        let currentUser = null;
+        let currentMapId = null;
+        let currentMapData = null;
+
+        let mapNodes = [];
+        let mapLinks = [];
+        let mapRelationTypes = [
+            { id: 'rel-1', name: 'Ami / Proche', color: '#10b981' },
+            { id: 'rel-2', name: 'Collègue / Pro', color: '#6366f1' },
+            { id: 'rel-3', name: 'Famille', color: '#f59e0b' }
+        ];
+        let mapCollaborators = [];
+
+        let selectedNodeId = null;
+
+        // Dragging & Handle Connection state
+        let isDraggingNode = false;
+        let draggedNodeId = null;
+        let dragOffsetX = 0, dragOffsetY = 0;
+
+        let isDrawingHandleLine = false;
+        let handleSourceNodeId = null;
+        let activeTempLineSvg = null;
+
+        let pendingQuickLink = null;
+        let activeEditLinkId = null;
+        let editingRelationTypeId = null;
+
+        // INIT
+        window.addEventListener('DOMContentLoaded', async () => {
+            lucide.createIcons();
+            document.getElementById('supabase-status').classList.remove('hidden');
+
+            const localUser = localStorage.getItem('kumu_sim_user');
+            if (localUser) {
+                currentUser = JSON.parse(localUser);
+                showDashboardView();
+            }
+        });
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast-notification');
+            document.getElementById('toast-message').textContent = msg;
+            toast.classList.remove('hidden', 'translate-y-2', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.classList.add('hidden'), 300);
+            }, 3000);
+        }
+
+        // AUTHENTICATION
+        function handleLogin() {
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value.trim();
+            const errEl = document.getElementById('auth-error');
+
+            if (!email || !password) {
+                document.getElementById('auth-error-text').textContent = "Veuillez remplir tous les champs.";
+                errEl.classList.remove('hidden');
+                return;
+            }
+            errEl.classList.add('hidden');
+
+            const users = JSON.parse(localStorage.getItem('kumu_sim_users') || '[]');
+            const found = users.find(u => u.email === email && u.password === password);
+            if (found || users.length === 0) {
+                currentUser = { id: found ? found.id : 'usr-' + Date.now(), email };
+                localStorage.setItem('kumu_sim_user', JSON.stringify(currentUser));
+                if (!found) {
+                    users.push({ id: currentUser.id, email, password });
+                    localStorage.setItem('kumu_sim_users', JSON.stringify(users));
+                }
+                showDashboardView();
+                showToast("Connexion réussie !");
+            } else {
+                document.getElementById('auth-error-text').textContent = "Identifiants invalides.";
+                errEl.classList.remove('hidden');
+            }
+        }
+
+        function handleSignup() {
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value.trim();
+            const errEl = document.getElementById('auth-error');
+
+            if (!email || !password) {
+                document.getElementById('auth-error-text').textContent = "Veuillez remplir tous les champs.";
+                errEl.classList.remove('hidden');
+                return;
+            }
+
+            const users = JSON.parse(localStorage.getItem('kumu_sim_users') || '[]');
+            if (users.some(u => u.email === email)) {
+                document.getElementById('auth-error-text').textContent = "Email déjà utilisé.";
+                errEl.classList.remove('hidden');
+                return;
+            }
+
+            const newUser = { id: 'usr-' + Date.now(), email, password };
+            users.push(newUser);
+            localStorage.setItem('kumu_sim_users', JSON.stringify(users));
+            currentUser = { id: newUser.id, email };
+            localStorage.setItem('kumu_sim_user', JSON.stringify(currentUser));
+            showDashboardView();
+            showToast("Compte créé avec succès !");
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('kumu_sim_user');
+            currentUser = null;
+            document.getElementById('view-auth').classList.remove('hidden');
+            document.getElementById('view-dashboard').classList.add('hidden');
+            document.getElementById('view-map').classList.add('hidden');
+            showToast("Déconnecté");
+        }
+
+        function showDashboardView() {
+            document.getElementById('view-auth').classList.add('hidden');
+            document.getElementById('view-map').classList.add('hidden');
+            document.getElementById('view-dashboard').classList.remove('hidden');
+            document.getElementById('user-email-display').textContent = currentUser.email;
+            loadUserMaps();
+        }
+
+        function returnToDashboard() {
+            currentMapId = null;
+            document.getElementById('view-map').classList.add('hidden');
+            document.getElementById('view-dashboard').classList.remove('hidden');
+            loadUserMaps();
+        }
+
+        // DASHBOARD & MAPS
+        function loadUserMaps() {
+            const container = document.getElementById('maps-container');
+            const noMapsState = document.getElementById('no-maps-state');
+            const countLabel = document.getElementById('maps-count');
+
+            const allMaps = JSON.parse(localStorage.getItem('kumu_sim_maps') || '[]');
+            const maps = allMaps.filter(m => m.ownerId === currentUser.id || (m.collaborators && m.collaborators.includes(currentUser.email)));
+
+            countLabel.textContent = `${maps.length} carte${maps.length > 1 ? 's' : ''}`;
+            container.innerHTML = '';
+
+            if (maps.length === 0) {
+                noMapsState.classList.remove('hidden');
+                container.classList.add('hidden');
+                return;
+            }
+
+            noMapsState.classList.add('hidden');
+            container.classList.remove('hidden');
+
+            maps.forEach(map => {
+                const card = document.createElement('div');
+                card.className = "bg-white p-5 rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition cursor-pointer flex flex-col justify-between group";
+                card.onclick = () => openMap(map.id);
+                
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-start justify-between mb-3">
+                            <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition">
+                                <i data-lucide="map" class="w-5 h-5"></i>
+                            </div>
+                            <span class="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${map.isCollaborative ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-600'}">
+                                ${map.isCollaborative ? 'Collaborative' : 'Personnelle'}
+                            </span>
+                        </div>
+                        <h4 class="font-bold text-slate-800 text-base mb-1 group-hover:text-indigo-600 transition">${escapeHtml(map.title)}</h4>
+                        <p class="text-xs text-slate-400">Créée le ${new Date(map.createdAt || Date.now()).toLocaleDateString()}</p>
+                    </div>
+                    <div class="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                        <span>${(map.collaborators || []).length + 1} membre(s)</span>
+                        <span class="font-medium text-indigo-600 flex items-center space-x-1">
+                            <span>Ouvrir</span>
+                            <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+                        </span>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+            lucide.createIcons();
+        }
+
+        function openCreateMapModal() {
+            document.getElementById('new-map-title').value = '';
+            document.getElementById('new-map-collaborative').checked = false;
+            document.getElementById('collaborative-email-container').classList.add('hidden');
+            document.getElementById('modal-create-map').classList.remove('hidden');
+        }
+
+        function closeCreateMapModal() {
+            document.getElementById('modal-create-map').classList.add('hidden');
+        }
+
+        function toggleCollaborativeInput() {
+            const isCollab = document.getElementById('new-map-collaborative').checked;
+            document.getElementById('collaborative-email-container').classList.toggle('hidden', !isCollab);
+        }
+
+        function submitCreateMap() {
+            const title = document.getElementById('new-map-title').value.trim();
+            const isCollaborative = document.getElementById('new-map-collaborative').checked;
+            const collabEmail = document.getElementById('new-map-collab-email').value.trim();
+
+            if (!title) {
+                showToast("Veuillez entrer un titre.");
+                return;
+            }
+
+            let collaborators = [];
+            if (isCollaborative && collabEmail) {
+                const users = JSON.parse(localStorage.getItem('kumu_sim_users') || '[]');
+                if (!users.some(u => u.email === collabEmail)) {
+                    document.getElementById('modal-collab-error').classList.remove('hidden');
+                    return;
+                }
+                collaborators.push(collabEmail);
+            }
+
+            const newMap = {
+                id: 'map-' + Date.now(),
+                ownerId: currentUser.id,
+                title,
+                isCollaborative,
+                collaborators,
+                nodes: [
+                    { id: 'node-1', firstname: 'Alice', lastname: 'Dupont', location: 'Paris', x: 250, y: 180 },
+                    { id: 'node-2', firstname: 'Bob', lastname: 'Martin', location: 'Lyon', x: 550, y: 180 }
+                ],
+                links: [
+                    { id: 'link-1', sourceId: 'node-1', targetId: 'node-2', relationTypeId: 'rel-1' }
+                ],
+                relationTypes: [
+                    { id: 'rel-1', name: 'Ami / Proche', color: '#10b981' },
+                    { id: 'rel-2', name: 'Collègue / Pro', color: '#6366f1' },
+                    { id: 'rel-3', name: 'Famille', color: '#f59e0b' }
+                ],
+                createdAt: new Date().toISOString()
+            };
+
+            const allMaps = JSON.parse(localStorage.getItem('kumu_sim_maps') || '[]');
+            allMaps.push(newMap);
+            localStorage.setItem('kumu_sim_maps', JSON.stringify(allMaps));
+
+            closeCreateMapModal();
+            openMap(newMap.id);
+        }
+
+        // OPEN MAP
+        function openMap(mapId) {
+            currentMapId = mapId;
+            const allMaps = JSON.parse(localStorage.getItem('kumu_sim_maps') || '[]');
+            currentMapData = allMaps.find(m => m.id === mapId);
+            if (!currentMapData) return;
+
+            mapNodes = currentMapData.nodes || [];
+            mapLinks = currentMapData.links || [];
+            mapRelationTypes = currentMapData.relationTypes || [];
+            mapCollaborators = currentMapData.collaborators || [];
+
+            document.getElementById('view-dashboard').classList.add('hidden');
+            document.getElementById('view-map').classList.remove('hidden');
+
+            document.getElementById('current-map-title').textContent = currentMapData.title;
+            const badge = document.getElementById('current-map-badge');
+            badge.textContent = currentMapData.isCollaborative ? 'Collaborative' : 'Personnelle';
+
+            selectedNodeId = null;
+            renderInspector();
+            renderLegendList();
+            renderCollaboratorsList();
+            renderCanvasNodes();
+            setupCanvasGlobalInteractivity();
+        }
+
+        function saveCurrentMapState() {
+            currentMapData.nodes = mapNodes;
+            currentMapData.links = mapLinks;
+            currentMapData.relationTypes = mapRelationTypes;
+            currentMapData.collaborators = mapCollaborators;
+
+            const allMaps = JSON.parse(localStorage.getItem('kumu_sim_maps') || '[]');
+            const idx = allMaps.findIndex(m => m.id === currentMapId);
+            if (idx !== -1) {
+                allMaps[idx] = currentMapData;
+                localStorage.setItem('kumu_sim_maps', JSON.stringify(allMaps));
+            }
+        }
+
+        // COLLABORATORS
+        function toggleCollaboratorsDropdown() {
+            document.getElementById('collab-dropdown').classList.toggle('hidden');
+        }
+
+        function renderCollaboratorsList() {
+            const listEl = document.getElementById('collaborators-list');
+            document.getElementById('collab-count-label').textContent = `Collaborateurs (${mapCollaborators.length + 1})`;
+            listEl.innerHTML = `
+                <div class="flex items-center justify-between text-xs p-2 bg-slate-50 rounded-lg">
+                    <span class="font-medium text-slate-700">${currentUser.email} (Propriétaire)</span>
+                </div>
+            `;
+            mapCollaborators.forEach((email, idx) => {
+                const item = document.createElement('div');
+                item.className = "flex items-center justify-between text-xs p-2 bg-slate-50 rounded-lg";
+                item.innerHTML = `
+                    <span class="text-slate-600 truncate max-w-[170px]">${email}</span>
+                    <button onclick="removeCollaborator(${idx})" class="text-rose-500 hover:text-rose-700 p-1"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+                `;
+                listEl.appendChild(item);
+            });
+            lucide.createIcons();
+        }
+
+        function addCollaborator() {
+            const email = document.getElementById('new-collab-email').value.trim();
+            if (!email) return;
+            const users = JSON.parse(localStorage.getItem('kumu_sim_users') || '[]');
+            if (!users.some(u => u.email === email)) {
+                document.getElementById('collab-error').classList.remove('hidden');
+                return;
+            }
+            document.getElementById('collab-error').classList.add('hidden');
+            if (!mapCollaborators.includes(email) && email !== currentUser.email) {
+                mapCollaborators.push(email);
+                saveCurrentMapState();
+                renderCollaboratorsList();
+                document.getElementById('new-collab-email').value = '';
+                showToast("Collaborateur ajouté !");
+            }
+        }
+
+        function removeCollaborator(idx) {
+            mapCollaborators.splice(idx, 1);
+            saveCurrentMapState();
+            renderCollaboratorsList();
+        }
+
+        // COLLISION / OVERLAP PREVENTION UTILITY
+        function checkCollision(x, y, ignoreNodeId, width = 160, height = 90) {
+            const padding = 15;
+            for (let node of mapNodes) {
+                if (node.id === ignoreNodeId) continue;
+                const nx = node.x || 0;
+                const ny = node.y || 0;
+                if (
+                    x < nx + width + padding &&
+                    x + width + padding > nx &&
+                    y < ny + height + padding &&
+                    y + height + padding > ny
+                ) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // CANVAS GLOBAL EVENTS
+        function setupCanvasGlobalInteractivity() {
+            const container = document.getElementById('canvas-container');
+
+            container.addEventListener('click', (e) => {
+                if (e.target === container || e.target.id === 'links-svg' || e.target.id === 'nodes-layer') {
+                    const rect = container.getBoundingClientRect();
+                    const x = e.clientX - rect.left + container.scrollLeft - 80;
+                    const y = e.clientY - rect.top + container.scrollTop - 40;
+
+                    if (checkCollision(x, y, null)) {
+                        showToast("Impossible de placer une personne par-dessus une autre.");
+                        return;
+                    }
+
+                    const newNode = {
+                        id: 'node-' + Date.now(),
+                        firstname: 'Nouvelle',
+                        lastname: 'Personne',
+                        location: '',
+                        x: Math.max(20, x),
+                        y: Math.max(20, y)
+                    };
+
+                    mapNodes.push(newNode);
+                    saveCurrentMapState();
+                    renderCanvasNodes();
+                    selectNode(newNode.id);
+                    showToast("Nouvelle personne créée !");
+                }
+            });
+
+            document.addEventListener('mousedown', (e) => {
+                if (e.target.classList.contains('anchor-handle')) {
+                    e.stopPropagation();
+                    isDrawingHandleLine = true;
+                    handleSourceNodeId = e.target.getAttribute('data-node-id');
+                }
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                const containerRect = container.getBoundingClientRect();
+
+                // 1. Dragging Node (Calcul précis selon les coordonnées absolues de la souris et du canvas)
+                if (isDraggingNode && draggedNodeId) {
+                    const node = mapNodes.find(n => n.id === draggedNodeId);
+                    if (node) {
+                        // Position actuelle du curseur relative à la surface de travail
+                        const mouseCanvasX = e.clientX - containerRect.left + container.scrollLeft;
+                        const mouseCanvasY = e.clientY - containerRect.top + container.scrollTop;
+
+                        // Maintien de l'offset initial attrapé lors du mousedown
+                        const newX = mouseCanvasX - dragOffsetX;
+                        const newY = mouseCanvasY - dragOffsetY;
+                        
+                        const clampedX = Math.max(10, newX);
+                        const clampedY = Math.max(10, newY);
+
+                        if (!checkCollision(clampedX, clampedY, draggedNodeId)) {
+                            node.x = clampedX;
+                            node.y = clampedY;
+
+                            const card = document.getElementById(`card-${node.id}`);
+                            if (card) {
+                                card.style.left = `${node.x}px`;
+                                card.style.top = `${node.y}px`;
+                            }
+                            renderSvgLinks();
+                        }
+                    }
+                }
+
+                // 2. Drawing temp link
+                if (isDrawingHandleLine && handleSourceNodeId) {
+                    const source = mapNodes.find(n => n.id === handleSourceNodeId);
+                    if (source) {
+                        const svg = document.getElementById('links-svg');
+                        if (activeTempLineSvg) activeTempLineSvg.remove();
+
+                        const curX = e.clientX - containerRect.left + container.scrollLeft;
+                        const curY = e.clientY - containerRect.top + container.scrollTop;
+
+                        activeTempLineSvg = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                        activeTempLineSvg.setAttribute("x1", source.x + 80);
+                        activeTempLineSvg.setAttribute("y1", source.y + 40);
+                        activeTempLineSvg.setAttribute("x2", curX);
+                        activeTempLineSvg.setAttribute("y2", curY);
+                        activeTempLineSvg.setAttribute("stroke", "#6366f1");
+                        activeTempLineSvg.setAttribute("stroke-width", "2.5");
+                        activeTempLineSvg.setAttribute("stroke-dasharray", "4");
+                        svg.appendChild(activeTempLineSvg);
+                    }
+                }
+            });
+
+            window.addEventListener('mouseup', (e) => {
+                if (isDraggingNode) {
+                    isDraggingNode = false;
+                    draggedNodeId = null;
+                    saveCurrentMapState();
+                }
+
+                if (isDrawingHandleLine) {
+                    const sourceNodeId = handleSourceNodeId;
+                    isDrawingHandleLine = false;
+                    handleSourceNodeId = null;
+
+                    if (activeTempLineSvg) {
+                        activeTempLineSvg.remove();
+                        activeTempLineSvg = null;
+                    }
+
+                    const targetEl = document.elementFromPoint(e.clientX, e.clientY);
+                    if (targetEl) {
+                        const targetCard = targetEl.closest('.node-card');
+                        if (targetCard) {
+                            const targetNodeId = targetCard.dataset.nodeId;
+                            if (targetNodeId && targetNodeId !== sourceNodeId) {
+                                openQuickLinkModal(sourceNodeId, targetNodeId);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // RENDERING CANVAS & NODES
+        function renderCanvasNodes() {
+            const nodesLayer = document.getElementById('nodes-layer');
+            nodesLayer.innerHTML = '';
+
+            mapNodes.forEach(node => {
+                const card = document.createElement('div');
+                const isSelected = selectedNodeId === node.id;
+                
+                card.id = `card-${node.id}`;
+                card.dataset.nodeId = node.id;
+                card.className = `absolute node-card bg-white rounded-2xl border ${isSelected ? 'border-indigo-600 ring-4 ring-indigo-500/20 shadow-xl' : 'border-slate-200 shadow-md'} p-3.5 flex flex-col items-center cursor-move`;
+                card.style.left = `${node.x}px`;
+                card.style.top = `${node.y}px`;
+                card.style.width = '160px';
+
+                card.innerHTML = `
+                    <div class="w-9 h-9 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-xs mb-1.5 shadow-inner pointer-events-none">
+                        ${(node.firstname[0] || 'P').toUpperCase()}${(node.lastname[0] || '').toUpperCase()}
+                    </div>
+                    <h5 class="font-bold text-slate-800 text-xs text-center truncate w-full pointer-events-none">${escapeHtml(node.firstname)} ${escapeHtml(node.lastname)}</h5>
+                    <p class="text-[10px] text-slate-400 text-center truncate w-full pointer-events-none">${escapeHtml(node.location || 'Non spécifié')}</p>
+
+                    <!-- Anchor handles -->
+                    <div class="anchor-handle absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-indigo-600 rounded-full border-2 border-white shadow-sm cursor-crosshair" data-node-id="${node.id}" data-anchor="top"></div>
+                    <div class="anchor-handle absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-indigo-600 rounded-full border-2 border-white shadow-sm cursor-crosshair" data-node-id="${node.id}" data-anchor="bottom"></div>
+                    <div class="anchor-handle absolute top-1/2 -left-2 -translate-y-1/2 w-4 h-4 bg-indigo-600 rounded-full border-2 border-white shadow-sm cursor-crosshair" data-node-id="${node.id}" data-anchor="left"></div>
+                    <div class="anchor-handle absolute top-1/2 -right-2 -translate-y-1/2 w-4 h-4 bg-indigo-600 rounded-full border-2 border-white shadow-sm cursor-crosshair" data-node-id="${node.id}" data-anchor="right"></div>
+                `;
+
+                card.addEventListener('mousedown', (e) => {
+                    if (e.target.classList.contains('anchor-handle')) return;
+                    e.stopPropagation();
+                    selectNode(node.id);
+
+                    isDraggingNode = true;
+                    draggedNodeId = node.id;
+
+                    // Enregistrement de la position exacte du clic sur la carte par rapport aux coordonnées internes du nœud
+                    const containerRect = document.getElementById('canvas-container').getBoundingClientRect();
+                    const mouseCanvasX = e.clientX - containerRect.left + document.getElementById('canvas-container').scrollLeft;
+                    const mouseCanvasY = e.clientY - containerRect.top + document.getElementById('canvas-container').scrollTop;
+
+                    dragOffsetX = mouseCanvasX - node.x;
+                    dragOffsetY = mouseCanvasY - node.y;
+                });
+
+                nodesLayer.appendChild(card);
+            });
+
+            renderSvgLinks();
+        }
+
+        function renderSvgLinks() {
+            const svg = document.getElementById('links-svg');
+            svg.innerHTML = '';
+
+            mapLinks.forEach(link => {
+                const source = mapNodes.find(n => n.id === link.sourceId);
+                const target = mapNodes.find(n => n.id === link.targetId);
+                if (!source || !target) return;
+
+                const relType = mapRelationTypes.find(r => r.id === link.relationTypeId) || { color: '#6366f1', name: 'Lien' };
+
+                const x1 = source.x + 80;
+                const y1 = source.y + 40;
+                const x2 = target.x + 80;
+                const y2 = target.y + 40;
+
+                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                g.classList.add("cursor-pointer");
+
+                const hit = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                hit.setAttribute("x1", x1); hit.setAttribute("y1", y1);
+                hit.setAttribute("x2", x2); hit.setAttribute("y2", y2);
+                hit.setAttribute("stroke", "transparent"); hit.setAttribute("stroke-width", "18");
+
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", x1); line.setAttribute("y1", y1);
+                line.setAttribute("x2", x2); line.setAttribute("y2", y2);
+                line.setAttribute("stroke", relType.color); line.setAttribute("stroke-width", "3");
+                line.setAttribute("stroke-linecap", "round");
+
+                const midX = (x1 + x2) / 2;
+                const midY = (y1 + y2) / 2;
+                const textBg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                textBg.setAttribute("x", midX - 30); textBg.setAttribute("y", midY - 10);
+                textBg.setAttribute("width", "60"); textBg.setAttribute("height", "20");
+                textBg.setAttribute("rx", "6"); textBg.setAttribute("fill", "#ffffff");
+                textBg.setAttribute("stroke", relType.color); textBg.setAttribute("stroke-width", "1");
+
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", midX); text.setAttribute("y", midY + 4);
+                text.setAttribute("text-anchor", "middle"); text.setAttribute("font-size", "9");
+                text.setAttribute("fill", "#334155"); text.setAttribute("font-weight", "600");
+                text.textContent = relType.name;
+
+                const openModal = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openEditLinkModal(link.id);
+                };
+
+                // Support long press / click / touch / right click on existing links to open edit popup
+                let pressTimer;
+                const startPress = (e) => {
+                    pressTimer = setTimeout(() => openModal(e), 450);
+                };
+                const cancelPress = () => clearTimeout(pressTimer);
+
+                g.addEventListener('mousedown', startPress);
+                g.addEventListener('mouseup', cancelPress);
+                g.addEventListener('mouseleave', cancelPress);
+                g.addEventListener('touchstart', startPress);
+                g.addEventListener('touchend', cancelPress);
+                g.addEventListener('contextmenu', openModal);
+                g.addEventListener('click', openModal);
+
+                g.appendChild(hit);
+                g.appendChild(line);
+                g.appendChild(textBg);
+                g.appendChild(text);
+                svg.appendChild(g);
+            });
+        }
+
+        // INSPECTOR
+        function selectNode(nodeId) {
+            selectedNodeId = nodeId;
+            renderCanvasNodes();
+            renderInspector();
+        }
+
+        function renderInspector() {
+            const emptyEl = document.getElementById('inspector-empty');
+            const contentEl = document.getElementById('inspector-content');
+
+            if (!selectedNodeId) {
+                emptyEl.classList.remove('hidden');
+                contentEl.classList.add('hidden');
+                return;
+            }
+
+            const node = mapNodes.find(n => n.id === selectedNodeId);
+            if (!node) {
+                selectedNodeId = null;
+                emptyEl.classList.remove('hidden');
+                contentEl.classList.add('hidden');
+                return;
+            }
+
+            emptyEl.classList.add('hidden');
+            contentEl.classList.remove('hidden');
+
+            document.getElementById('node-firstname').value = node.firstname || '';
+            document.getElementById('node-lastname').value = node.lastname || '';
+            document.getElementById('node-nickname').value = node.nickname || '';
+            document.getElementById('node-age').value = node.age || '';
+            document.getElementById('node-location').value = node.location || '';
+
+            renderNodeLinksInInspector(node.id);
+            populateInspectorSelects(node.id);
+        }
+
+        function updateActiveNodeData() {
+            if (!selectedNodeId) return;
+            const node = mapNodes.find(n => n.id === selectedNodeId);
+            if (!node) return;
+
+            node.firstname = document.getElementById('node-firstname').value;
+            node.lastname = document.getElementById('node-lastname').value;
+            node.nickname = document.getElementById('node-nickname').value;
+            node.age = document.getElementById('node-age').value;
+            node.location = document.getElementById('node-location').value;
+
+            saveCurrentMapState();
+            renderCanvasNodes();
+        }
+
+        function deleteSelectedNode() {
+            if (!selectedNodeId) return;
+            mapLinks = mapLinks.filter(l => l.sourceId !== selectedNodeId && l.targetId !== selectedNodeId);
+            mapNodes = mapNodes.filter(n => n.id !== selectedNodeId);
+            selectedNodeId = null;
+
+            saveCurrentMapState();
+            renderInspector();
+            renderCanvasNodes();
+            showToast("Personne supprimée");
+        }
+
+        function toggleAddLinkMenu() {
+            document.getElementById('add-link-form').classList.toggle('hidden');
+        }
+
+        function populateInspectorSelects(currentNodeId) {
+            const targetSel = document.getElementById('link-target-select');
+            const typeSel = document.getElementById('link-type-select');
+
+            targetSel.innerHTML = '';
+            mapNodes.filter(n => n.id !== currentNodeId).forEach(n => {
+                const opt = document.createElement('option');
+                opt.value = n.id;
+                opt.textContent = `${n.firstname} ${n.lastname}`;
+                targetSel.appendChild(opt);
+            });
+
+            typeSel.innerHTML = '';
+            mapRelationTypes.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.id;
+                opt.textContent = r.name;
+                typeSel.appendChild(opt);
+            });
+        }
+
+        function renderNodeLinksInInspector(nodeId) {
+            const listEl = document.getElementById('node-links-list');
+            listEl.innerHTML = '';
+
+            const links = mapLinks.filter(l => l.sourceId === nodeId || l.targetId === nodeId);
+            if (links.length === 0) {
+                listEl.innerHTML = `<p class="text-xs text-slate-400 italic">Aucune connexion enregistrée.</p>`;
+                return;
+            }
+
+            links.forEach(link => {
+                const otherId = link.sourceId === nodeId ? link.targetId : link.sourceId;
+                const otherNode = mapNodes.find(n => n.id === otherId);
+                const relType = mapRelationTypes.find(r => r.id === link.relationTypeId) || { name: 'Lien', color: '#6366f1' };
+
+                const item = document.createElement('div');
+                item.className = "flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs";
+                item.innerHTML = `
+                    <div class="flex items-center space-x-2 truncate">
+                        <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${relType.color}"></span>
+                        <span class="font-medium text-slate-800 truncate">${otherNode ? otherNode.firstname + ' ' + otherNode.lastname : 'Inconnu'}</span>
+                        <span class="text-slate-400">(${relType.name})</span>
+                    </div>
+                    <button onclick="deleteLink('${link.id}')" class="text-rose-500 hover:text-rose-700 p-1"><i data-lucide="trash" class="w-3.5 h-3.5"></i></button>
+                `;
+                listEl.appendChild(item);
+            });
+            lucide.createIcons();
+        }
+
+        function createLinkFromInspector() {
+            if (!selectedNodeId) return;
+            const targetId = document.getElementById('link-target-select').value;
+            const relationTypeId = document.getElementById('link-type-select').value;
+
+            if (!targetId || !relationTypeId) return;
+
+            const exists = mapLinks.some(l => (l.sourceId === selectedNodeId && l.targetId === targetId) || (l.sourceId === targetId && l.targetId === selectedNodeId));
+            if (exists) {
+                showToast("Un lien existe déjà entre ces personnes.");
+                return;
+            }
+
+            mapLinks.push({
+                id: 'link-' + Date.now(),
+                sourceId: selectedNodeId,
+                targetId,
+                relationTypeId
+            });
+
+            saveCurrentMapState();
+            renderNodeLinksInInspector(selectedNodeId);
+            renderSvgLinks();
+            document.getElementById('add-link-form').classList.add('hidden');
+            showToast("Lien créé avec succès !");
+        }
+
+        function deleteLink(linkId) {
+            mapLinks = mapLinks.filter(l => l.id !== linkId);
+            saveCurrentMapState();
+            if (selectedNodeId) renderNodeLinksInInspector(selectedNodeId);
+            renderSvgLinks();
+            showToast("Lien supprimé.");
+        }
+
+        // LEGEND (LEFT PANEL) & REAL-TIME SYNCED RELATION TYPES
+        function renderLegendList() {
+            const listEl = document.getElementById('legend-types-container');
+            listEl.innerHTML = '';
+
+            mapRelationTypes.forEach(rel => {
+                const item = document.createElement('div');
+                item.className = "flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs";
+                item.innerHTML = `
+                    <div class="flex items-center space-x-2.5 truncate">
+                        <span class="w-3.5 h-3.5 rounded-full shrink-0 shadow-xs" style="background-color: ${rel.color}"></span>
+                        <span class="font-semibold text-slate-800 truncate">${escapeHtml(rel.name)}</span>
+                    </div>
+                    <div class="flex items-center space-x-1 shrink-0">
+                        <button onclick="openEditRelationModal('${rel.id}')" class="p-1 text-slate-400 hover:text-indigo-600 rounded" title="Modifier"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
+                        <button onclick="deleteRelationType('${rel.id}')" class="p-1 text-slate-400 hover:text-rose-600 rounded" title="Supprimer"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                    </div>
+                `;
+                listEl.appendChild(item);
+            });
+            lucide.createIcons();
+        }
+
+        function openAddRelationModal() {
+            editingRelationTypeId = null;
+            document.getElementById('relation-modal-title').textContent = "Nouveau type de relation";
+            document.getElementById('rel-modal-name').value = '';
+            document.getElementById('rel-modal-color').value = '#6366f1';
+            document.getElementById('modal-relation-type').classList.remove('hidden');
+        }
+
+        function openEditRelationModal(relId) {
+            const rel = mapRelationTypes.find(r => r.id === relId);
+            if (!rel) return;
+            editingRelationTypeId = relId;
+            document.getElementById('relation-modal-title').textContent = "Modifier le type de relation";
+            document.getElementById('rel-modal-name').value = rel.name;
+            document.getElementById('rel-modal-color').value = rel.color;
+            document.getElementById('modal-relation-type').classList.remove('hidden');
+        }
+
+        function closeRelationTypeModal() {
+            document.getElementById('modal-relation-type').classList.add('hidden');
+            editingRelationTypeId = null;
+        }
+
+        function submitRelationTypeModal() {
+            const name = document.getElementById('rel-modal-name').value.trim();
+            const color = document.getElementById('rel-modal-color').value;
+
+            if (!name) {
+                showToast("Veuillez entrer un nom.");
+                return;
+            }
+
+            if (editingRelationTypeId) {
+                const rel = mapRelationTypes.find(r => r.id === editingRelationTypeId);
+                if (rel) {
+                    rel.name = name;
+                    rel.color = color;
+                    showToast("Type de relation mis à jour !");
+                }
+            } else {
+                mapRelationTypes.push({ id: 'rel-' + Date.now(), name, color });
+                showToast("Type de relation ajouté !");
+            }
+
+            saveCurrentMapState();
+            renderLegendList();
+            renderSvgLinks();
+            if (selectedNodeId) renderNodeLinksInInspector(selectedNodeId);
+            closeRelationTypeModal();
+        }
+
+        function deleteRelationType(relId) {
+            if (mapRelationTypes.length <= 1) {
+                showToast("Vous devez conserver au moins un type de relation.");
+                return;
+            }
+            const fallbackId = mapRelationTypes.find(r => r.id !== relId).id;
+            mapLinks.forEach(l => {
+                if (l.relationTypeId === relId) l.relationTypeId = fallbackId;
+            });
+
+            mapRelationTypes = mapRelationTypes.filter(r => r.id !== relId);
+            saveCurrentMapState();
+            renderLegendList();
+            renderSvgLinks();
+            if (selectedNodeId) renderNodeLinksInInspector(selectedNodeId);
+            showToast("Type de relation supprimé.");
+        }
+
+        // QUICK LINK & EDIT LINK MODALS
+        function openQuickLinkModal(sourceId, targetId) {
+            pendingQuickLink = { sourceId, targetId };
+            const s = mapNodes.find(n => n.id === sourceId);
+            const t = mapNodes.find(n => n.id === targetId);
+
+            document.getElementById('ql-source-name').textContent = s ? `${s.firstname} ${s.lastname}` : '';
+            document.getElementById('ql-target-name').textContent = t ? `${t.firstname} ${t.lastname}` : '';
+
+            const select = document.getElementById('ql-type-select');
+            select.innerHTML = '';
+            mapRelationTypes.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.id;
+                opt.textContent = r.name;
+                select.appendChild(opt);
+            });
+
+            document.getElementById('modal-quick-link').classList.remove('hidden');
+        }
+
+        function cancelQuickLink() {
+            pendingQuickLink = null;
+            document.getElementById('modal-quick-link').classList.add('hidden');
+        }
+
+        function confirmQuickLink() {
+            if (!pendingQuickLink) return;
+            const relationTypeId = document.getElementById('ql-type-select').value;
+
+            const exists = mapLinks.some(l => (l.sourceId === pendingQuickLink.sourceId && l.targetId === pendingQuickLink.targetId) || (l.sourceId === pendingQuickLink.targetId && l.targetId === pendingQuickLink.sourceId));
+            if (!exists) {
+                mapLinks.push({
+                    id: 'link-' + Date.now(),
+                    sourceId: pendingQuickLink.sourceId,
+                    targetId: pendingQuickLink.targetId,
+                    relationTypeId
+                });
+                saveCurrentMapState();
+                renderSvgLinks();
+                if (selectedNodeId) renderNodeLinksInInspector(selectedNodeId);
+                showToast("Connexion créée !");
+            }
+            cancelQuickLink();
+        }
+
+        function openEditLinkModal(linkId) {
+            activeEditLinkId = linkId;
+            const link = mapLinks.find(l => l.id === linkId);
+            if (!link) return;
+
+            const s = mapNodes.find(n => n.id === link.sourceId);
+            const t = mapNodes.find(n => n.id === link.targetId);
+
+            document.getElementById('el-source-name').textContent = s ? `${s.firstname} ${s.lastname}` : '';
+            document.getElementById('el-target-name').textContent = t ? `${t.firstname} ${t.lastname}` : '';
+
+            const select = document.getElementById('el-type-select');
+            select.innerHTML = '';
+            mapRelationTypes.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.id;
+                opt.textContent = r.name;
+                if (r.id === link.relationTypeId) opt.selected = true;
+                select.appendChild(opt);
+            });
+
+            document.getElementById('modal-edit-link').classList.remove('hidden');
+        }
+
+        function closeEditLinkModal() {
+            activeEditLinkId = null;
+            document.getElementById('modal-edit-link').classList.add('hidden');
+        }
+
+        function saveEditLinkModal() {
+            if (!activeEditLinkId) return;
+            const link = mapLinks.find(l => l.id === activeEditLinkId);
+            if (link) {
+                link.relationTypeId = document.getElementById('el-type-select').value;
+                saveCurrentMapState();
+                renderSvgLinks();
+                if (selectedNodeId) renderNodeLinksInInspector(selectedNodeId);
+                showToast("Lien mis à jour !");
+            }
+            closeEditLinkModal();
+        }
+
+        function deleteLinkFromModal() {
+            if (!activeEditLinkId) return;
+            mapLinks = mapLinks.filter(l => l.id !== activeEditLinkId);
+            saveCurrentMapState();
+            renderSvgLinks();
+            if (selectedNodeId) renderNodeLinksInInspector(selectedNodeId);
+            closeEditLinkModal();
+            showToast("Lien supprimé.");
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
+        }
+    </script>
+</body>
+</html>
