@@ -50,7 +50,6 @@
         .dark .glass-card {
             border: 1px solid rgba(255, 255, 255, 0.08);
         }
-        /* Animation fluide pour l'apparition d'un nouvel élément déposé */
         @keyframes fadeInScale {
             from { opacity: 0; transform: scale(0.97); }
             to { opacity: 1; transform: scale(1); }
@@ -70,7 +69,7 @@
     <!-- TOP NAVIGATION BAR -->
     <header class="w-full border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 glass-card sticky top-0 z-30 px-4 sm:px-8 py-3.5 flex items-center justify-between">
         <div class="flex items-center gap-3 cursor-pointer" onclick="goHome()">
-            <img src="logo_mobius_light.png" alt="MOBIUS" class="w-8 h-8 object-contain rounded-xl">
+            <img src="logo_mobius_nobg.png" alt="MOBIUS" class="w-8 h-8 object-contain rounded-xl">
             <span class="font-bold tracking-tight text-base sm:text-lg">MOBIUS <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#5246EE]/10 text-[#5246EE] font-semibold uppercase tracking-wider" id="user-version-badge">Standard</span></span>
         </div>
 
@@ -158,7 +157,7 @@
             <div class="text-[11px] text-gray-400 font-medium" id="selected-folder-indicator">📁 Destination : Racine du projet</div>
         </div>
 
-        <!-- Arborescence Interactive avec animation de survol Drag & Drop -->
+        <!-- Arborescence Interactive -->
         <div id="arborescence-tree" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex-1 space-y-2 overflow-y-auto transition-all" 
              ondragover="allowDrop(event)" ondragleave="dragLeaveRoot(event)" ondrop="dropToRoot(event)"></div>
     </div>
@@ -619,7 +618,7 @@
                             type: 'txt',
                             name: file.name,
                             content: event.target.result,
-                            isNewDrop: true // Pour déclencher l'animation d'apparition
+                            isNewDrop: true
                         };
 
                         if (!targetFolderId) {
@@ -709,7 +708,7 @@
                 });
             }
 
-            // --- ANIMATIONS DE GLISSER-DÉPOSER VISUELLES (DRAG & DROP) ---
+            // --- ANIMATIONS DE GLISSER-DÉPOSER (VERT EN MODE SOMBRE / BLEU EN MODE CLAIR) ---
             let draggedItemId = null;
 
             window.dragStart = function(e, id) {
@@ -721,22 +720,26 @@
             window.allowDrop = function(e) {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
-                // Effet visuel de survol (fond coloré)
-                e.currentTarget.classList.add('bg-[#5246EE]/10', 'border-[#5246EE]', 'ring-2', 'ring-[#5246EE]/20');
+                const isDark = document.documentElement.classList.contains('dark');
+                if (isDark) {
+                    e.currentTarget.classList.add('bg-emerald-500/15', 'border-emerald-500', 'ring-2', 'ring-emerald-500/20');
+                } else {
+                    e.currentTarget.classList.add('bg-[#5246EE]/10', 'border-[#5246EE]', 'ring-2', 'ring-[#5246EE]/20');
+                }
             }
 
             window.dragLeaveRoot = function(e) {
-                e.currentTarget.classList.remove('bg-[#5246EE]/10', 'border-[#5246EE]', 'ring-2', 'ring-[#5246EE]/20');
+                e.currentTarget.classList.remove('bg-[#5246EE]/10', 'border-[#5246EE]', 'ring-2', 'ring-[#5246EE]/20', 'bg-emerald-500/15', 'border-emerald-500', 'ring-emerald-500/20');
             }
 
             window.dragLeaveFolder = function(e) {
-                e.currentTarget.classList.remove('bg-[#5246EE]/15', 'border-[#5246EE]');
+                e.currentTarget.classList.remove('bg-[#5246EE]/15', 'border-[#5246EE]', 'bg-emerald-500/15', 'border-emerald-500');
             }
 
             window.dropToFolder = function(e, targetFolderId) {
                 e.preventDefault();
                 e.stopPropagation();
-                e.currentTarget.classList.remove('bg-[#5246EE]/15', 'border-[#5246EE]');
+                e.currentTarget.classList.remove('bg-[#5246EE]/15', 'border-[#5246EE]', 'bg-emerald-500/15', 'border-emerald-500');
 
                 if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                     processUploadedFiles(Array.from(e.dataTransfer.files), targetFolderId);
@@ -766,7 +769,7 @@
 
             window.dropToRoot = function(e) {
                 e.preventDefault();
-                e.currentTarget.classList.remove('bg-[#5246EE]/10', 'border-[#5246EE]', 'ring-2', 'ring-[#5246EE]/20');
+                e.currentTarget.classList.remove('bg-[#5246EE]/10', 'border-[#5246EE]', 'ring-2', 'ring-[#5246EE]/20', 'bg-emerald-500/15', 'border-emerald-500', 'ring-emerald-500/20');
 
                 if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                     processUploadedFiles(Array.from(e.dataTransfer.files), null);
@@ -820,9 +823,8 @@
             function renderTreeLevel(items, container) {
                 items.forEach(item => {
                     const el = document.createElement('div');
-                    // Application de l'animation d'apparition si c'est un fichier fraîchement déposé
                     el.className = `space-y-1 ${item.isNewDrop ? 'animate-drop' : ''}`;
-                    if (item.isNewDrop) delete item.isNewDrop; // Nettoyer le flag après l'animation
+                    if (item.isNewDrop) delete item.isNewDrop;
 
                     el.setAttribute('draggable', 'true');
                     el.addEventListener('dragstart', (e) => dragStart(e, item.id));
