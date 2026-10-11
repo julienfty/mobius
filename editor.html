@@ -131,7 +131,8 @@
             }
 
             window.goBack = function() {
-                window.location.href = 'dashboard.html';
+                // Redirige vers le dashboard en passant l'ID du projet pour le rouvrir directement
+                window.location.href = `dashboard.html?openProjectId=${projectId}`;
             }
 
             // Fonction pour mettre à jour le contenu dans l'arborescence
@@ -160,7 +161,7 @@
                 if (updateError) {
                     alert("Erreur lors de la sauvegarde dans Supabase.");
                 } else {
-                    alert("Fichier enregistré avec succès dans Supabase ! 💜");
+                    alert("Fichier enregistré avec succès dans Supabase !");
                 }
             }
         });
