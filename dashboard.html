@@ -335,9 +335,18 @@
                 } else {
                     const { data, error } = await supabase.from('cards').select('*');
                     if (!error) cardsList = data || [];
-                }
-                renderDashboard();
             }
+
+    // Vérifier si un projet doit être ouvert automatiquement (au retour de l'éditeur)
+    const urlParams = new URLSearchParams(window.location.search);
+    const openProjectId = urlParams.get('openProjectId');
+    if (openProjectId && currentTab === 'projects') {
+        // Nettoie l'URL sans recharger la page
+        window.history.replaceState({}, document.title, window.location.pathname);
+        // Ouvre l'arborescence du projet
+        openProject(openProjectId);
+    }
+}
 
             window.renderDashboard = function() {
                 const container = document.getElementById('items-grid-container');
