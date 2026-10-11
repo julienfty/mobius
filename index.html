@@ -67,12 +67,15 @@
     <div class="w-full h-full sm:h-auto sm:max-w-[420px] bg-white sm:glass-card sm:rounded-[28px] sm:shadow-[0_20px_50px_rgba(0,0,0,0.07)] flex flex-col justify-between sm:justify-start overflow-y-auto relative z-10 p-6 sm:p-10">
         
         <div>
-            <!-- Header Branding avec ton logo -->
-            <div class="text-center mb-6 sm:mb-8 pt-4 sm:pt-0">
-                <img src="logo_mobius_light.png" alt="MOBIUS" class="w-16 h-16 object-contain mx-auto mb-3 rounded-2xl shadow-sm">
-                <h1 class="text-xl font-bold tracking-tight text-gray-900" id="main-title">Bon retour parmi nous</h1>
-                <p class="text-xs text-gray-500 mt-1" id="main-subtitle">Connectez-vous à votre espace sécurisé</p>
-            </div>
+            <!-- Header Branding sécurisé : la carte ne bouge pas, peu importe la taille du logo -->
+<div class="text-center mb-6 sm:mb-8 pt-4 sm:pt-0">
+    <!-- Conteneur fixe strict qui empêche tout débordement ou étirement de la carte -->
+    <div class="h-20 flex items-center justify-center mb-3">
+        <img src="url-de-ton-image.png" alt="MOBIUS" style="max-height: 75px; width: auto;" class="object-contain">
+    </div>
+    <h1 class="text-xl font-bold tracking-tight text-gray-900" id="main-title">Bon retour parmi nous</h1>
+    <p class="text-xs text-gray-500 mt-1" id="main-subtitle">Connectez-vous à votre espace sécurisé</p>
+</div>
 
             <!-- Toggle Switcher (Login / Register) -->
             <div class="bg-gray-100/80 p-1 rounded-xl flex relative mb-6 sm:mb-8 border border-gray-200/50">
