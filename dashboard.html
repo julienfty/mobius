@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Mobius</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- JSZip pour l'exportation en ZIP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            DEFAULT: '#5246EE',
+                            hover: '#4538d8',
+                            light: '#766df2',
+                            subtle: '#f4f3ff'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .glass-card {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        .dark .glass-card {
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        /* Empêche le zoom sur mobile */
+        @media (max-width: 768px) {
+            input, select, textarea {
+                font-size: 16px !important;
+            }
+        }
+    </style>
+</head>
+<body class="h-full bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col selection:bg-[#5246EE] selection:text-white">
+
+    <!-- TOP NAVIGATION BAR -->
+    <header class="w-full border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 glass-card sticky top-0 z-30 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+        <div class="flex items-center gap-3 cursor-pointer" onclick="goHome()">
+            <img src="logo_mobius_light.png" alt="MOBIUS" class="w-8 h-8 object-contain rounded-xl">
+            <span class="font-bold tracking-tight text-base sm:text-lg">MOBIUS <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#5246EE]/10 text-[#5246EE] font-semibold uppercase tracking-wider" id="user-version-badge">Standard</span></span>
+        </div>
+
+        <div class="flex items-center gap-3 sm:gap-4">
+            <!-- Mode Nuit / Jour -->
+            <button onclick="toggleDarkMode()" class="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all">
+                <i class="fa-solid fa-moon dark:hidden"></i>
+                <i class="fa-solid fa-sun hidden dark:block text-amber-400"></i>
+            </button>
+
+            <!-- Profil Cliquable -->
+            <div onclick="openProfileModal()" class="flex items-center gap-2.5 bg-gray-100 dark:bg-gray-800/80 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-1.5 rounded-2xl cursor-pointer transition-all">
+                <div class="w-7 h-7 rounded-full bg-[#5246EE] text-white flex items-center justify-center text-xs font-bold" id="nav-user-initial">U</div>
+                <div class="hidden sm:block text-left leading-tight">
+                    <div class="text-xs font-semibold" id="nav-user-name">Chargement...</div>
+                    <div class="text-[10px] text-gray-500 dark:text-gray-400" id="nav-user-email">...</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN DASHBOARD CONTENT CONTAINER -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 flex flex-col" id="main-view-container">
+        
+        <!-- CONTROLS & ACTIONS BAR -->
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+            
+            <!-- TABS (Projets / Cartes libres) -->
+            <div class="bg-gray-200/70 dark:bg-gray-800 p-1 rounded-2xl flex w-full sm:w-auto">
+                <button onclick="switchDashboardTab('projects')" id="tab-projects" class="flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-gray-900 shadow-sm transition-all">Projets & Dossiers</button>
+                <button onclick="switchDashboardTab('cards')" id="tab-cards" class="flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold text-gray-500 dark:text-gray-400 transition-all">Cartes Libres</button>
+            </div>
+
+            <!-- ACTIONS (Créer + Vues Grille/Liste + Tri) -->
+            <div class="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
+                <!-- Vue Grille / Liste -->
+                <div class="bg-gray-200/70 dark:bg-gray-800 p-1 rounded-xl flex items-center">
+                    <button onclick="setViewMode('grid')" id="btn-view-grid" class="w-8 h-8 rounded-lg bg-white dark:bg-gray-900 text-xs shadow-sm flex items-center justify-center transition-all"><i class="fa-solid fa-border-all"></i></button>
+                    <button onclick="setViewMode('list')" id="btn-view-list" class="w-8 h-8 rounded-lg text-gray-500 dark:text-gray-400 text-xs flex items-center justify-center transition-all"><i class="fa-solid fa-list"></i></button>
+                </div>
+
+                <!-- Tri -->
+                <select id="sort-select" onchange="renderDashboard()" class="bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none">
+                    <option value="alpha">Ordre alphabétique</option>
+                    <option value="chrono">Ordre chronologique</option>
+                </select>
+
+                <!-- Bouton Créer -->
+                <button onclick="openCreateModal()" class="bg-[#5246EE] hover:bg-[#4538d8] text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-md shadow-[#5246EE]/25 flex items-center gap-2 transition-all">
+                    <i class="fa-solid fa-plus text-[10px]"></i>
+                    <span id="create-btn-text">Nouveau Projet</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- DRAG & DROP / IMPORT ZONE -->
+        <div id="drop-zone" class="border-2 border-dashed border-gray-300 dark:border-gray-800 rounded-2xl p-6 text-center mb-6 hover:border-[#5246EE] transition-all bg-white/50 dark:bg-gray-900/50 cursor-pointer">
+            <i class="fa-solid fa-cloud-arrow-up text-2xl text-[#5246EE] mb-2"></i>
+            <p class="text-xs font-medium text-gray-700 dark:text-gray-300">Glissez-déposez vos fichiers de projet (.json) ou dossiers ici</p>
+            <p class="text-[10px] text-gray-400 mt-0.5">ou cliquez pour importer un modèle existant</p>
+            <input type="file" id="file-input-hidden" class="hidden" multiple accept=".json,.txt">
+        </div>
+
+        <!-- LIST CONTAINER (Grille ou Liste) -->
+        <div id="items-grid-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <!-- Injecté dynamiquement par JS -->
+        </div>
+
+    </main>
+
+    <!-- PROJECT ARBORESCENCE VIEW (Caché par défaut, s'affiche au clic sur un projet) -->
+    <div id="project-workspace" class="hidden flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 flex flex-col">
+        <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-800">
+            <div class="flex items-center gap-3">
+                <button onclick="goHome()" class="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 transition-all">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+                <div>
+                    <h1 class="text-lg font-bold" id="workspace-title">Nom du Projet</h1>
+                    <p class="text-xs text-gray-500" id="workspace-subtitle">Arborescence & Fichiers</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="openExportModal()" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all">
+                    <i class="fa-solid fa-download text-[#5246EE]"></i>
+                    <span>Télécharger le projet (ZIP)</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Outils d'arborescence -->
+        <div class="flex items-center gap-2 mb-4 flex-wrap">
+            <button onclick="addArbItem('folder')" class="px-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-folder-plus text-[#5246EE]"></i> Dossier</button>
+            <button onclick="addArbItem('txt')" class="px-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-lines text-emerald-500"></i> Fichier .txt</button>
+            <button onclick="addArbItem('json')" class="px-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-code text-indigo-500"></i> Carte (.json)</button>
+        </div>
+
+        <!-- Arborescence Interactive -->
+        <div id="arborescence-tree" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex-1 space-y-2 overflow-y-auto">
+            <!-- Injecté dynamiquement -->
+        </div>
+    </div>
+
+    <!-- POPUP DE CRÉATION (Projet ou Carte) -->
+    <div id="create-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-900 rounded-[28px] max-w-md w-full p-6 sm:p-8 shadow-2xl border border-gray-100 dark:border-gray-800 space-y-5 animate-in">
+            <h2 class="text-base font-bold" id="create-modal-title">Créer un nouveau projet</h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-[11px] font-semibold text-gray-500 mb-1 uppercase tracking-wider">Nom</label>
+                    <input type="text" id="modal-item-name" placeholder="Ex: Mon Super Projet" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none focus:border-[#5246EE]">
+                </div>
+
+                <div class="flex items-center justify-between bg-gray-50 dark:bg-gray-800/60 p-3.5 rounded-xl border border-gray-200 dark:border-gray-700">
+                    <div>
+                        <div class="text-xs font-semibold">Projet Collaboratif</div>
+                        <div class="text-[10px] text-gray-500">Inviter des membres par e-mail</div>
+                    </div>
+                    <input type="checkbox" id="modal-is-collab" onchange="toggleCollabFields()" class="w-4 h-4 accent-[#5246EE] rounded">
+                </div>
+
+                <div id="collab-email-container" class="hidden space-y-2">
+                    <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">E-mail du collaborateur</label>
+                    <div class="flex gap-2">
+                        <input type="email5" id="modal-collab-email" placeholder="collab@exemple.com" class="flex-1 px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none">
+                        <button type="button" onclick="addCollaborator()" class="bg-gray-200 dark:bg-gray-700 px-4 rounded-xl text-xs font-semibold hover:bg-gray-300">Ajouter</button>
+                    </div>
+                    <div id="collaborators-list" class="flex flex-wrap gap-1.5 mt-2"></div>
+                </div>
+
+                <div class="flex items-center justify-between bg-gray-50 dark:bg-gray-800/60 p-3.5 rounded-xl border border-gray-200 dark:border-gray-700">
+                    <div>
+                        <div class="text-xs font-semibold">Protéger par mot de passe</div>
+                        <div class="text-[10px] text-gray-500">Requis pour participer et supprimer</div>
+                    </div>
+                    <input type="checkbox" id="modal-has-pwd" onchange="togglePwdField()" class="w-4 h-4 accent-[#5246EE] rounded">
+                </div>
+
+                <div id="pwd-field-container" class="hidden">
+                    <label class="block text-[11px] font-semibold text-gray-500 mb-1 uppercase tracking-wider">Mot de passe</label>
+                    <input type="password" id="modal-item-pwd" placeholder="••••••••" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none">
+                </div>
+            </div>
+
+            <div class="flex gap-3 pt-2">
+                <button onclick="closeCreateModal()" class="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs font-semibold hover:bg-gray-200 transition-all">Annuler</button>
+                <button onclick="confirmCreateItem()" class="flex-1 py-3 rounded-xl bg-[#5246EE] text-white text-xs font-semibold hover:bg-[#4538d8] transition-all shadow-md shadow-[#5246EE]/25">Créer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- POPUP DE PROFIL -->
+    <div id="profile-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-900 rounded-[28px] max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-gray-100 dark:border-gray-800">
+            <div class="w-16 h-16 rounded-full bg-[#5246EE] text-white text-xl font-bold flex items-center justify-center mx-auto" id="profile-modal-initial">U</div>
+            <div>
+                <h3 class="font-bold text-base" id="profile-modal-name">Nom Prénom</h3>
+                <p class="text-xs text-gray-500" id="profile-modal-email">email@example.com</p>
+                <span class="inline-block px-3 py-1 bg-[#5246EE]/10 text-[#5246EE] text-[10px] font-bold rounded-full uppercase mt-2" id="profile-modal-version">Standard</span>
+            </div>
+            <button onclick="logout()" class="w-full py-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold transition-all border border-red-200/60 flex items-center justify-center gap-2">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i> Se déconnecter
+            </button>
+            <button onclick="closeProfileModal()" class="text-xs text-gray-400 hover:underline">Fermer</button>
+        </div>
+    </div>
+
+    <!-- SCRIPT APPLICATION -->
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const SUPABASE_URL = 'https://nfvnayuqrmlldtixzdpx.supabase.co';
+            const SUPABASE_KEY = 'sb_publishable_EwONSAsqSfu8_SocZ7wZBA_rVODWqSF';
+            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+            let currentUser = null;
+            let currentTab = 'projects'; // 'projects' ou 'cards'
+            let viewMode = 'grid'; // 'grid' ou 'list'
+            let activeProject = null;
+            let collaboratorsListTemp = [];
+
+            // Vérification de session active
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session || !session.user) {
+                window.location.href = 'index.html'; // Retour au login si non connecté
+                return;
+            }
+            currentUser = session.user;
+            const meta = currentUser.user_metadata || {};
+            const fullName = (meta.first_name || meta.last_name) ? `${meta.first_name || ''} ${meta.last_name || ''}`.trim() : currentUser.email;
+
+            document.getElementById('nav-user-name').textContent = fullName;
+            document.getElementById('nav-user-email').textContent = currentUser.email;
+            document.getElementById('nav-user-initial').textContent = fullName.charAt(0).toUpperCase();
+
+            // Gestion Dark Mode
+            window.toggleDarkMode = function() {
+                document.documentElement.classList.toggle('dark');
+            }
+
+            // Gestion des Onglets Dashboard
+            window.switchDashboardTab = function(tab) {
+                currentTab = tab;
+                const btnP = document.getElementById('tab-projects');
+                const btnC = document.getElementById('tab-cards');
+                const createText = document.getElementById('create-btn-text');
+
+                if (tab === 'projects') {
+                    btnP.className = "flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-gray-900 shadow-sm transition-all";
+                    btnC.className = "flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold text-gray-500 dark:text-gray-400 transition-all";
+                    createText.textContent = "Nouveau Projet";
+                } else {
+                    btnC.className = "flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-gray-900 shadow-sm transition-all";
+                    btnP.className = "flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold text-gray-500 dark:text-gray-400 transition-all";
+                    createText.textContent = "Nouvelle Carte Libre";
+                }
+                renderDashboard();
+            }
+
+            window.setViewMode = function(mode) {
+                viewMode = mode;
+                document.getElementById('btn-view-grid').className = mode === 'grid' ? "w-8 h-8 rounded-lg bg-white dark:bg-gray-900 text-xs shadow-sm flex items-center justify-center transition-all" : "w-8 h-8 rounded-lg text-gray-500 text-xs flex items-center justify-center";
+                document.getElementById('btn-view-list').className = mode === 'list' ? "w-8 h-8 rounded-lg bg-white dark:bg-gray-900 text-xs shadow-sm flex items-center justify-center transition-all" : "w-8 h-8 rounded-lg text-gray-500 text-xs flex items-center justify-center";
+                renderDashboard();
+            }
+
+            // Données simulées locales pour la démo interactive du dashboard
+            let mockData = {
+                projects: [
+                    { id: '1', name: 'Refonte Application Web', owner: currentUser.email, isCollab: true, pwd: '', date: Date.now() - 100000, tree: [] },
+                    { id: '2', name: 'Stratégie Marketing Q4', owner: 'autre@example.com', isCollab: false, pwd: '123', date: Date.now() - 500000, tree: [] }
+                ],
+                cards: [
+                    { id: 'c1', name: 'Idées de fonctionnalités', owner: currentUser.email, isCollab: false, pwd: '', date: Date.now() - 200000 }
+                ]
+            };
+
+            window.renderDashboard = function() {
+                const container = document.getElementById('items-grid-container');
+                container.innerHTML = '';
+                const items = currentTab === 'projects' ? mockData.projects : mockData.cards;
+                const sortType = document.getElementById('sort-select').value;
+
+                // Tri
+                items.sort((a, b) => {
+                    if (sortType === 'alpha') return a.name.localeCompare(b.name);
+                    return b.date - a.date;
+                });
+
+                if (items.length === 0) {
+                    container.innerHTML = `<div class="col-span-full text-center py-12 text-gray-400 text-xs">Aucun élément trouvé.</div>`;
+                    return;
+                }
+
+                container.className = viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" : "flex flex-col gap-2";
+
+                items.forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = viewMode === 'grid' 
+                        ? "bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex flex-col justify-between hover:shadow-lg transition-all cursor-pointer relative group"
+                        : "bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 flex items-center justify-between hover:shadow-md transition-all cursor-pointer";
+                    
+                    card.innerHTML = `
+                        <div class="flex items-center gap-3" onclick="${currentTab === 'projects' ? `openProject('${item.id}')` : ''}">
+                            <div class="w-10 h-10 rounded-xl bg-[#5246EE]/10 text-[#5246EE] flex items-center justify-center font-bold">
+                                <i class="fa-solid ${currentTab === 'projects' ? 'fa-folder' : 'fa-note-sticky'}"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xs font-bold text-gray-900 dark:text-gray-100">${item.name}</h3>
+                                <p class="text-[10px] text-gray-400">Propriétaire: ${item.owner === currentUser.email ? 'Vous' : item.owner}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 mt-3 sm:mt-0">
+                            ${item.pwd ? '<i class="fa-solid fa-lock text-xs text-amber-500" title="Protégé par mot de passe"></i>' : ''}
+                            <button onclick="deleteItem('${item.id}', '${currentTab}')" class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 flex items-center justify-center text-xs transition-all" title="Corbeille">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            }
+
+            // Gestion de la Corbeille sécurisée
+            window.deleteItem = function(id, type) {
+                const list = type === 'projects' ? mockData.projects : mockData.cards;
+                const item = list.find(i => i.id === id);
+                if (!item) return;
+
+                if (item.pwd) {
+                    const pwdInput = prompt("Ce contenu est protégé par un mot de passe. Veuillez le saisir :");
+                    if (pwdInput !== item.pwd) {
+                        alert("Mot de passe incorrect.");
+                        return;
+                    }
+                }
+
+                if (item.owner === currentUser.email) {
+                    if (confirm("Êtes-vous sûr de vouloir supprimer définitivement cet élément ?")) {
+                        if (type === 'projects') mockData.projects = mockData.projects.filter(i => i.id !== id);
+                        else mockData.cards = mockData.cards.filter(i => i.id !== id);
+                        renderDashboard();
+                    }
+                } else {
+                    if (confirm("Vous n'êtes pas l'administrateur. Voulez-vous quitter ce projet/cette carte ?")) {
+                        if (type === 'projects') mockData.projects = mockData.projects.filter(i => i.id !== id);
+                        else mockData.cards = mockData.cards.filter(i => i.id !== id);
+                        renderDashboard();
+                    }
+                }
+            }
+
+            // Gestion Création
+            window.openCreateModal = function() {
+                document.getElementById('create-modal').classList.remove('hidden');
+                document.getElementById('create-modal-title').textContent = currentTab === 'projects' ? 'Créer un nouveau projet' : 'Créer une nouvelle carte libre';
+            }
+            window.closeCreateModal = function() {
+                document.getElementById('create-modal').classList.add('hidden');
+            }
+            window.toggleCollabFields = function() {
+                const isChecked = document.getElementById('modal-is-collab').checked;
+                document.getElementById('collab-email-container').classList.toggle('hidden', !isChecked);
+            }
+            window.togglePwdField = function() {
+                const isChecked = document.getElementById('modal-has-pwd').checked;
+                document.getElementById('pwd-field-container').classList.toggle('hidden', !isChecked);
+            }
+
+            window.addCollaborator = async function() {
+                const emailInput = document.getElementById('modal-collab-email');
+                const email = emailInput.value.trim();
+                if (!email) return;
+
+                // Vérification si l'e-mail existe dans la table profiles de Supabase
+                const { data, error } = await supabase.from('profiles').select('email').eq('email', email).single();
+                if (error || !data) {
+                    alert("Adresse email invalide ou aucun compte Mobius associé à cet e-mail.");
+                    return;
+                }
+
+                collaboratorsListTemp.push(email);
+                emailInput.value = '';
+                renderCollabBadges();
+            }
+
+            function renderCollabBadges() {
+                const listContainer = document.getElementById('collaborators-list');
+                listContainer.innerHTML = '';
+                collaboratorsListTemp.forEach(email => {
+                    const badge = document.createElement('span');
+                    badge.className = "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#5246EE]/10 text-[#5246EE] text-[10px] font-semibold";
+                    badge.innerHTML = `${email} <i class="fa-solid fa-xmark cursor-pointer" onclick="removeCollab('${email}')"></i>`;
+                    listContainer.appendChild(badge);
+                });
+            }
+
+            window.removeCollab = function(email) {
+                collaboratorsListTemp = collaboratorsListTemp.filter(e => e !== email);
+                renderCollabBadges();
+            }
+
+            window.confirmCreateItem = function() {
+                const name = document.getElementById('modal-item-name').value.trim();
+                if (!name) {
+                    alert("Veuillez entrer un nom.");
+                    return;
+                }
+                const hasPwd = document.getElementById('modal-has-pwd').checked;
+                const pwd = hasPwd ? document.getElementById('modal-item-pwd').value : '';
+
+                if (currentTab === 'projects') {
+                    mockData.projects.push({
+                        id: Date.now().toString(),
+                        name,
+                        owner: currentUser.email,
+                        isCollab: document.getElementById('modal-is-collab').checked,
+                        pwd,
+                        date: Date.now(),
+                        tree: []
+                    });
+                } else {
+                    mockData.cards.push({
+                        id: Date.now().toString(),
+                        name,
+                        owner: currentUser.email,
+                        isCollab: false,
+                        pwd,
+                        date: Date.now()
+                    });
+                }
+
+                closeCreateModal();
+                renderDashboard();
+            }
+
+            // Ouverture Arborescence Projet
+            window.openProject = function(id) {
+                activeProject = mockData.projects.find(p => p.id === id);
+                if (!activeProject) return;
+
+                if (activeProject.pwd && activeProject.owner !== currentUser.email) {
+                    const p = prompt("Ce projet est protégé. Entrez le mot de passe :");
+                    if (p !== activeProject.pwd) {
+                        alert("Mot de passe incorrect.");
+                        return;
+                    }
+                }
+
+                document.getElementById('main-view-container').classList.add('hidden');
+                document.getElementById('project-workspace').classList.remove('hidden');
+                document.getElementById('workspace-title').textContent = activeProject.name;
+                renderArborescence();
+            }
+
+            window.goHome = function() {
+                document.getElementById('project-workspace').classList.add('hidden');
+                document.getElementById('main-view-container').classList.remove('hidden');
+                renderDashboard();
+            }
+
+            window.addArbItem = function(type) {
+                const name = prompt(`Nom du ${type === 'folder' ? 'dossier' : type === 'txt' ? 'fichier .txt' : 'carte .json'} :`);
+                if (!name) return;
+                activeProject.tree.push({ id: Date.now().toString(), type, name, content: '' });
+                renderArborescence();
+            }
+
+            function renderArborescence() {
+                const treeContainer = document.getElementById('arborescence-tree');
+                treeContainer.innerHTML = '';
+                if (!activeProject.tree || activeProject.tree.length === 0) {
+                    treeContainer.innerHTML = `<div class="text-center py-8 text-gray-400 text-xs">Arborescence vide. Ajoutez des dossiers ou des fichiers.</div>`;
+                    return;
+                }
+                activeProject.tree.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 text-xs";
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2.5">
+                            <i class="fa-solid ${item.type === 'folder' ? 'fa-folder text-[#5246EE]' : item.type === 'txt' ? 'fa-file-lines text-emerald-500' : 'fa-file-code text-indigo-500'}"></i>
+                            <span class="font-medium">${item.name}</span>
+                        </div>
+                        <button onclick="removeArbItem('${item.id}')" class="text-red-500 hover:text-red-700"><i class="fa-solid fa-xmark"></i></button>
+                    `;
+                    treeContainer.appendChild(div);
+                });
+            }
+
+            window.removeArbItem = function(id) {
+                activeProject.tree = activeProject.tree.filter(i => i.id !== id);
+                renderArborescence();
+            }
+
+            // Export ZIP complet
+            window.openExportModal = async function() {
+                if (activeProject.pwd) {
+                    const p = prompt("Entrez le mot de passe pour télécharger ce projet sécurisé :");
+                    if (p !== activeProject.pwd) {
+                        alert("Mot de passe incorrect.");
+                        return;
+                    }
+                }
+
+                const zip = new JSZip();
+                const projectData = {
+                    ...activeProject,
+                    host_approval_required: true, // Ligne demandée pour validation hôte lors du rechargement
+                    exported_at: new Date().toISOString()
+                };
+
+                zip.file("project_manifest.json", JSON.stringify(projectData, null, 2));
+                
+                const contentBlob = await zip.generateAsync({ type: "blob" });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(contentBlob);
+                link.download = `${activeProject.name.toLowerCase().replace(/\s+/g, '_')}_mobius.zip`;
+                link.click();
+            }
+
+            // Profil modal
+            window.openProfileModal = function() {
+                document.getElementById('profile-modal').classList.remove('hidden');
+                document.getElementById('profile-modal-name').textContent = fullName;
+                document.getElementById('profile-modal-email').textContent = currentUser.email;
+                document.getElementById('profile-modal-initial').textContent = fullName.charAt(0).toUpperCase();
+            }
+            window.closeProfileModal = function() {
+                document.getElementById('profile-modal').classList.add('hidden');
+            }
+
+            window.logout = async function() {
+                await supabase.auth.signOut();
+                window.location.href = 'index.html';
+            }
+
+            // Lancement initial
+            renderDashboard();
+        });
+    </script>
+</body>
+</html>
+                                    
