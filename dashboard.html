@@ -57,7 +57,7 @@
     <!-- TOP NAVIGATION BAR -->
     <header class="w-full border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 glass-card sticky top-0 z-30 px-4 sm:px-8 py-3.5 flex items-center justify-between">
         <div class="flex items-center gap-3 cursor-pointer" onclick="goHome()">
-            <img src="logo_mobius_nobg.png" alt="MOBIUS" class="w-8 h-8 object-contain rounded-xl">
+            <img src="logo_mobius_light.png" alt="MOBIUS" class="w-8 h-8 object-contain rounded-xl">
             <span class="font-bold tracking-tight text-base sm:text-lg">MOBIUS <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#5246EE]/10 text-[#5246EE] font-semibold uppercase tracking-wider" id="user-version-badge">Standard</span></span>
         </div>
 
@@ -116,7 +116,7 @@
         <!-- DRAG & DROP / IMPORT ZONE -->
         <div id="drop-zone" class="border-2 border-dashed border-gray-300 dark:border-gray-800 rounded-2xl p-6 text-center mb-6 hover:border-[#5246EE] transition-all bg-white/50 dark:bg-gray-900/50 cursor-pointer">
             <i class="fa-solid fa-cloud-arrow-up text-2xl text-[#5246EE] mb-2"></i>
-            <p class="text-xs font-medium text-gray-700 dark:text-gray-300">Glissez-déposez vos fichiers de projet (.json) ou dossiers ici</p>
+            <p class="text-xs font-medium text-gray-700 dark:text-gray-300">Glissez-déposez vos fichiers ou dossiers ici</p>
             <p class="text-[10px] text-gray-400 mt-0.5">ou cliquez pour importer un modèle existant</p>
             <input type="file" id="file-input-hidden" class="hidden" multiple accept=".json,.txt">
         </div>
@@ -128,7 +128,7 @@
 
     </main>
 
-    <!-- PROJECT ARBORESCENCE VIEW (Caché par défaut, s'affiche au clic sur un projet) -->
+    <!-- PROJECT ARBORESCENCE VIEW (Apple Finder Style) -->
     <div id="project-workspace" class="hidden flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 flex flex-col">
         <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-800">
             <div class="flex items-center gap-3">
@@ -148,20 +148,20 @@
             </div>
         </div>
 
-        <!-- Outils d'arborescence -->
+        <!-- Outils d'arborescence racine -->
         <div class="flex items-center gap-2 mb-4 flex-wrap">
-            <button onclick="addArbItem('folder')" class="px-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-folder-plus text-[#5246EE]"></i> Dossier</button>
-            <button onclick="addArbItem('txt')" class="px-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-lines text-emerald-500"></i> Fichier .txt</button>
-            <button onclick="addArbItem('json')" class="px-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-code text-indigo-500"></i> Carte (.json)</button>
+            <button onclick="addArbItem('folder', null)" class="px-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-folder-plus text-[#5246EE]"></i> Dossier Racine</button>
+            <button onclick="addArbItem('txt', null)" class="px-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-lines text-emerald-500"></i> Fichier .txt</button>
+            <button onclick="addArbItem('card', null)" class="px-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-note-sticky text-indigo-500"></i> Nouvelle Carte</button>
         </div>
 
-        <!-- Arborescence Interactive -->
+        <!-- Arborescence Interactive Finder Style -->
         <div id="arborescence-tree" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex-1 space-y-2 overflow-y-auto">
             <!-- Injecté dynamiquement -->
         </div>
     </div>
 
-    <!-- POPUP DE CRÉATION (Projet ou Carte) -->
+    <!-- POPUP DE CRÉATION (Projet ou Carte libre) -->
     <div id="create-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white dark:bg-gray-900 rounded-[28px] max-w-md w-full p-6 sm:p-8 shadow-2xl border border-gray-100 dark:border-gray-800 space-y-5 animate-in">
             <h2 class="text-base font-bold" id="create-modal-title">Créer un nouveau projet</h2>
@@ -183,7 +183,7 @@
                 <div id="collab-email-container" class="hidden space-y-2">
                     <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">E-mail du collaborateur</label>
                     <div class="flex gap-2">
-                        <input type="email5" id="modal-collab-email" placeholder="collab@exemple.com" class="flex-1 px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none">
+                        <input type="email" id="modal-collab-email" placeholder="collab@exemple.com" class="flex-1 px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none">
                         <button type="button" onclick="addCollaborator()" class="bg-gray-200 dark:bg-gray-700 px-4 rounded-xl text-xs font-semibold hover:bg-gray-300">Ajouter</button>
                     </div>
                     <div id="collaborators-list" class="flex flex-wrap gap-1.5 mt-2"></div>
@@ -242,7 +242,7 @@
             // Vérification de session active
             const { data: { session } } = await supabase.auth.getSession();
             if (!session || !session.user) {
-                window.location.href = 'index.html'; // Retour au login si non connecté
+                window.location.href = 'index.html';
                 return;
             }
             currentUser = session.user;
@@ -253,12 +253,10 @@
             document.getElementById('nav-user-email').textContent = currentUser.email;
             document.getElementById('nav-user-initial').textContent = fullName.charAt(0).toUpperCase();
 
-            // Gestion Dark Mode
             window.toggleDarkMode = function() {
                 document.documentElement.classList.toggle('dark');
             }
 
-            // Gestion des Onglets Dashboard
             window.switchDashboardTab = function(tab) {
                 currentTab = tab;
                 const btnP = document.getElementById('tab-projects');
@@ -284,15 +282,10 @@
                 renderDashboard();
             }
 
-            // Données simulées locales pour la démo interactive du dashboard
+            // Données initiales vides (zéro élément pré-défini)
             let mockData = {
-                projects: [
-                    { id: '1', name: 'Refonte Application Web', owner: currentUser.email, isCollab: true, pwd: '', date: Date.now() - 100000, tree: [] },
-                    { id: '2', name: 'Stratégie Marketing Q4', owner: 'autre@example.com', isCollab: false, pwd: '123', date: Date.now() - 500000, tree: [] }
-                ],
-                cards: [
-                    { id: 'c1', name: 'Idées de fonctionnalités', owner: currentUser.email, isCollab: false, pwd: '', date: Date.now() - 200000 }
-                ]
+                projects: [],
+                cards: []
             };
 
             window.renderDashboard = function() {
@@ -301,14 +294,13 @@
                 const items = currentTab === 'projects' ? mockData.projects : mockData.cards;
                 const sortType = document.getElementById('sort-select').value;
 
-                // Tri
                 items.sort((a, b) => {
                     if (sortType === 'alpha') return a.name.localeCompare(b.name);
                     return b.date - a.date;
                 });
 
                 if (items.length === 0) {
-                    container.innerHTML = `<div class="col-span-full text-center py-12 text-gray-400 text-xs">Aucun élément trouvé.</div>`;
+                    container.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400 text-xs">Aucun élément pour le moment. Cliquez sur le bouton en haut pour en créer un !</div>`;
                     return;
                 }
 
@@ -320,8 +312,10 @@
                         ? "bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex flex-col justify-between hover:shadow-lg transition-all cursor-pointer relative group"
                         : "bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 flex items-center justify-between hover:shadow-md transition-all cursor-pointer";
                     
+                    const clickAction = currentTab === 'projects' ? `openProject('${item.id}')` : `window.location.href='map.html?cardId=${item.id}'`;
+
                     card.innerHTML = `
-                        <div class="flex items-center gap-3" onclick="${currentTab === 'projects' ? `openProject('${item.id}')` : ''}">
+                        <div class="flex items-center gap-3 flex-1" onclick="${clickAction}">
                             <div class="w-10 h-10 rounded-xl bg-[#5246EE]/10 text-[#5246EE] flex items-center justify-center font-bold">
                                 <i class="fa-solid ${currentTab === 'projects' ? 'fa-folder' : 'fa-note-sticky'}"></i>
                             </div>
@@ -341,7 +335,6 @@
                 });
             }
 
-            // Gestion de la Corbeille sécurisée
             window.deleteItem = function(id, type) {
                 const list = type === 'projects' ? mockData.projects : mockData.cards;
                 const item = list.find(i => i.id === id);
@@ -362,7 +355,7 @@
                         renderDashboard();
                     }
                 } else {
-                    if (confirm("Vous n'êtes pas l'administrateur. Voulez-vous quitter ce projet/cette carte ?")) {
+                    if (confirm("Voulez-vous quitter ce projet/cette carte ?")) {
                         if (type === 'projects') mockData.projects = mockData.projects.filter(i => i.id !== id);
                         else mockData.cards = mockData.cards.filter(i => i.id !== id);
                         renderDashboard();
@@ -370,7 +363,6 @@
                 }
             }
 
-            // Gestion Création
             window.openCreateModal = function() {
                 document.getElementById('create-modal').classList.remove('hidden');
                 document.getElementById('create-modal-title').textContent = currentTab === 'projects' ? 'Créer un nouveau projet' : 'Créer une nouvelle carte libre';
@@ -392,7 +384,6 @@
                 const email = emailInput.value.trim();
                 if (!email) return;
 
-                // Vérification si l'e-mail existe dans la table profiles de Supabase
                 const { data, error } = await supabase.from('profiles').select('email').eq('email', email).single();
                 if (error || !data) {
                     alert("Adresse email invalide ou aucun compte Mobius associé à cet e-mail.");
@@ -479,37 +470,122 @@
                 renderDashboard();
             }
 
-            window.addArbItem = function(type) {
-                const name = prompt(`Nom du ${type === 'folder' ? 'dossier' : type === 'txt' ? 'fichier .txt' : 'carte .json'} :`);
+            // --- VRAIE ARBORESCENCE TYPE APPLE FINDER (Récursive avec dossiers déroulants) ---
+            window.addArbItem = function(type, parentId = null) {
+                const typeName = type === 'folder' ? 'dossier' : type === 'txt' ? 'fichier .txt' : 'carte';
+                const name = prompt(`Nom du ${typeName} :`);
                 if (!name) return;
-                activeProject.tree.push({ id: Date.now().toString(), type, name, content: '' });
+
+                const newItem = {
+                    id: Date.now().toString(),
+                    type,
+                    name,
+                    content: '',
+                    children: type === 'folder' ? [] : undefined
+                };
+
+                if (!parentId) {
+                    activeProject.tree.push(newItem);
+                } else {
+                    addItemRecursive(activeProject.tree, parentId, newItem);
+                }
                 renderArborescence();
+            }
+
+            function addItemRecursive(list, parentId, newItem) {
+                for (let item of list) {
+                    if (item.id === parentId && item.type === 'folder') {
+                        if (!item.children) item.children = [];
+                        item.children.push(newItem);
+                        return true;
+                    }
+                    if (item.children && item.children.length > 0) {
+                        if (addItemRecursive(item.children, parentId, newItem)) return true;
+                    }
+                }
+                return false;
+            }
+
+            window.addToFolder = function(parentId, type) {
+                addArbItem(type, parentId);
+            }
+
+            window.removeTreeItem = function(id) {
+                activeProject.tree = removeTreeRecursive(activeProject.tree, id);
+                renderArborescence();
+            }
+
+            function removeTreeRecursive(list, id) {
+                return list.filter(item => {
+                    if (item.id === id) return false;
+                    if (item.children) {
+                        item.children = removeTreeRecursive(item.children, id);
+                    }
+                    return true;
+                });
+            }
+
+            window.toggleFolder = function(id) {
+                const sub = document.getElementById(`folder-content-${id}`);
+                const chev = document.getElementById(`chev-${id}`);
+                if (sub) {
+                    sub.classList.toggle('hidden');
+                    chev.classList.toggle('rotate-90');
+                }
             }
 
             function renderArborescence() {
                 const treeContainer = document.getElementById('arborescence-tree');
                 treeContainer.innerHTML = '';
                 if (!activeProject.tree || activeProject.tree.length === 0) {
-                    treeContainer.innerHTML = `<div class="text-center py-8 text-gray-400 text-xs">Arborescence vide. Ajoutez des dossiers ou des fichiers.</div>`;
+                    treeContainer.innerHTML = `<div class="text-center py-8 text-gray-400 text-xs">Arborescence vide. Utilisez les boutons ci-dessus pour ajouter des dossiers ou des cartes.</div>`;
                     return;
                 }
-                activeProject.tree.forEach(item => {
-                    const div = document.createElement('div');
-                    div.className = "flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 text-xs";
-                    div.innerHTML = `
-                        <div class="flex items-center gap-2.5">
-                            <i class="fa-solid ${item.type === 'folder' ? 'fa-folder text-[#5246EE]' : item.type === 'txt' ? 'fa-file-lines text-emerald-500' : 'fa-file-code text-indigo-500'}"></i>
-                            <span class="font-medium">${item.name}</span>
-                        </div>
-                        <button onclick="removeArbItem('${item.id}')" class="text-red-500 hover:text-red-700"><i class="fa-solid fa-xmark"></i></button>
-                    `;
-                    treeContainer.appendChild(div);
-                });
+                renderTreeLevel(activeProject.tree, treeContainer);
             }
 
-            window.removeArbItem = function(id) {
-                activeProject.tree = activeProject.tree.filter(i => i.id !== id);
-                renderArborescence();
+            function renderTreeLevel(items, container) {
+                items.forEach(item => {
+                    const el = document.createElement('div');
+                    el.className = "space-y-1";
+
+                    if (item.type === 'folder') {
+                        el.innerHTML = `
+                            <div class="flex items-center justify-between p-2.5 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 text-xs hover:bg-gray-100 transition-all">
+                                <div class="flex items-center gap-2.5 flex-1 cursor-pointer" onclick="toggleFolder('${item.id}')">
+                                    <i class="fa-solid fa-chevron-right text-[10px] text-gray-400 transition-transform" id="chev-${item.id}"></i>
+                                    <i class="fa-solid fa-folder text-[#5246EE]"></i>
+                                    <span class="font-medium">${item.name}</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="addToFolder('${item.id}', 'folder')" title="Ajouter sous-dossier" class="text-gray-500 hover:text-[#5246EE]"><i class="fa-solid fa-folder-plus"></i></button>
+                                    <button onclick="addToFolder('${item.id}', 'txt')" title="Ajouter fichier .txt" class="text-gray-500 hover:text-emerald-500"><i class="fa-solid fa-file-lines"></i></button>
+                                    <button onclick="addToFolder('${item.id}', 'card')" title="Ajouter une carte" class="text-gray-500 hover:text-indigo-500"><i class="fa-solid fa-note-sticky"></i></button>
+                                    <button onclick="removeTreeItem('${item.id}')" class="text-red-500 hover:text-red-700 ml-2" title="Supprimer"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </div>
+                            <div id="folder-content-${item.id}" class="pl-6 space-y-1 hidden mt-1 border-l-2 border-gray-100 dark:border-gray-800"></div>
+                        `;
+                        container.appendChild(el);
+                        if (item.children && item.children.length > 0) {
+                            renderTreeLevel(item.children, document.getElementById(`folder-content-${item.id}`));
+                        }
+                    } else {
+                        const icon = item.type === 'txt' ? 'fa-file-lines text-emerald-500' : 'fa-note-sticky text-indigo-500';
+                        const clickAction = item.type === 'card' ? `window.location.href='map.html?cardId=${item.id}'` : `alert('Ouverture du fichier texte...')`;
+                        el.innerHTML = `
+                            <div class="flex items-center justify-between p-2.5 bg-gray-50/60 dark:bg-gray-800/60 rounded-xl border border-gray-200/60 dark:border-gray-700/60 text-xs hover:bg-gray-100 transition-all">
+                                <div class="flex items-center gap-2.5 flex-1 cursor-pointer" onclick="${clickAction}">
+                                    <i class="fa-solid ${icon}"></i>
+                                    <span class="font-medium">${item.name}</span>
+                                    ${item.type === 'card' ? '<span class="text-[9px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-semibold">Carte</span>' : ''}
+                                </div>
+                                <button onclick="removeTreeItem('${item.id}')" class="text-red-500 hover:text-red-700"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                        `;
+                        container.appendChild(el);
+                    }
+                });
             }
 
             // Export ZIP complet
@@ -525,7 +601,7 @@
                 const zip = new JSZip();
                 const projectData = {
                     ...activeProject,
-                    host_approval_required: true, // Ligne demandée pour validation hôte lors du rechargement
+                    host_approval_required: true,
                     exported_at: new Date().toISOString()
                 };
 
@@ -538,7 +614,6 @@
                 link.click();
             }
 
-            // Profil modal
             window.openProfileModal = function() {
                 document.getElementById('profile-modal').classList.remove('hidden');
                 document.getElementById('profile-modal-name').textContent = fullName;
@@ -554,10 +629,8 @@
                 window.location.href = 'index.html';
             }
 
-            // Lancement initial
             renderDashboard();
         });
     </script>
 </body>
 </html>
-                                    
