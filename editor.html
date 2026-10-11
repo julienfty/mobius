@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Éditeur de Fichier - Mobius</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            DEFAULT: '#5246EE',
+                            hover: '#4538d8',
+                            light: '#766df2',
+                            subtle: '#f4f3ff'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        .glass-card {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        .dark .glass-card {
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+    </style>
+</head>
+<body class="h-full bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col selection:bg-[#5246EE] selection:text-white">
+
+    <!-- HEADER DE L'ÉDITEUR -->
+    <header class="w-full border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 glass-card sticky top-0 z-30 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <button onclick="goBack()" class="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 transition-all">
+                <i class="fa-solid fa-arrow-left"></i>
+            </button>
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-file-lines text-emerald-500"></i>
+                <span class="font-bold text-sm sm:text-base" id="file-title">Chargement...</span>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button onclick="toggleDarkMode()" class="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 transition-all">
+                <i class="fa-solid fa-moon dark:hidden"></i>
+                <i class="fa-solid fa-sun hidden dark:block text-amber-400"></i>
+            </button>
+            <button onclick="saveFile()" class="bg-[#5246EE] hover:bg-[#4538d8] text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-md shadow-[#5246EE]/25 flex items-center gap-2 transition-all">
+                <i class="fa-solid fa-floppy-disk"></i>
+                <span>Enregistrer</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- ZONE DE TEXTE (EDITEUR) -->
+    <main class="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-8 flex flex-col">
+        <textarea id="text-editor" class="flex-1 w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 text-sm font-mono focus:outline-none focus:border-[#5246EE] resize-none leading-relaxed shadow-sm" placeholder="Rédigez votre texte ici..."></textarea>
+    </main>
+
+    <!-- SCRIPT DE CHARGEMENT ET SAUVEGARDE SUPABASE -->
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const SUPABASE_URL = 'https://nfvnayuqrmlldtixzdpx.supabase.co';
+            const SUPABASE_KEY = 'sb_publishable_EwONSAsqSfu8_SocZ7wZBA_rVODWqSF';
+            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const projectId = urlParams.get('projectId');
+            const fileId = urlParams.get('fileId');
+
+            if (!projectId || !fileId) {
+                alert("Paramètres manquants.");
+                window.location.href = 'dashboard.html';
+                return;
+            }
+
+            let projectData = null;
+            let targetFile = null;
+
+            // Charger le projet depuis Supabase
+            const { data, error } = await supabase.from('projects').select('*').eq('id', projectId).single();
+            if (error || !data) {
+                alert("Impossible de charger le projet.");
+                window.location.href = 'dashboard.html';
+                return;
+            }
+
+            projectData = data;
+
+            // Trouver le fichier .txt de manière récursive dans l'arborescence
+            function findFile(list) {
+                for (let item of list) {
+                    if (item.id === fileId) return item;
+                    if (item.children) {
+                        const found = findFile(item.children);
+                        if (found) return found;
+                    }
+                }
+                return null;
+            }
+
+            targetFile = findFile(projectData.tree);
+            if (!targetFile) {
+                alert("Fichier introuvable.");
+                window.location.href = 'dashboard.html';
+                return;
+            }
+
+            document.getElementById('file-title').textContent = targetFile.name;
+            document.getElementById('text-editor').value = targetFile.content || '';
+
+            window.toggleDarkMode = function() {
+                document.documentElement.classList.toggle('dark');
+            }
+
+            window.goBack = function() {
+                window.location.href = 'dashboard.html';
+            }
+
+            // Fonction pour mettre à jour le contenu dans l'arborescence
+            function updateFileContent(list) {
+                for (let item of list) {
+                    if (item.id === fileId) {
+                        item.content = document.getElementById('text-editor').value;
+                        return true;
+                    }
+                    if (item.children) {
+                        if (updateFileContent(item.children)) return true;
+                    }
+                }
+                return false;
+            }
+
+            // Enregistrement dans Supabase
+            window.saveFile = async function() {
+                updateFileContent(projectData.tree);
+
+                const { error: updateError } = await supabase
+                    .from('projects')
+                    .update({ tree: projectData.tree })
+                    .eq('id', projectId);
+
+                if (updateError) {
+                    alert("Erreur lors de la sauvegarde dans Supabase.");
+                } else {
+                    alert("Fichier enregistré avec succès dans Supabase ! 💜");
+                }
+            }
+        });
+    </script>
+</body>
+</html>
