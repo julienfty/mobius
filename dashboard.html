@@ -132,7 +132,7 @@
             </div>
         </div>
 
-        <!-- Outils d'arborescence (Agissent sur le dossier sélectionné ou à la racine) -->
+        <!-- Outils d'arborescence -->
         <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div class="flex items-center gap-2 flex-wrap">
                 <button onclick="createInSelected('folder')" class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-folder-plus text-[#5246EE]"></i> Dossier</button>
@@ -142,7 +142,7 @@
             <div class="text-[11px] text-gray-400 font-medium" id="selected-folder-indicator">📁 Destination : Racine du projet</div>
         </div>
 
-        <!-- Arborescence Interactive Apple Finder Style avec Drag & Drop -->
+        <!-- Arborescence Interactive -->
         <div id="arborescence-tree" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex-1 space-y-2 overflow-y-auto" ondragover="allowDrop(event)" ondrop="dropToRoot(event)"></div>
     </div>
 
@@ -211,7 +211,7 @@
         </div>
     </div>
 
-    <!-- SCRIPT APPLICATION -->
+    <!-- SCRIPT APPLICATION CONNECTÉ SUPABASE -->
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
             const SUPABASE_URL = 'https://nfvnayuqrmlldtixzdpx.supabase.co';
@@ -222,8 +222,9 @@
             let currentTab = 'projects';
             let viewMode = 'grid';
             let activeProject = null;
-            let selectedFolderId = null; // ID du dossier sélectionné dans l'arborescence
+            let selectedFolderId = null;
             let collaboratorsListTemp = [];
+            let expandedFolders = new Set();
 
             const { data: { session } } = await supabase.auth.getSession();
             if (!session || !session.user) {
@@ -257,30 +258,40 @@
                     btnP.className = "flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold text-gray-500 dark:text-gray-400 transition-all";
                     createText.textContent = "Nouvelle Carte Libre";
                 }
-                renderDashboard();
+                loadDashboardData();
             }
 
             window.setViewMode = function(mode) {
                 viewMode = mode;
                 document.getElementById('btn-view-grid').className = mode === 'grid' ? "w-8 h-8 rounded-lg bg-white dark:bg-gray-900 text-xs shadow-sm flex items-center justify-center transition-all" : "w-8 h-8 rounded-lg text-gray-500 text-xs flex items-center justify-center";
                 document.getElementById('btn-view-list').className = mode === 'list' ? "w-8 h-8 rounded-lg bg-white dark:bg-gray-900 text-xs shadow-sm flex items-center justify-center transition-all" : "w-8 h-8 rounded-lg text-gray-500 text-xs flex items-center justify-center";
-                renderDashboard();
+                loadDashboardData();
             }
 
-            let mockData = {
-                projects: [],
-                cards: []
-            };
+            // --- CHARGEMENT DEPUIS SUPABASE ---
+            let projectsList = [];
+            let cardsList = [];
+
+            window.loadDashboardData = async function() {
+                if (currentTab === 'projects') {
+                    const { data, error } = await supabase.from('projects').select('*');
+                    if (!error) projectsList = data || [];
+                } else {
+                    const { data, error } = await supabase.from('cards').select('*');
+                    if (!error) cardsList = data || [];
+                }
+                renderDashboard();
+            }
 
             window.renderDashboard = function() {
                 const container = document.getElementById('items-grid-container');
                 container.innerHTML = '';
-                const items = currentTab === 'projects' ? mockData.projects : mockData.cards;
+                const items = currentTab === 'projects' ? projectsList : cardsList;
                 const sortType = document.getElementById('sort-select').value;
 
                 items.sort((a, b) => {
                     if (sortType === 'alpha') return a.name.localeCompare(b.name);
-                    return b.date - a.date;
+                    return new Date(b.created_at) - new Date(a.created_at);
                 });
 
                 if (items.length === 0) {
@@ -305,7 +316,7 @@
                             </div>
                             <div>
                                 <h3 class="text-xs font-bold text-gray-900 dark:text-gray-100">${item.name}</h3>
-                                <p class="text-[10px] text-gray-400">Propriétaire: ${item.owner === currentUser.email ? 'Vous' : item.owner}</p>
+                                <p class="text-[10px] text-gray-400">Propriétaire: ${item.owner_email === currentUser.email ? 'Vous' : item.owner_email}</p>
                             </div>
                         </div>
                         <div class="flex items-center gap-2 mt-3 sm:mt-0">
@@ -319,8 +330,8 @@
                 });
             }
 
-            window.deleteItem = function(id, type) {
-                const list = type === 'projects' ? mockData.projects : mockData.cards;
+            window.deleteItem = async function(id, type) {
+                const list = type === 'projects' ? projectsList : cardsList;
                 const item = list.find(i => i.id === id);
                 if (!item) return;
 
@@ -332,17 +343,15 @@
                     }
                 }
 
-                if (item.owner === currentUser.email) {
+                if (item.owner_email === currentUser.email) {
                     if (confirm("Êtes-vous sûr de vouloir supprimer définitivement cet élément ?")) {
-                        if (type === 'projects') mockData.projects = mockData.projects.filter(i => i.id !== id);
-                        else mockData.cards = mockData.cards.filter(i => i.id !== id);
-                        renderDashboard();
+                        await supabase.from(type).delete().eq('id', id);
+                        loadDashboardData();
                     }
                 } else {
                     if (confirm("Voulez-vous quitter ce projet/cette carte ?")) {
-                        if (type === 'projects') mockData.projects = mockData.projects.filter(i => i.id !== id);
-                        else mockData.cards = mockData.cards.filter(i => i.id !== id);
-                        renderDashboard();
+                        await supabase.from(type).delete().eq('id', id);
+                        loadDashboardData();
                     }
                 }
             }
@@ -395,7 +404,7 @@
                 renderCollabBadges();
             }
 
-            window.confirmCreateItem = function() {
+            window.confirmCreateItem = async function() {
                 const name = document.getElementById('modal-item-name').value.trim();
                 if (!name) {
                     alert("Veuillez entrer un nom.");
@@ -403,37 +412,40 @@
                 }
                 const hasPwd = document.getElementById('modal-has-pwd').checked;
                 const pwd = hasPwd ? document.getElementById('modal-item-pwd').value : '';
+                const newItemId = 'id_' + Date.now();
 
                 if (currentTab === 'projects') {
-                    mockData.projects.push({
-                        id: Date.now().toString(),
+                    const newProj = {
+                        id: newItemId,
                         name,
-                        owner: currentUser.email,
-                        isCollab: document.getElementById('modal-is-collab').checked,
+                        owner_email: currentUser.email,
+                        owner_id: currentUser.id,
+                        is_collab: document.getElementById('modal-is-collab').checked,
+                        collaborators: collaboratorsListTemp,
                         pwd,
-                        date: Date.now(),
                         tree: []
-                    });
+                    };
+                    await supabase.from('projects').insert([newProj]);
                 } else {
-                    mockData.cards.push({
-                        id: Date.now().toString(),
+                    const newCard = {
+                        id: newItemId,
                         name,
-                        owner: currentUser.email,
-                        isCollab: false,
-                        pwd,
-                        date: Date.now()
-                    });
+                        owner_email: currentUser.email,
+                        owner_id: currentUser.id,
+                        pwd
+                    };
+                    await supabase.from('cards').insert([newCard]);
                 }
 
                 closeCreateModal();
-                renderDashboard();
+                loadDashboardData();
             }
 
             window.openProject = function(id) {
-                activeProject = mockData.projects.find(p => p.id === id);
+                activeProject = projectsList.find(p => p.id === id);
                 if (!activeProject) return;
 
-                if (activeProject.pwd && activeProject.owner !== currentUser.email) {
+                if (activeProject.pwd && activeProject.owner_email !== currentUser.email) {
                     const p = prompt("Ce projet est protégé. Entrez le mot de passe :");
                     if (p !== activeProject.pwd) {
                         alert("Mot de passe incorrect.");
@@ -442,6 +454,7 @@
                 }
 
                 selectedFolderId = null;
+                expandedFolders.clear();
                 document.getElementById('main-view-container').classList.add('hidden');
                 document.getElementById('project-workspace').classList.remove('hidden');
                 document.getElementById('workspace-title').textContent = activeProject.name;
@@ -452,13 +465,23 @@
             window.goHome = function() {
                 document.getElementById('project-workspace').classList.add('hidden');
                 document.getElementById('main-view-container').classList.remove('hidden');
-                renderDashboard();
+                loadDashboardData();
             }
 
-            // --- GESTION DE LA SÉLECTION DES DOSSIERS ---
+            // Sauvegarde automatique de l'arborescence dans Supabase
+            async function saveProjectTreeToSupabase() {
+                await supabase.from('projects').update({ tree: activeProject.tree }).eq('id', activeProject.id);
+            }
+
+            // --- SÉLECTION & DÉPLIAGE AUTOMATIQUE ---
             window.selectFolder = function(id, event) {
                 event.stopPropagation();
-                selectedFolderId = (selectedFolderId === id) ? null : id;
+                if (selectedFolderId === id) {
+                    selectedFolderId = null;
+                } else {
+                    selectedFolderId = id;
+                    expandedFolders.add(id); // Dépliage automatique immédiat !
+                }
                 updateFolderIndicator();
                 renderArborescence();
             }
@@ -473,14 +496,13 @@
                 }
             }
 
-            // Création d'un élément dans le dossier sélectionné ou à la racine
             window.createInSelected = function(type) {
                 const typeName = type === 'folder' ? 'dossier' : type === 'txt' ? 'fichier .txt' : 'carte';
                 const name = prompt(`Nom du ${typeName} :`);
                 if (!name) return;
 
                 const newItem = {
-                    id: Date.now().toString(),
+                    id: 'item_' + Date.now(),
                     type,
                     name,
                     content: '',
@@ -491,9 +513,9 @@
                     activeProject.tree.push(newItem);
                 } else {
                     addItemRecursive(activeProject.tree, selectedFolderId, newItem);
-                    // Dépliage automatique du dossier parent pour voir l'élément créé
                     expandFolderRecursive(activeProject.tree, selectedFolderId);
                 }
+                saveProjectTreeToSupabase();
                 renderArborescence();
             }
 
@@ -522,8 +544,6 @@
                 return null;
             }
 
-            let expandedFolders = new Set();
-
             window.toggleFolder = function(id, event) {
                 event.stopPropagation();
                 if (expandedFolders.has(id)) {
@@ -551,6 +571,7 @@
                 event.stopPropagation();
                 if (selectedFolderId === id) selectedFolderId = null;
                 activeProject.tree = removeTreeRecursive(activeProject.tree, id);
+                saveProjectTreeToSupabase();
                 updateFolderIndicator();
                 renderArborescence();
             }
@@ -565,7 +586,7 @@
                 });
             }
 
-            // --- DRAG & DROP ARBORESCENCE ---
+            // --- DRAG & DROP ---
             let draggedItemId = null;
 
             window.dragStart = function(e, id) {
@@ -584,7 +605,6 @@
                 e.stopPropagation();
                 if (!draggedItemId || draggedItemId === targetFolderId) return;
 
-                // Empêcher de mettre un dossier dans lui-même
                 if (isDescendant(activeProject.tree, draggedItemId, targetFolderId)) {
                     alert("Impossible de déplacer un dossier à l'intérieur de lui-même !");
                     return;
@@ -600,6 +620,7 @@
                     }
                 }
                 draggedItemId = null;
+                saveProjectTreeToSupabase();
                 renderArborescence();
             }
 
@@ -612,6 +633,7 @@
                     activeProject.tree.push(itemToMove);
                 }
                 draggedItemId = null;
+                saveProjectTreeToSupabase();
                 renderArborescence();
             }
 
@@ -642,7 +664,7 @@
                 const treeContainer = document.getElementById('arborescence-tree');
                 treeContainer.innerHTML = '';
                 if (!activeProject.tree || activeProject.tree.length === 0) {
-                    treeContainer.innerHTML = `<div class="text-center py-12 text-gray-400 text-xs">Arborescence vide. Sélectionnez le dossier racine ou un dossier existant puis utilisez les boutons ci-dessus pour ajouter des éléments.</div>`;
+                    treeContainer.innerHTML = `<div class="text-center py-12 text-gray-400 text-xs">Arborescence vide. Sélectionnez la racine ou un dossier puis utilisez les boutons ci-dessus.</div>`;
                     return;
                 }
                 renderTreeLevel(activeProject.tree, treeContainer);
@@ -653,7 +675,6 @@
                     const el = document.createElement('div');
                     el.className = "space-y-1";
                     el.setAttribute('draggable', 'true');
-                    el.setAttribute('onsend', 'return false;');
                     el.addEventListener('dragstart', (e) => dragStart(e, item.id));
 
                     if (item.type === 'folder') {
@@ -735,7 +756,7 @@
                 window.location.href = 'index.html';
             }
 
-            renderDashboard();
+            loadDashboardData();
         });
     </script>
 </body>
