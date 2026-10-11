@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>connexion/inscription mobius</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            DEFAULT: '#5246EE',
+                            hover: '#4538d8',
+                            light: '#766df2',
+                            subtle: '#f4f3ff'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #f8f9fa;
+            color: #1a1a1a;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+        .input-apple {
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .input-apple:focus {
+            box-shadow: 0 0 0 4px rgba(82, 70, 238, 0.12);
+            border-color: #5246EE;
+        }
+        .tab-indicator {
+            transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+    </style>
+</head>
+<body class="h-full flex items-center justify-center p-4 selection:bg-[#5246EE] selection:text-white relative overflow-hidden">
+
+    <!-- Ambient subtle lights (Apple/Adobe style gradient spots) -->
+    <div class="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-purple-200/40 rounded-full blur-[120px] pointer-events-none"></div>
+    <div class="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-indigo-100/60 rounded-full blur-[120px] pointer-events-none"></div>
+
+    <!-- Main Modal Popup Card -->
+    <div class="w-full max-w-[420px] glass-card rounded-[28px] shadow-[0_20px_50px_rgba(0,0,0,0.07)] overflow-hidden relative z-10 p-8 sm:p-10">
+        
+        <!-- Header Branding -->
+        <div class="text-center mb-8">
+            <div class="w-12 h-12 rounded-2xl bg-[#5246EE] flex items-center justify-center text-white mx-auto mb-4 shadow-lg shadow-[#5246EE]/25">
+                <i class="fa-solid fa-cube text-lg"></i>
+            </div>
+            <h1 class="text-xl font-bold tracking-tight text-gray-900" id="main-title">Bon retour parmi nous !</h1>
+            <p class="text-xs text-gray-500 mt-1" id="main-subtitle">Connectez-vous à votre espace sécurisé</p>
+        </div>
+
+        <!-- Toggle Switcher (Login / Register) -->
+        <div class="bg-gray-100/80 p-1 rounded-xl flex relative mb-8 border border-gray-200/50">
+            <div id="tab-pill" class="absolute top-1 bottom-1 w-[48%] bg-white rounded-lg shadow-sm tab-indicator"></div>
+            <button type="button" id="btn-login-tab" class="w-1/2 py-2 text-xs font-semibold text-gray-900 relative z-10 transition-colors">Connexion</button>
+            <button type="button" id="btn-register-tab" class="w-1/2 py-2 text-xs font-semibold text-gray-500 relative z-10 transition-colors">Inscription</button>
+        </div>
+
+        <!-- Notification Message Box -->
+        <div id="toast-message" class="hidden mb-6 p-3 rounded-xl text-xs font-medium flex items-center gap-2.5 transition-all"></div>
+
+        <!-- Forms Container -->
+        <div id="auth-forms-container">
+            
+            <!-- LOGIN FORM -->
+            <form id="form-login" class="space-y-4">
+                <div>
+                    <label class="block text-[11px] font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">Adresse e-mail</label>
+                    <input type="email" id="login-email" required placeholder="nom@exemple.com" 
+                        class="w-full px-4 py-3 bg-gray-50/80 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder-gray-400 focus:outline-none input-apple">
+                </div>
+
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider">Mot de passe</label>
+                    </div>
+                    <input type="password" id="login-password" required placeholder="••••••••" 
+                        class="w-full px-4 py-3 bg-gray-50/80 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder-gray-400 focus:outline-none input-apple">
+                </div>
+
+                <button type="submit" id="btn-submit-login" 
+                    class="w-full mt-2 py-3.5 rounded-xl bg-[#5246EE] hover:bg-[#4538d8] text-white font-semibold text-xs tracking-wide shadow-md shadow-[#5246EE]/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2">
+                    <span>Se connecter</span>
+                    <i class="fa-solid fa-arrow-right text-[10px]"></i>
+                </button>
+            </form>
+
+            <!-- REGISTER FORM -->
+            <form id="form-register" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-[11px] font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">Adresse e-mail</label>
+                    <input type="email" id="register-email" required placeholder="nom@exemple.com" 
+                        class="w-full px-4 py-3 bg-gray-50/80 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder-gray-400 focus:outline-none input-apple">
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">Mot de passe</label>
+                    <input type="password" id="register-password" required minlength="6" placeholder="Minimum 6 caractères" 
+                        class="w-full px-4 py-3 bg-gray-50/80 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder-gray-400 focus:outline-none input-apple">
+                </div>
+
+                <button type="submit" id="btn-submit-register" 
+                    class="w-full mt-2 py-3.5 rounded-xl bg-[#5246EE] hover:bg-[#4538d8] text-white font-semibold text-xs tracking-wide shadow-md shadow-[#5246EE]/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2">
+                    <span>Créer le compte</span>
+                    <i class="fa-solid fa-user-plus text-[10px]"></i>
+                </button>
+            </form>
+
+        </div>
+
+        <!-- LOGGED IN DASHBOARD VIEW -->
+        <div id="view-dashboard" class="space-y-5 hidden">
+            <div class="text-center space-y-3">
+                <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#5246EE] to-indigo-400 mx-auto flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-[#5246EE]/25" id="user-initial">
+                    U
+                </div>
+                <div>
+                    <h2 class="text-sm font-bold text-gray-900 truncate" id="user-email-display">utilisateur@example.com</h2>
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-semibold border border-emerald-200/60 mt-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Connecté via Supabase
+                    </span>
+                </div>
+            </div>
+
+            <div class="bg-gray-50/80 rounded-xl p-3.5 border border-gray-200/60 space-y-2 text-xs">
+                <div class="flex items-center justify-between text-gray-500">
+                    <span>Statut</span>
+                    <span class="text-gray-900 font-medium">Actif</span>
+                </div>
+                <div class="flex items-center justify-between text-gray-500">
+                    <span>ID Unique</span>
+                    <span class="text-gray-900 font-mono text-[10px] truncate max-w-[180px]" id="user-id-display">...</span>
+                </div>
+            </div>
+
+            <button id="btn-logout" 
+                class="w-full py-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs transition-all border border-red-200/60 flex items-center justify-center gap-2">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                <span>Se déconnecter</span>
+            </button>
+        </div>
+
+        <!-- Footer Legal/Tech Note -->
+        <div class="mt-8 pt-4 border-t border-gray-100 text-center">
+            <p class="text-[10px] text-gray-400">Authentification sécurisée Supabase</p>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Configuration Supabase fournie
+            const SUPABASE_URL = 'https://nfvnayuqrmlldtixzdpx.supabase.co';
+            const SUPABASE_KEY = 'sb_publishable_EwONSAsqSfu8_SocZ7wZBA_rVODWqSF';
+
+            // Initialisation du client Supabase
+            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+            // Éléments du DOM
+            const btnLoginTab = document.getElementById('btn-login-tab');
+            const btnRegisterTab = document.getElementById('btn-register-tab');
+            const formLogin = document.getElementById('form-login');
+            const formRegister = document.getElementById('form-register');
+            const btnLogout = document.getElementById('btn-logout');
+            const toast = document.getElementById('toast-message');
+
+            // Gestion de la bascule entre onglets (Connexion / Inscription)
+            function switchTab(tab) {
+                hideToast();
+                const pill = document.getElementById('tab-pill');
+                const mainTitle = document.getElementById('main-title');
+                const mainSubtitle = document.getElementById('main-subtitle');
+
+                if (tab === 'login') {
+                    pill.style.transform = 'translateX(0%)';
+                    btnLoginTab.classList.add('text-gray-900');
+                    btnLoginTab.classList.remove('text-gray-500');
+                    btnRegisterTab.classList.add('text-gray-500');
+                    btnRegisterTab.classList.remove('text-gray-900');
+                    formLogin.classList.remove('hidden');
+                    formRegister.classList.add('hidden');
+                    mainTitle.textContent = 'Bon retour parmi nous';
+                    mainSubtitle.textContent = 'Connectez-vous à votre espace sécurisé';
+                } else {
+                    pill.style.transform = 'translateX(100%)';
+                    btnRegisterTab.classList.add('text-gray-900');
+                    btnRegisterTab.classList.remove('text-gray-500');
+                    btnLoginTab.classList.add('text-gray-500');
+                    btnLoginTab.classList.remove('text-gray-900');
+                    formRegister.classList.remove('hidden');
+                    formLogin.classList.add('hidden');
+                    mainTitle.textContent = 'Créer un compte';
+                    mainSubtitle.textContent = 'Rejoignez-nous en quelques secondes';
+                }
+            }
+
+            btnLoginTab.addEventListener('click', () => switchTab('login'));
+            btnRegisterTab.addEventListener('click', () => switchTab('register'));
+
+            // Affichage des messages de notification (Toast)
+            function showToast(message, type = 'error') {
+                toast.classList.remove('hidden', 'bg-red-50', 'text-red-600', 'border-red-200', 'bg-emerald-50', 'text-emerald-600', 'border-emerald-200');
+                
+                if (type === 'error') {
+                    toast.classList.add('bg-red-50', 'text-red-600', 'border', 'border-red-200');
+                    toast.innerHTML = `<i class="fa-solid fa-circle-exclamation shrink-0"></i> <span>${message}</span>`;
+                } else {
+                    toast.classList.add('bg-emerald-50', 'text-emerald-600', 'border', 'border-emerald-200');
+                    toast.innerHTML = `<i class="fa-solid fa-circle-check shrink-0"></i> <span>${message}</span>`;
+                }
+            }
+
+            function hideToast() {
+                toast.classList.add('hidden');
+            }
+
+            // Connexion Supabase
+            formLogin.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('login-email').value;
+                const password = document.getElementById('login-password').value;
+                const btn = document.getElementById('btn-submit-login');
+
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Connexion en cours...`;
+                hideToast();
+
+                try {
+                    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                    if (error) throw error;
+
+                    showToast('Connexion réussie ! Redirection...', 'success');
+                    setTimeout(() => updateAuthState(data.session), 600);
+                } catch (err) {
+                    showToast(err.message || 'Identifiants invalides.');
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = `<span>Se connecter</span> <i class="fa-solid fa-arrow-right text-[10px]"></i>`;
+                }
+            });
+
+            // Inscription Supabase
+            formRegister.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('register-email').value;
+                const password = document.getElementById('register-password').value;
+                const btn = document.getElementById('btn-submit-register');
+
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Inscription en cours...`;
+                hideToast();
+
+                try {
+                    const { data, error } = await supabase.auth.signUp({ email, password });
+                    if (error) throw error;
+
+                    if (data.session) {
+                        showToast('Compte créé avec succès !', 'success');
+                        setTimeout(() => updateAuthState(data.session), 600);
+                    } else {
+                        showToast('Inscription réussie ! Veuillez vérifier vos e-mails.', 'success');
+                    }
+                } catch (err) {
+                    showToast(err.message || "Erreur lors de l'inscription.");
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = `<span>Créer le compte</span> <i class="fa-solid fa-user-plus text-[10px]"></i>`;
+                }
+            });
+
+            // Déconnexion Supabase
+            btnLogout.addEventListener('click', async () => {
+                try {
+                    await supabase.auth.signOut();
+                    updateAuthState(null);
+                } catch (err) {
+                    console.error("Erreur déconnexion:", err);
+                }
+            });
+
+            // Mise à jour de l'interface selon la session active
+            function updateAuthState(session) {
+                const authContainer = document.getElementById('auth-forms-container');
+                const switcher = document.querySelector('.bg-gray-100\\/80');
+                const dashboard = document.getElementById('view-dashboard');
+                const mainTitle = document.getElementById('main-title');
+                const mainSubtitle = document.getElementById('main-subtitle');
+
+                if (session && session.user) {
+                    if (authContainer) authContainer.classList.add('hidden');
+                    if (switcher) switcher.classList.add('hidden');
+                    if (dashboard) dashboard.classList.remove('hidden');
+                    if (mainTitle) mainTitle.textContent = 'Espace Personnel';
+                    if (mainSubtitle) mainSubtitle.textContent = 'Vous êtes connecté à l\'application';
+
+                    document.getElementById('user-email-display').textContent = session.user.email;
+                    document.getElementById('user-initial').textContent = session.user.email.charAt(0).toUpperCase();
+                    document.getElementById('user-id-display').textContent = session.user.id;
+                } else {
+                    if (authContainer) authContainer.classList.remove('hidden');
+                    if (switcher) switcher.classList.remove('hidden');
+                    if (dashboard) dashboard.classList.add('hidden');
+                    switchTab('login');
+                }
+            }
+
+            // Initialisation de la session au chargement
+            async function initSession() {
+                try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    updateAuthState(session);
+
+                    supabase.auth.onAuthStateChange((_event, session) => {
+                        updateAuthState(session);
+                    });
+                } catch (err) {
+                    console.error("Erreur initialisation session:", err);
+                }
+            }
+
+            initSession();
+        });
+    </script>
+</body>
+</html>
