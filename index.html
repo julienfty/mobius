@@ -66,14 +66,14 @@
     <!-- Main Modal Popup Card: Fullscreen on mobile (w-full h-full rounded-none), rounded card on sm+ -->
     <div class="w-full h-full sm:h-auto sm:max-w-[420px] bg-white sm:glass-card sm:rounded-[28px] sm:shadow-[0_20px_50px_rgba(0,0,0,0.07)] flex flex-col justify-between sm:justify-start overflow-y-auto relative z-10 p-6 sm:p-10">
         
-        <!-- Top spacer or header wrapper -->
-        <div>
-            <!-- Header Branding avec ton image de logo -->
-                <div class="text-center mb-6 sm:mb-8 pt-4 sm:pt-0">
-                    <img src="logo_mobius_light.png" alt="MOBIUS" style="width: 80px; height: 80px;" class="object-contain mx-auto mb-4">
-                        <h1 class="text-xl font-bold tracking-tight text-gray-900" id="main-title">Bon retour parmi nous</h1>
-                    <p class="text-xs text-gray-500 mt-1" id="main-subtitle">Connectez-vous à votre espace sécurisé</p>
-                </div>
+      <!-- Header Branding avec conteneur de logo à hauteur fixe pour bloquer l'agrandissement de la card -->
+        <div class="text-center mb-6 sm:mb-8 pt-4 sm:pt-0">
+            <div class="h-20 flex items-center justify-center mb-4">
+                <img src="logo_mobius_light.png" alt="MOBIUS" style="width: 90px; height: 90px;" class="object-contain">
+            </div>
+            <h1 class="text-xl font-bold tracking-tight text-gray-900" id="main-title">Bon retour parmi nous</h1>
+            <p class="text-xs text-gray-500 mt-1" id="main-subtitle">Connectez-vous à votre espace sécurisé</p>
+        </div>
 
             <!-- Toggle Switcher (Login / Register) -->
             <div class="bg-gray-100/80 p-1 rounded-xl flex relative mb-6 sm:mb-8 border border-gray-200/50">
