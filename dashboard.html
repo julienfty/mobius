@@ -144,26 +144,8 @@
             <div class="text-[11px] text-gray-400 font-medium" id="selected-folder-indicator">📁 Destination : Racine du projet</div>
         </div>
 
-        <!-- Arborescence Interactive avec Drag & Drop de fichiers txt -->
+        <!-- Arborescence Interactive -->
         <div id="arborescence-tree" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex-1 space-y-2 overflow-y-auto" ondragover="allowDrop(event)" ondrop="dropToRoot(event)"></div>
-    </div>
-
-    <!-- ÉDITEUR / VIEWER DE FICHIER .TXT -->
-    <div id="text-editor-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-[28px] max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-gray-100 dark:border-gray-800 space-y-4 flex flex-col h-[75vh]">
-            <div class="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-800">
-                <div class="flex items-center gap-2">
-                    <i class="fa-solid fa-file-lines text-emerald-500 text-base"></i>
-                    <h3 class="font-bold text-sm" id="editor-file-name">Fichier.txt</h3>
-                </div>
-                <button onclick="closeTextEditor()" class="w-8 h-8 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center hover:bg-gray-200"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <textarea id="editor-textarea" class="flex-1 w-full bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 text-xs font-mono focus:outline-none focus:border-[#5246EE] resize-none leading-relaxed" placeholder="Écrivez ou collez votre texte ici..."></textarea>
-            <div class="flex justify-end gap-3 pt-2">
-                <button onclick="closeTextEditor()" class="px-5 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs font-semibold hover:bg-gray-200">Annuler</button>
-                <button onclick="saveTextFile()" class="px-5 py-2.5 rounded-xl bg-[#5246EE] hover:bg-[#4538d8] text-white text-xs font-semibold shadow-md shadow-[#5246EE]/25">Enregistrer</button>
-            </div>
-        </div>
     </div>
 
     <!-- POPUP PERSONNALISÉ DARK/LIGHT MODE (PROMPT) -->
@@ -269,7 +251,6 @@
             let selectedFolderId = null;
             let collaboratorsListTemp = [];
             let expandedFolders = new Set();
-            let editingFileId = null; // Pour l'éditeur de texte
 
             const { data: { session } } = await supabase.auth.getSession();
             if (!session || !session.user) {
@@ -288,7 +269,6 @@
                 document.documentElement.classList.toggle('dark');
             }
 
-            // --- SYSTÈMES DE POPUPS PERSONNALISÉS DARK/LIGHT ---
             let promptResolve = null;
             window.showCustomPrompt = function(title, placeholder = '') {
                 return new Promise((resolve) => {
@@ -550,16 +530,14 @@
                 await supabase.from('projects').update({ tree: activeProject.tree }).eq('id', activeProject.id);
             }
 
-            // --- SÉLECTION & DÉPLIAGE / REPLI AUTOMATIQUE ---
             window.selectFolder = function(id, event) {
                 event.stopPropagation();
                 if (selectedFolderId === id) {
-                    // Désélection et fermeture automatique du dossier
                     selectedFolderId = null;
                     expandedFolders.delete(id);
                 } else {
                     selectedFolderId = id;
-                    expandedFolders.add(id); // Dépliage automatique
+                    expandedFolders.add(id);
                 }
                 updateFolderIndicator();
                 renderArborescence();
@@ -584,7 +562,7 @@
                     id: 'item_' + Date.now(),
                     type,
                     name,
-                    content: '',
+                    content: type === 'txt' ? 'Nouveau fichier texte...' : '',
                     children: type === 'folder' ? [] : undefined
                 };
 
@@ -598,7 +576,6 @@
                 renderArborescence();
             }
 
-            // --- IMPORT DE FICHIER .TXT ---
             window.triggerFileImport = function() {
                 document.getElementById('tree-file-input').click();
             }
@@ -628,7 +605,7 @@
                     };
                     reader.readAsText(file);
                 });
-                e.target.value = ''; // Reset input
+                e.target.value = '';
             }
 
             function addItemRecursive(list, parentId, newItem) {
@@ -701,41 +678,6 @@
                 });
             }
 
-            // --- ÉDITEUR DE TEXTE .TXT ---
-            window.openTextEditor = function(id, name, content) {
-                editingFileId = id;
-                document.getElementById('editor-file-name').textContent = name;
-                document.getElementById('editor-textarea').value = content || '';
-                document.getElementById('text-editor-modal').classList.remove('hidden');
-            }
-
-            window.closeTextEditor = function() {
-                document.getElementById('text-editor-modal').classList.add('hidden');
-                editingFileId = null;
-            }
-
-            window.saveTextFile = function() {
-                if (!editingFileId) return;
-                const newContent = document.getElementById('editor-textarea').value;
-                updateTextContentRecursive(activeProject.tree, editingFileId, newContent);
-                saveProjectTreeToSupabase();
-                closeTextEditor();
-            }
-
-            function updateTextContentRecursive(list, id, content) {
-                for (let item of list) {
-                    if (item.id === id) {
-                        item.content = content;
-                        return true;
-                    }
-                    if (item.children) {
-                        if (updateTextContentRecursive(item.children, id, content)) return true;
-                    }
-                }
-                return false;
-            }
-
-            // --- DRAG & DROP ---
             let draggedItemId = null;
 
             window.dragStart = function(e, id) {
@@ -777,7 +719,6 @@
                 e.preventDefault();
                 if (!draggedItemId) return;
 
-                // Si on drop un fichier txt externe depuis le bureau
                 if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                     Array.from(e.dataTransfer.files).forEach(file => {
                         const reader = new FileReader();
@@ -869,9 +810,10 @@
                         }
                     } else {
                         const icon = item.type === 'txt' ? 'fa-file-lines text-emerald-500' : 'fa-note-sticky text-indigo-500';
+                        // Redirection vers la nouvelle page editor.html pour les txt, ou map.html pour les cartes
                         const clickAction = item.type === 'card' 
                             ? `window.location.href='map.html?cardId=${item.id}'` 
-                            : `openTextEditor('${item.id}', '${item.name.replace(/'/g, "\\'")}', ${JSON.stringify(item.content || '')})`;
+                            : `window.location.href='editor.html?projectId=${activeProject.id}&fileId=${item.id}'`;
                         
                         el.innerHTML = `
                             <div draggable="true" class="flex items-center justify-between p-2.5 bg-gray-50/60 dark:bg-gray-800/60 rounded-xl border border-gray-200/60 dark:border-gray-700/60 text-xs hover:bg-gray-100 dark:hover:bg-gray-800 transition-all cursor-pointer" onclick="${clickAction}">
