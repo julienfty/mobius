@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- html2canvas & canvg pour export PNG / SVG -->
+    <!-- html2canvas pour export PNG -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script>
         if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -51,7 +51,6 @@
         .dark .glass-card {
             border: 1px solid rgba(255, 255, 255, 0.08);
         }
-        /* Grille du tableau blanc */
         .whiteboard-grid {
             background-image: radial-gradient(circle, rgba(100, 100, 100, 0.15) 1px, transparent 1px);
             background-size: 24px 24px;
@@ -59,7 +58,6 @@
         .dark .whiteboard-grid {
             background-image: radial-gradient(circle, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
         }
-        /* Style des liens SVG */
         .link-line {
             transition: stroke 0.2s, stroke-width 0.2s;
             cursor: pointer;
@@ -67,7 +65,6 @@
         .link-line:hover {
             stroke-width: 4px !important;
         }
-        /* Masquer la barre de scroll sur mobile */
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(100,100,100,0.2); border-radius: 4px; }
@@ -81,14 +78,14 @@
             <button onclick="goBack()" class="w-9 h-9 shrink-0 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 transition-all" title="Quitter la carte">
                 <i class="fa-solid fa-arrow-left"></i>
             </button>
-            <!-- Fil d'Ariane façon Finder Mac -->
-            <div id="breadcrumb-container" class="flex items-center gap-1.5 text-xs font-semibold overflow-x-auto whitespace-nowrap cursor-pointer py-1" onclick="toggleTreeSidebar()">
+            <!-- Fil d'Ariane ou Titre cliquable pour ouvrir/fermer l'arborescence -->
+            <div id="breadcrumb-container" class="flex items-center gap-1.5 text-xs font-semibold overflow-x-auto whitespace-nowrap cursor-pointer py-1 px-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-all" onclick="toggleTreeSidebar()">
                 <span class="text-gray-400">Chargement...</span>
             </div>
         </div>
 
         <div class="flex items-center gap-2 shrink-0">
-            <!-- Bouton Collaborateurs (Notion style) -->
+            <!-- Bouton Collaborateurs -->
             <div class="relative">
                 <button onclick="toggleCollabDropdown()" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all">
                     <i class="fa-solid fa-users text-[#5246EE]"></i>
@@ -106,7 +103,7 @@
                 </div>
             </div>
 
-            <!-- Bouton Téléchargement (PNG, SVG, JSON) -->
+            <!-- Bouton Téléchargement -->
             <div class="relative">
                 <button onclick="toggleDownloadDropdown()" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all">
                     <i class="fa-solid fa-download text-emerald-500"></i>
@@ -114,11 +111,10 @@
                 </button>
                 <div id="download-dropdown" class="hidden absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-2 shadow-2xl z-50 space-y-1">
                     <button onclick="exportMap('png')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"><i class="fa-solid fa-image text-blue-500"></i> Exporter en PNG</button>
-                    <button onclick="exportMap('svg')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"><i class="fa-solid fa-vector-square text-orange-500"></i> Exporter en SVG</button>
                     <button onclick="exportMap('json')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"><i class="fa-solid fa-file-code text-purple-500"></i> Exporter en JSON complet</button>
                     <div class="pt-2 border-t border-gray-100 dark:border-gray-800">
                         <label class="flex items-center gap-2 text-[10px] text-gray-500 cursor-pointer px-2">
-                            <input type="checkbox" id="secure-host-approval" class="accent-[#5246EE] rounded"> Exiger validation de l'hôte à l'import
+                            <input type="checkbox" id="secure-host-approval" class="accent-[#5246EE] rounded"> Validation de l'hôte à l'import
                         </label>
                     </div>
                 </div>
@@ -131,7 +127,7 @@
         </div>
     </header>
 
-    <!-- ESPACE PUBLICITAIRE MOBILE (SOUS LE HEADER) -->
+    <!-- ESPACE PUBLICITAIRE MOBILE -->
     <div id="mobile-ad-banner" class="sm:hidden bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border-b border-indigo-500/20 px-4 py-2 text-center text-[11px] text-indigo-600 dark:text-indigo-400 font-medium">
         ⭐ Passez à Mobius Pro pour des fonctionnalités IA illimitées !
     </div>
@@ -139,11 +135,11 @@
     <!-- MAIN WORKSPACE CONTAINER -->
     <div class="flex-1 flex overflow-hidden relative">
 
-        <!-- 1. MENU ARBORESCENCE (GAUCHE - Desktop) -->
-        <aside id="tree-sidebar" class="hidden sm:flex flex-col w-72 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 z-20 transition-all">
+        <!-- 1. MENU ARBORESCENCE (Visible uniquement si relié à un projet, escamotable) -->
+        <aside id="tree-sidebar" class="hidden flex-col w-72 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 z-20 transition-all">
             <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
                 <h3 class="font-bold text-xs uppercase tracking-wider text-gray-500">Arborescence du Projet</h3>
-                <button onclick="toggleTreeSidebar()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark"></i></button>
+                <button onclick="toggleTreeSidebar()" class="w-7 h-7 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div id="tree-sidebar-content" class="flex-1 p-3 overflow-y-auto space-y-1 text-xs"></div>
             <div class="p-3 border-t border-gray-200 dark:border-gray-800">
@@ -153,7 +149,7 @@
             </div>
         </aside>
 
-        <!-- 2. MENU LÉGENDE (GAUCHE - Liens) -->
+        <!-- 2. MENU LÉGENDE -->
         <aside id="legend-sidebar" class="hidden sm:flex flex-col w-64 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 z-20">
             <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
                 <h3 class="font-bold text-xs uppercase tracking-wider text-gray-500">Légende des Liens</h3>
@@ -162,36 +158,28 @@
             <div id="legend-list-container" class="flex-1 p-3 overflow-y-auto space-y-2 text-xs"></div>
         </aside>
 
-        <!-- 3. TABLEAU BLANC (CENTRE) -->
+        <!-- 3. TABLEAU BLANC -->
         <main id="whiteboard-container" class="flex-1 whiteboard-grid relative overflow-hidden cursor-grab active:cursor-grabbing" 
               oncontextmenu="handleWhiteboardRightClick(event)" onclick="handleWhiteboardLeftClick(event)" onmousedown="startPan(event)" onmousemove="doPan(event)" onmouseup="endPan()">
             
-            <!-- SVG LAYER POUR LES LIENS -->
             <svg id="links-svg" class="absolute inset-0 w-full h-full pointer-events-none z-0"></svg>
-
-            <!-- CANVAS INTERNE TRANSFORMABLE (ZOOM/PAN) -->
-            <div id="whiteboard-canvas" class="absolute inset-0 pointer-events-none z-10" style="transform: translate(0px, 0px); transform-origin: 0 0;">
-                <!-- Les cartes/personnes seront injectées ici -->
-            </div>
+            <div id="whiteboard-canvas" class="absolute inset-0 pointer-events-none z-10" style="transform: translate(0px, 0px); transform-origin: 0 0;"></div>
         </main>
 
-        <!-- 4. MENU INSPECTEUR / RECHERCHE (DROITE) -->
+        <!-- 4. MENU INSPECTEUR / RECHERCHE -->
         <aside id="inspector-sidebar" class="w-full sm:w-80 border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 z-20 flex flex-col transition-all">
-            <!-- Barre de recherche toujours présente en haut de l'inspecteur -->
             <div class="p-4 border-b border-gray-200 dark:border-gray-800 space-y-3">
                 <div class="relative">
                     <i class="fa-solid fa-search absolute left-3 top-3 text-gray-400 text-xs"></i>
                     <input type="text" id="inspector-search-input" oninput="handleInspectorSearch(this.value)" placeholder="Rechercher une personne..." class="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none focus:border-[#5246EE]">
                 </div>
             </div>
-
-            <!-- Contenu dynamique : Inspecteur ou Liste de recherche -->
             <div id="inspector-content" class="flex-1 p-4 overflow-y-auto space-y-4 text-xs"></div>
         </aside>
 
     </div>
 
-    <!-- NAVIGATION MOBILE (BARRE DU BAS) -->
+    <!-- NAVIGATION MOBILE -->
     <nav class="sm:hidden h-16 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 z-40 flex items-center justify-around px-2">
         <button onclick="switchMobileTab('tree')" id="mob-btn-tree" class="flex flex-col items-center gap-1 text-gray-400 text-[10px] font-semibold">
             <i class="fa-solid fa-folder-tree text-base"></i> Arborescence
@@ -207,7 +195,7 @@
         </button>
     </nav>
 
-    <!-- MODAL DE CRÉATION DE TYPE DE LIEN -->
+    <!-- MODAL TYPE DE LIEN -->
     <div id="link-type-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-[28px] max-w-sm w-full p-6 shadow-2xl border border-gray-100 dark:border-gray-800 space-y-4">
             <h3 class="font-bold text-sm">Nouveau Type de Lien</h3>
@@ -232,13 +220,13 @@
         </div>
     </div>
 
-    <!-- CONTEXT MENU CLIC DROIT BLANK -->
+    <!-- CONTEXT MENU CLIC DROIT -->
     <div id="wb-context-menu" class="hidden absolute bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-2 z-50 text-xs space-y-1 w-48">
         <button onclick="createNodeAtContext()" class="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"><i class="fa-solid fa-user-plus text-[#5246EE]"></i> Créer une personne</button>
         <button onclick="triggerAiParsing()" class="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i> IA Parsing (CV / CSV)</button>
     </div>
 
-    <!-- SCRIPT APPLICATION -->
+    <!-- SCRIPT -->
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
             const SUPABASE_URL = 'https://nfvnayuqrmlldtixzdpx.supabase.co';
@@ -247,7 +235,7 @@
 
             const urlParams = new URLSearchParams(window.location.search);
             const cardId = urlParams.get('cardId');
-            const projectId = urlParams.get('projectId'); // Si la carte appartient à un projet
+            const projectId = urlParams.get('projectId');
 
             if (!cardId) {
                 alert("Identifiant de carte manquant.");
@@ -261,18 +249,13 @@
                 name: 'Nouvelle Carte',
                 nodes: [],
                 links: [],
-                linkTypes: [
-                    { id: 'l1', name: 'Famille', color: '#3B82F6', style: 'solid' },
-                    { id: 'l2', name: 'Couple', color: '#EC4899', style: 'solid' },
-                    { id: 'l3', name: 'Ami', color: '#10B981', style: 'dashed' }
-                ],
+                linkTypes: [],
                 collaborators: []
             };
             let projectData = null;
             let selectedNodeId = null;
             let contextMenuPos = { x: 100, y: 100 };
             let isPanning = false, startPanX = 0, startPanY = 0, panX = 0, panY = 0;
-            let connectingNodeId = null;
 
             const { data: { session } } = await supabase.auth.getSession();
             if (!session || !session.user) {
@@ -281,12 +264,11 @@
             }
             currentUser = session.user;
 
-            // CHARGEMENT DES DONNÉES DE LA CARTE OU DU PROJET
+            // CHARGEMENT SUPABASE
             if (projectId) {
                 const { data: pData } = await supabase.from('projects').select('*').eq('id', projectId).single();
                 if (pData) {
                     projectData = pData;
-                    // Trouver la carte dans l'arborescence du projet
                     currentCard = findCardInTree(projectData.tree, cardId) || currentCard;
                 }
             } else {
@@ -295,7 +277,7 @@
             }
 
             renderBreadcrumb();
-            renderTreeSidebarContent();
+            setupTreeSidebarVisibility();
             renderLegend();
             renderWhiteboard();
             renderInspector();
@@ -313,18 +295,30 @@
                 }
             }
 
-            // --- FIL D'ARIANE ---
+            // --- FIL D'ARIANE / TITRE & ARBORESCENCE ---
             function renderBreadcrumb() {
                 const bc = document.getElementById('breadcrumb-container');
                 if (projectId && projectData) {
+                    const path = getTreePath(projectData.tree, cardId);
                     bc.innerHTML = `
-                        <span class="text-gray-500 hover:text-gray-900 dark:hover:text-gray-100" onclick="goBack()">${projectData.name}</span>
+                        <span class="text-gray-500">${projectData.name}</span>
                         <i class="fa-solid fa-chevron-right text-[9px] text-gray-400"></i>
-                        <span class="text-gray-900 dark:text-gray-100 font-bold">${currentCard.name}</span>
+                        <span class="text-gray-900 dark:text-gray-100 font-bold">${path ? path.join(' > ') : currentCard.name}</span>
                     `;
                 } else {
-                    bc.innerHTML = `<span class="text-gray-900 dark:text-gray-100 font-bold">${currentCard.name}</span>`;
+                    bc.innerHTML = `<span class="text-gray-900 dark:text-gray-100 font-bold"><i class="fa-solid fa-note-sticky text-indigo-500 mr-1.5"></i> ${currentCard.name}</span>`;
                 }
+            }
+
+            function getTreePath(list, targetId, currentPath = []) {
+                for (let item of list) {
+                    if (item.id === targetId) return [...currentPath, item.name];
+                    if (item.children) {
+                        const found = getTreePath(item.children, targetId, [...currentPath, item.name]);
+                        if (found) return found;
+                    }
+                }
+                return null;
             }
 
             function findCardInTree(list, id) {
@@ -338,101 +332,26 @@
                 return null;
             }
 
-            // --- GESTION DES COLLABORATEURS ---
-            window.toggleCollabDropdown = function() {
-                const drop = document.getElementById('collab-dropdown');
-                drop.classList.toggle('hidden');
-                renderCollabList();
-            }
-
-            window.inviteCollaborator = async function() {
-                const emailInput = document.getElementById('collab-invite-email');
-                const email = emailInput.value.trim();
-                if (!email) return;
-                if (!currentCard.collaborators) currentCard.collaborators = [];
-                currentCard.collaborators.push({ email, role: 'observer', status: 'En attente' });
-                emailInput.value = '';
-                renderCollabList();
-                saveCurrentData();
-            }
-
-            function renderCollabList() {
-                const container = document.getElementById('collab-list-container');
-                container.innerHTML = '';
-                const collabs = currentCard.collaborators || [];
-                if (collabs.length === 0) {
-                    container.innerHTML = `<p class="text-gray-400 text-[11px]">Aucun collaborateur invité.</p>`;
-                    return;
-                }
-                collabs.forEach((c, idx) => {
-                    const row = document.createElement('div');
-                    row.className = "flex items-center justify-between bg-gray-50 dark:bg-gray-800 p-2 rounded-xl text-xs";
-                    row.innerHTML = `
-                        <div>
-                            <div class="font-semibold">${c.email}</div>
-                            <div class="text-[10px] text-gray-400">${c.status}</div>
-                        </div>
-                        <select onchange="updateCollabRole(${idx}, this.value)" class="bg-transparent text-[11px] font-semibold text-[#5246EE] focus:outline-none">
-                            <option value="observer" ${c.role==='observer'?'selected':''}>Observateur</option>
-                            <option value="modifier" ${c.role==='modifier'?'selected':''}>Peut modifier</option>
-                            <option value="admin" ${c.role==='admin'?'selected':''}>Admin</option>
-                        </select>
-                    `;
-                    container.appendChild(row);
-                });
-            }
-
-            window.updateCollabRole = function(idx, role) {
-                if (currentCard.collaborators && currentCard.collaborators[idx]) {
-                    currentCard.collaborators[idx].role = role;
-                    saveCurrentData();
+            function setupTreeSidebarVisibility() {
+                const sidebar = document.getElementById('tree-sidebar');
+                if (!projectId || !projectData) {
+                    sidebar.classList.add('hidden');
+                } else {
+                    sidebar.classList.add('flex');
+                    renderTreeSidebarContent();
                 }
             }
 
-            // --- TÉLÉCHARGEMENT & EXPORT ---
-            window.toggleDownloadDropdown = function() {
-                document.getElementById('download-dropdown').classList.toggle('hidden');
-            }
-
-            window.exportMap = async function(format) {
-                toggleDownloadDropdown();
-                if (format === 'json') {
-                    const requireApproval = document.getElementById('secure-host-approval').checked;
-                    const exportData = {
-                        ...currentCard,
-                        host_approval_required: requireApproval,
-                        exported_by: currentUser.email,
-                        exported_at: new Date().toISOString()
-                    };
-                    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-                    const link = document.createElement('a');
-                    link.href = URL.createObjectURL(blob);
-                    link.download = `${currentCard.name.toLowerCase().replace(/\s+/g, '_')}_mobius.json`;
-                    link.click();
-                } else if (format === 'png') {
-                    const canvasEl = document.getElementById('whiteboard-canvas');
-                    const canvas = await html2canvas(canvasEl, { backgroundColor: null });
-                    const link = document.createElement('a');
-                    link.download = `${currentCard.name}.png`;
-                    link.href = canvas.toDataURL('image/png');
-                    link.click();
-                } else if (format === 'svg') {
-                    alert("Export SVG pris en charge via le conteneur vectoriel.");
-                }
-            }
-
-            // --- SIDEBAR ARBORESCENCE ---
             window.toggleTreeSidebar = function() {
+                if (!projectId || !projectData) return;
                 const sidebar = document.getElementById('tree-sidebar');
                 sidebar.classList.toggle('hidden');
+                sidebar.classList.toggle('flex');
             }
 
             function renderTreeSidebarContent() {
                 const container = document.getElementById('tree-sidebar-content');
-                if (!projectId || !projectData || !projectData.tree) {
-                    container.innerHTML = `<p class="text-gray-400 p-2">Arborescence disponible uniquement pour les cartes liées à un projet.</p>`;
-                    return;
-                }
+                if (!projectId || !projectData || !projectData.tree) return;
                 container.innerHTML = '';
                 renderTreeList(projectData.tree, container);
             }
@@ -458,7 +377,7 @@
                 alert("Téléchargement du projet complet en ZIP...");
             }
 
-            // --- LÉGENDE DES LIENS ---
+            // --- LÉGENDE ---
             function renderLegend() {
                 const container = document.getElementById('legend-list-container');
                 container.innerHTML = '';
@@ -470,7 +389,6 @@
                         <div class="flex items-center gap-2">
                             <span class="w-3 h-3 rounded-full" style="background-color: ${lt.color};"></span>
                             <span class="font-semibold">${lt.name}</span>
-                            <span class="text-[10px] text-gray-400">(${lt.style})</span>
                         </div>
                         <button onclick="deleteLinkType('${lt.id}')" class="text-red-500 hover:text-red-700"><i class="fa-solid fa-trash text-[10px]"></i></button>
                     `;
@@ -501,7 +419,7 @@
                 renderLegend();
             }
 
-            // --- TABLEAU BLANC & INTERACTIONS ---
+            // --- TABLEAU BLANC ---
             window.handleWhiteboardRightClick = function(e) {
                 e.preventDefault();
                 const menu = document.getElementById('wb-context-menu');
@@ -513,7 +431,6 @@
 
             window.handleWhiteboardLeftClick = function(e) {
                 document.getElementById('wb-context-menu').classList.add('hidden');
-                // Si on clique dans le vide (pas sur une carte), fermer l'inspecteur et afficher la recherche
                 if (e.target.id === 'whiteboard-container' || e.target.id === 'whiteboard-canvas' || e.target.id === 'links-svg') {
                     selectedNodeId = null;
                     renderInspector();
@@ -544,7 +461,7 @@
 
             window.triggerAiParsing = function() {
                 document.getElementById('wb-context-menu').classList.add('hidden');
-                const promptVal = prompt("Collez les informations ou décrivez le profil à générer par IA :");
+                const promptVal = prompt("Collez les informations pour l'IA :");
                 if (!promptVal) return;
                 const newNode = {
                     id: 'node_' + Date.now(),
@@ -565,12 +482,11 @@
                 renderInspector();
             }
 
-            // Gestion du Pan (déplacement du tableau)
             function startPan(e) {
                 if (e.target.id === 'whiteboard-container' || e.target.id === 'whiteboard-canvas' || e.target.id === 'links-svg') {
                     isPanning = true;
                     startPanX = e.clientX - panX;
-                    startPanY = e.clientY - panY;
+                    startPanY = e.clientY - startPanY;
                 }
             }
             function doPan(e) {
@@ -582,12 +498,9 @@
             }
             function endPan() { isPanning = false; }
 
-            // Rendu des nœuds et des liens
             function renderWhiteboard() {
                 const canvas = document.getElementById('whiteboard-canvas');
-                const svg = document.getElementById('links-svg');
                 canvas.innerHTML = '';
-                svg.innerHTML = '';
 
                 if (currentCard.nodes) {
                     currentCard.nodes.forEach(node => {
@@ -600,17 +513,10 @@
                             <div class="w-3 h-3 rounded-full mb-1" style="background-color: ${node.color};"></div>
                             <div class="font-bold text-xs text-gray-900 dark:text-gray-100">${node.name}</div>
                             <div class="text-[10px] text-gray-400">${node.role || ''}</div>
-                            <!-- 4 poignées d'ancrage -->
-                            <div class="absolute -top-1.5 w-3 h-3 bg-[#5246EE] rounded-full cursor-crosshair opacity-0 hover:opacity-100" onmousedown="startConnecting('${node.id}', event)"></div>
-                            <div class="absolute -bottom-1.5 w-3 h-3 bg-[#5246EE] rounded-full cursor-crosshair opacity-0 hover:opacity-100" onmousedown="startConnecting('${node.id}', event)"></div>
-                            <div class="absolute -left-1.5 w-3 h-3 bg-[#5246EE] rounded-full cursor-crosshair opacity-0 hover:opacity-100" onmousedown="startConnecting('${node.id}', event)"></div>
-                            <div class="absolute -right-1.5 w-3 h-3 bg-[#5246EE] rounded-full cursor-crosshair opacity-0 hover:opacity-100" onmousedown="startConnecting('${node.id}', event)"></div>
                         `;
 
-                        // Drag & Drop fluide d'une carte sans saut
                         let isDraggingNode = false, offsetX = 0, offsetY = 0;
                         el.onmousedown = (ev) => {
-                            if (ev.target.classList.contains('cursor-crosshair')) return; // Ne pas glisser si poignée
                             ev.stopPropagation();
                             isDraggingNode = true;
                             selectedNodeId = node.id;
@@ -622,8 +528,8 @@
                         };
                         window.addEventListener('mousemove', (ev) => {
                             if (!isDraggingNode) return;
-                            node.x = (ev.clientX - whiteboardContainerRect().left - offsetX - panX);
-                            node.y = (ev.clientY - whiteboardContainerRect().top - offsetY - panY);
+                            node.x = (ev.clientX - document.getElementById('whiteboard-container').getBoundingClientRect().left - offsetX - panX);
+                            node.y = (ev.clientY - document.getElementById('whiteboard-container').getBoundingClientRect().top - offsetY - panY);
                             el.style.left = `${node.x}px`;
                             el.style.top = `${node.y}px`;
                             renderLinks();
@@ -638,12 +544,7 @@
                         canvas.appendChild(el);
                     });
                 }
-
                 renderLinks();
-            }
-
-            function whiteboardContainerRect() {
-                return document.getElementById('whiteboard-container').getBoundingClientRect();
             }
 
             function renderLinks() {
@@ -664,40 +565,13 @@
                     line.setAttribute('x2', target.x + 60);
                     line.setAttribute('y2', target.y + 35);
                     line.setAttribute('stroke', lt.color);
-                    line.setAttribute('stroke-width', lt.style === 'thick' ? '5' : '2');
-                    if (lt.style === 'dashed') line.setAttribute('stroke-dasharray', '6,6');
-                    if (lt.style === 'dotted') line.setAttribute('stroke-dasharray', '2,2');
-                    line.setAttribute('class', 'link-line');
-                    line.oncontextmenu = (ev) => {
-                        ev.preventDefault();
-                        if (confirm("Supprimer ce lien ?")) {
-                            currentCard.links = currentCard.links.filter(l => l !== link);
-                            saveCurrentData();
-                            renderLinks();
-                        }
-                    };
+                    line.setAttribute('stroke-width', '2');
                     svg.appendChild(line);
                 });
             }
 
-            window.startConnecting = function(nodeId, e) {
-                e.stopPropagation();
-                connectingNodeId = nodeId;
-                const targetId = prompt("ID ou Nom de la personne cible à relier (ou cliquez sur une poignée) :");
-                if (!targetId) return;
-                const targetNode = currentCard.nodes.find(n => n.id === targetId || n.name.toLowerCase() === targetId.toLowerCase());
-                if (targetNode && targetNode.id !== nodeId) {
-                    const linkType = currentCard.linkTypes[0] ? currentCard.linkTypes[0].id : 'l1';
-                    if (!currentCard.links) currentCard.links = [];
-                    currentCard.links.push({ sourceId: nodeId, targetId: targetNode.id, typeId: linkType });
-                    saveCurrentData();
-                    renderLinks();
-                }
-            }
-
             // --- INSPECTEUR & RECHERCHE ---
             window.handleInspectorSearch = function(query) {
-                // Dès qu'on tape dans la recherche, l'inspecteur bascule sur la liste filtrée
                 selectedNodeId = null;
                 renderInspector(query);
             }
@@ -706,14 +580,13 @@
                 const container = document.getElementById('inspector-content');
                 container.innerHTML = '';
 
-                // Si aucun nœud sélectionné ou si recherche en cours
                 if (!selectedNodeId || searchQuery) {
                     const nodes = currentCard.nodes || [];
                     const filtered = nodes.filter(n => n.name.toLowerCase().includes(searchQuery.toLowerCase()) || (n.role && n.role.toLowerCase().includes(searchQuery.toLowerCase())));
 
-                    container.innerHTML = `<h4 class="font-bold text-xs uppercase tracking-wider text-gray-400 mb-3">Liste des Personnes (${filtered.length})</h4>`;
+                    container.innerHTML = `<h4 class="font-bold text-xs uppercase tracking-wider text-gray-400 mb-3">Personnes (${filtered.length})</h4>`;
                     if (filtered.length === 0) {
-                        container.innerHTML += `<p class="text-gray-400 text-xs">Aucun personnage trouvé.</p>`;
+                        container.innerHTML += `<p class="text-gray-400 text-xs">Aucun personnage.</p>`;
                         return;
                     }
 
@@ -741,11 +614,9 @@
                     return;
                 }
 
-                // Si un nœud est sélectionné : Afficher l'inspecteur complet
                 const node = currentCard.nodes.find(n => n.id === selectedNodeId);
                 if (!node) return;
 
-                // Calcul automatique de l'âge à partir de la date de naissance
                 let ageText = '';
                 if (node.birthDate) {
                     const birthYear = new Date(node.birthDate).getFullYear();
@@ -778,8 +649,8 @@
                         <div>
                             <label class="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Rôle / Attribut</label>
                             <div class="flex gap-2">
-                                <input type="text" id="node-role-input" value="${node.role || ''}" oninput="updateNodeField('${node.id}', 'role', this.value)" class="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none">
-                                <button onclick="applyBulkAttribute('${node.role}')" class="px-2.5 py-1 bg-[#5246EE]/10 text-[#5246EE] text-[10px] font-bold rounded-xl" title="Appliquer à tous les personnages ayant le même rôle">Appliquer à tous</button>
+                                <input type="text" value="${node.role || ''}" oninput="updateNodeField('${node.id}', 'role', this.value)" class="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none">
+                                <button onclick="applyBulkAttribute('${node.role}')" class="px-2.5 py-1 bg-[#5246EE]/10 text-[#5246EE] text-[10px] font-bold rounded-xl">Appliquer à tous</button>
                             </div>
                         </div>
 
@@ -791,23 +662,13 @@
                             <div>
                                 <label class="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Forme</label>
                                 <select onchange="updateNodeField('${node.id}', 'shape', this.value); renderWhiteboard();" class="w-full px-2 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs">
-                                    <option value="rounded-2xl" ${node.shape==='rounded-2xl'?'selected':''}>Carré arrondi</option>
+                                    <option value="rounded-2xl" ${node.shape==='rounded-2xl'?'selected':''}>Carré</option>
                                     <option value="rounded-full" ${node.shape==='rounded-full'?'selected':''}>Cercle</option>
                                 </select>
                             </div>
                         </div>
-
-                        <div class="pt-4 border-t border-gray-200 dark:border-gray-800 space-y-2">
-                            <h5 class="font-bold text-[11px] uppercase tracking-wider text-gray-500">Connexions</h5>
-                            <div id="node-connections-list" class="space-y-1.5"></div>
-                            <button onclick="openNewConnectionModal('${node.id}')" class="w-full py-2 bg-[#5246EE]/10 hover:bg-[#5246EE]/20 text-[#5246EE] rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all">
-                                <i class="fa-solid fa-link"></i> Créer un nouveau lien
-                            </button>
-                        </div>
                     </div>
                 `;
-
-                renderNodeConnections(node.id);
             }
 
             window.updateNodeField = function(nodeId, field, value) {
@@ -821,7 +682,7 @@
 
             window.deleteSelectedNode = function() {
                 if (!selectedNodeId) return;
-                if (confirm("Supprimer cette personne et ses liens ?")) {
+                if (confirm("Supprimer cette personne ?")) {
                     currentCard.nodes = currentCard.nodes.filter(n => n.id !== selectedNodeId);
                     currentCard.links = currentCard.links.filter(l => l.sourceId !== selectedNodeId && l.targetId !== selectedNodeId);
                     selectedNodeId = null;
@@ -844,101 +705,18 @@
                 });
                 saveCurrentData();
                 renderWhiteboard();
-                alert(`Modifications appliquées à tous les personnages avec le rôle : "${role}" !`);
+                alert("Modifications appliquées en masse !");
             }
 
-            function renderNodeConnections(nodeId) {
-                const container = document.getElementById('node-connections-list');
-                if (!container) return;
-                container.innerHTML = '';
-                const links = (currentCard.links || []).filter(l => l.sourceId === nodeId || l.targetId === nodeId);
-                if (links.length === 0) {
-                    container.innerHTML = `<p class="text-[11px] text-gray-400">Aucune connexion.</p>`;
-                    return;
-                }
-                links.forEach(l => {
-                    const otherId = l.sourceId === nodeId ? l.targetId : l.sourceId;
-                    const otherNode = currentCard.nodes.find(n => n.id === otherId);
-                    const lt = (currentCard.linkTypes || []).find(t => t.id === l.typeId) || { name: 'Lien' };
-                    if (otherNode) {
-                        const row = document.createElement('div');
-                        row.className = "flex items-center justify-between bg-gray-50 dark:bg-gray-800 p-2 rounded-xl text-xs";
-                        row.innerHTML = `
-                            <span>${lt.name} → <b>${otherNode.name}</b></span>
-                            <button onclick="removeLink('${l.sourceId}', '${l.targetId}')" class="text-red-500"><i class="fa-solid fa-xmark"></i></button>
-                        `;
-                        container.appendChild(row);
-                    }
-                });
-            }
-
-            window.openNewConnectionModal = function(nodeId) {
-                const otherNodes = currentCard.nodes.filter(n => n.id !== nodeId);
-                if (otherNodes.length === 0) {
-                    alert("Aucun autre personnage disponible pour créer un lien.");
-                    return;
-                }
-                const targetId = prompt(`Choisir la personne cible (Entrez le nom EXACT parmi : ${otherNodes.map(n => n.name).join(', ')}) :`);
-                if (!targetId) return;
-                const targetNode = otherNodes.find(n => n.name.toLowerCase() === targetId.toLowerCase());
-                if (!targetNode) {
-                    alert("Personne introuvable.");
-                    return;
-                }
-                const linkTypeName = prompt(`Type de lien (Parmi : ${(currentCard.linkTypes || []).map(t => t.name).join(', ')}) :`);
-                const lt = (currentCard.linkTypes || []).find(t => t.name.toLowerCase() === (linkTypeName || '').toLowerCase()) || currentCard.linkTypes[0];
-
-                if (!currentCard.links) currentCard.links = [];
-                currentCard.links.push({ sourceId: nodeId, targetId: targetNode.id, typeId: lt ? lt.id : 'l1' });
-                saveCurrentData();
-                renderLinks();
-                renderInspector();
-            }
-
-            window.removeLink = function(sId, tId) {
-                currentCard.links = currentCard.links.filter(l => !(l.sourceId === sId && l.targetId === tId));
-                saveCurrentData();
-                renderLinks();
-                renderInspector();
-            }
-
-            // Suppression par touche Backspace
             window.addEventListener('keydown', (e) => {
                 if (e.key === 'Backspace' && selectedNodeId && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
                     deleteSelectedNode();
                 }
             });
 
-            // --- NAVIGATION MOBILE (ONGLETS BAS) ---
-            window.switchMobileTab = function(tab) {
-                const tree = document.getElementById('tree-sidebar');
-                const legend = document.getElementById('legend-sidebar');
-                const inspector = document.getElementById('inspector-sidebar');
-                const board = document.getElementById('whiteboard-container');
-
-                // Reset des couleurs des boutons du bas
-                ['tree', 'legend', 'board', 'inspector'].forEach(t => {
-                    document.getElementById(`mob-btn-${t}`).className = "flex flex-col items-center gap-1 text-gray-400 text-[10px] font-semibold";
-                });
-                document.getElementById(`mob-btn-${tab}`).className = "flex flex-col items-center gap-1 text-[#5246EE] text-[10px] font-semibold";
-
-                // Sur mobile, on gère l'affichage exclusif des panneaux
-                if (window.innerWidth < 640) {
-                    tree.classList.add('hidden');
-                    legend.classList.add('hidden');
-                    inspector.classList.add('hidden');
-                    board.classList.remove('hidden');
-
-                    if (tab === 'tree') { tree.classList.remove('hidden'); board.classList.add('hidden'); }
-                    if (tab === 'legend') { legend.classList.remove('hidden'); board.classList.add('hidden'); }
-                    if (tab === 'inspector') { inspector.classList.remove('hidden'); board.classList.add('hidden'); }
-                }
-            }
-
             // --- SAUVEGARDE SUPABASE ---
             async function saveCurrentData() {
                 if (projectId && projectData) {
-                    // Mettre à jour la carte dans l'arborescence du projet
                     updateCardInTree(projectData.tree, currentCard);
                     await supabase.from('projects').update({ tree: projectData.tree }).eq('id', projectId);
                 } else {
