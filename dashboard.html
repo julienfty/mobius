@@ -44,7 +44,6 @@
         .dark .glass-card {
             border: 1px solid rgba(255, 255, 255, 0.08);
         }
-        /* Empêche le zoom sur mobile */
         @media (max-width: 768px) {
             input, select, textarea {
                 font-size: 16px !important;
@@ -62,13 +61,11 @@
         </div>
 
         <div class="flex items-center gap-3 sm:gap-4">
-            <!-- Mode Nuit / Jour -->
             <button onclick="toggleDarkMode()" class="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all">
                 <i class="fa-solid fa-moon dark:hidden"></i>
                 <i class="fa-solid fa-sun hidden dark:block text-amber-400"></i>
             </button>
 
-            <!-- Profil Cliquable -->
             <div onclick="openProfileModal()" class="flex items-center gap-2.5 bg-gray-100 dark:bg-gray-800/80 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-1.5 rounded-2xl cursor-pointer transition-all">
                 <div class="w-7 h-7 rounded-full bg-[#5246EE] text-white flex items-center justify-center text-xs font-bold" id="nav-user-initial">U</div>
                 <div class="hidden sm:block text-left leading-tight">
@@ -82,30 +79,23 @@
     <!-- MAIN DASHBOARD CONTENT CONTAINER -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 flex flex-col" id="main-view-container">
         
-        <!-- CONTROLS & ACTIONS BAR -->
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-            
-            <!-- TABS (Projets / Cartes libres) -->
             <div class="bg-gray-200/70 dark:bg-gray-800 p-1 rounded-2xl flex w-full sm:w-auto">
                 <button onclick="switchDashboardTab('projects')" id="tab-projects" class="flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-gray-900 shadow-sm transition-all">Projets & Dossiers</button>
                 <button onclick="switchDashboardTab('cards')" id="tab-cards" class="flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold text-gray-500 dark:text-gray-400 transition-all">Cartes Libres</button>
             </div>
 
-            <!-- ACTIONS (Créer + Vues Grille/Liste + Tri) -->
             <div class="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
-                <!-- Vue Grille / Liste -->
                 <div class="bg-gray-200/70 dark:bg-gray-800 p-1 rounded-xl flex items-center">
                     <button onclick="setViewMode('grid')" id="btn-view-grid" class="w-8 h-8 rounded-lg bg-white dark:bg-gray-900 text-xs shadow-sm flex items-center justify-center transition-all"><i class="fa-solid fa-border-all"></i></button>
                     <button onclick="setViewMode('list')" id="btn-view-list" class="w-8 h-8 rounded-lg text-gray-500 dark:text-gray-400 text-xs flex items-center justify-center transition-all"><i class="fa-solid fa-list"></i></button>
                 </div>
 
-                <!-- Tri -->
                 <select id="sort-select" onchange="renderDashboard()" class="bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none">
                     <option value="alpha">Ordre alphabétique</option>
                     <option value="chrono">Ordre chronologique</option>
                 </select>
 
-                <!-- Bouton Créer -->
                 <button onclick="openCreateModal()" class="bg-[#5246EE] hover:bg-[#4538d8] text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-md shadow-[#5246EE]/25 flex items-center gap-2 transition-all">
                     <i class="fa-solid fa-plus text-[10px]"></i>
                     <span id="create-btn-text">Nouveau Projet</span>
@@ -113,22 +103,16 @@
             </div>
         </div>
 
-        <!-- DRAG & DROP / IMPORT ZONE -->
         <div id="drop-zone" class="border-2 border-dashed border-gray-300 dark:border-gray-800 rounded-2xl p-6 text-center mb-6 hover:border-[#5246EE] transition-all bg-white/50 dark:bg-gray-900/50 cursor-pointer">
             <i class="fa-solid fa-cloud-arrow-up text-2xl text-[#5246EE] mb-2"></i>
             <p class="text-xs font-medium text-gray-700 dark:text-gray-300">Glissez-déposez vos fichiers ou dossiers ici</p>
-            <p class="text-[10px] text-gray-400 mt-0.5">ou cliquez pour importer un modèle existant</p>
             <input type="file" id="file-input-hidden" class="hidden" multiple accept=".json,.txt">
         </div>
 
-        <!-- LIST CONTAINER (Grille ou Liste) -->
-        <div id="items-grid-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            <!-- Injecté dynamiquement par JS -->
-        </div>
-
+        <div id="items-grid-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
     </main>
 
-    <!-- PROJECT ARBORESCENCE VIEW (Apple Finder Style) -->
+    <!-- PROJECT ARBORESCENCE VIEW -->
     <div id="project-workspace" class="hidden flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 flex flex-col">
         <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-800">
             <div class="flex items-center gap-3">
@@ -137,7 +121,7 @@
                 </button>
                 <div>
                     <h1 class="text-lg font-bold" id="workspace-title">Nom du Projet</h1>
-                    <p class="text-xs text-gray-500" id="workspace-subtitle">Arborescence & Fichiers</p>
+                    <p class="text-xs text-gray-500" id="workspace-subtitle">Sélectionnez un dossier pour y ajouter des éléments</p>
                 </div>
             </div>
             <div class="flex items-center gap-2">
@@ -148,22 +132,23 @@
             </div>
         </div>
 
-        <!-- Outils d'arborescence racine -->
-        <div class="flex items-center gap-2 mb-4 flex-wrap">
-            <button onclick="addArbItem('folder', null)" class="px-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-folder-plus text-[#5246EE]"></i> Dossier Racine</button>
-            <button onclick="addArbItem('txt', null)" class="px-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-lines text-emerald-500"></i> Fichier .txt</button>
-            <button onclick="addArbItem('card', null)" class="px-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-note-sticky text-indigo-500"></i> Nouvelle Carte</button>
+        <!-- Outils d'arborescence (Agissent sur le dossier sélectionné ou à la racine) -->
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
+                <button onclick="createInSelected('folder')" class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-folder-plus text-[#5246EE]"></i> Dossier</button>
+                <button onclick="createInSelected('txt')" class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-lines text-emerald-500"></i> Fichier .txt</button>
+                <button onclick="createInSelected('card')" class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-note-sticky text-indigo-500"></i> Nouvelle Carte</button>
+            </div>
+            <div class="text-[11px] text-gray-400 font-medium" id="selected-folder-indicator">📁 Destination : Racine du projet</div>
         </div>
 
-        <!-- Arborescence Interactive Finder Style -->
-        <div id="arborescence-tree" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex-1 space-y-2 overflow-y-auto">
-            <!-- Injecté dynamiquement -->
-        </div>
+        <!-- Arborescence Interactive Apple Finder Style avec Drag & Drop -->
+        <div id="arborescence-tree" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex-1 space-y-2 overflow-y-auto" ondragover="allowDrop(event)" ondrop="dropToRoot(event)"></div>
     </div>
 
-    <!-- POPUP DE CRÉATION (Projet ou Carte libre) -->
+    <!-- POPUP DE CRÉATION -->
     <div id="create-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-gray-900 rounded-[28px] max-w-md w-full p-6 sm:p-8 shadow-2xl border border-gray-100 dark:border-gray-800 space-y-5 animate-in">
+        <div class="bg-white dark:bg-gray-900 rounded-[28px] max-w-md w-full p-6 sm:p-8 shadow-2xl border border-gray-100 dark:border-gray-800 space-y-5">
             <h2 class="text-base font-bold" id="create-modal-title">Créer un nouveau projet</h2>
             
             <div class="space-y-4">
@@ -234,12 +219,12 @@
             const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
             let currentUser = null;
-            let currentTab = 'projects'; // 'projects' ou 'cards'
-            let viewMode = 'grid'; // 'grid' ou 'list'
+            let currentTab = 'projects';
+            let viewMode = 'grid';
             let activeProject = null;
+            let selectedFolderId = null; // ID du dossier sélectionné dans l'arborescence
             let collaboratorsListTemp = [];
 
-            // Vérification de session active
             const { data: { session } } = await supabase.auth.getSession();
             if (!session || !session.user) {
                 window.location.href = 'index.html';
@@ -282,7 +267,6 @@
                 renderDashboard();
             }
 
-            // Données initiales vides (zéro élément pré-défini)
             let mockData = {
                 projects: [],
                 cards: []
@@ -445,7 +429,6 @@
                 renderDashboard();
             }
 
-            // Ouverture Arborescence Projet
             window.openProject = function(id) {
                 activeProject = mockData.projects.find(p => p.id === id);
                 if (!activeProject) return;
@@ -458,9 +441,11 @@
                     }
                 }
 
+                selectedFolderId = null;
                 document.getElementById('main-view-container').classList.add('hidden');
                 document.getElementById('project-workspace').classList.remove('hidden');
                 document.getElementById('workspace-title').textContent = activeProject.name;
+                updateFolderIndicator();
                 renderArborescence();
             }
 
@@ -470,8 +455,26 @@
                 renderDashboard();
             }
 
-            // --- VRAIE ARBORESCENCE TYPE APPLE FINDER (Récursive avec dossiers déroulants) ---
-            window.addArbItem = function(type, parentId = null) {
+            // --- GESTION DE LA SÉLECTION DES DOSSIERS ---
+            window.selectFolder = function(id, event) {
+                event.stopPropagation();
+                selectedFolderId = (selectedFolderId === id) ? null : id;
+                updateFolderIndicator();
+                renderArborescence();
+            }
+
+            function updateFolderIndicator() {
+                const ind = document.getElementById('selected-folder-indicator');
+                if (!selectedFolderId) {
+                    ind.textContent = "📁 Destination : Racine du projet";
+                } else {
+                    const folder = findItemRecursive(activeProject.tree, selectedFolderId);
+                    ind.textContent = `📁 Destination : Dossier [ ${folder ? folder.name : ''} ]`;
+                }
+            }
+
+            // Création d'un élément dans le dossier sélectionné ou à la racine
+            window.createInSelected = function(type) {
                 const typeName = type === 'folder' ? 'dossier' : type === 'txt' ? 'fichier .txt' : 'carte';
                 const name = prompt(`Nom du ${typeName} :`);
                 if (!name) return;
@@ -484,10 +487,12 @@
                     children: type === 'folder' ? [] : undefined
                 };
 
-                if (!parentId) {
+                if (!selectedFolderId) {
                     activeProject.tree.push(newItem);
                 } else {
-                    addItemRecursive(activeProject.tree, parentId, newItem);
+                    addItemRecursive(activeProject.tree, selectedFolderId, newItem);
+                    // Dépliage automatique du dossier parent pour voir l'élément créé
+                    expandFolderRecursive(activeProject.tree, selectedFolderId);
                 }
                 renderArborescence();
             }
@@ -506,12 +511,47 @@
                 return false;
             }
 
-            window.addToFolder = function(parentId, type) {
-                addArbItem(type, parentId);
+            function findItemRecursive(list, id) {
+                for (let item of list) {
+                    if (item.id === id) return item;
+                    if (item.children) {
+                        const found = findItemRecursive(item.children, id);
+                        if (found) return found;
+                    }
+                }
+                return null;
             }
 
-            window.removeTreeItem = function(id) {
+            let expandedFolders = new Set();
+
+            window.toggleFolder = function(id, event) {
+                event.stopPropagation();
+                if (expandedFolders.has(id)) {
+                    expandedFolders.delete(id);
+                } else {
+                    expandedFolders.add(id);
+                }
+                renderArborescence();
+            }
+
+            function expandFolderRecursive(list, id) {
+                for (let item of list) {
+                    if (item.id === id) {
+                        expandedFolders.add(id);
+                        return true;
+                    }
+                    if (item.children) {
+                        if (expandFolderRecursive(item.children, id)) return true;
+                    }
+                }
+                return false;
+            }
+
+            window.removeTreeItem = function(id, event) {
+                event.stopPropagation();
+                if (selectedFolderId === id) selectedFolderId = null;
                 activeProject.tree = removeTreeRecursive(activeProject.tree, id);
+                updateFolderIndicator();
                 renderArborescence();
             }
 
@@ -525,20 +565,84 @@
                 });
             }
 
-            window.toggleFolder = function(id) {
-                const sub = document.getElementById(`folder-content-${id}`);
-                const chev = document.getElementById(`chev-${id}`);
-                if (sub) {
-                    sub.classList.toggle('hidden');
-                    chev.classList.toggle('rotate-90');
+            // --- DRAG & DROP ARBORESCENCE ---
+            let draggedItemId = null;
+
+            window.dragStart = function(e, id) {
+                e.stopPropagation();
+                draggedItemId = id;
+                e.dataTransfer.effectAllowed = 'move';
+            }
+
+            window.allowDrop = function(e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+            }
+
+            window.dropToFolder = function(e, targetFolderId) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!draggedItemId || draggedItemId === targetFolderId) return;
+
+                // Empêcher de mettre un dossier dans lui-même
+                if (isDescendant(activeProject.tree, draggedItemId, targetFolderId)) {
+                    alert("Impossible de déplacer un dossier à l'intérieur de lui-même !");
+                    return;
                 }
+
+                const itemToMove = extractTreeItem(activeProject.tree, draggedItemId);
+                if (itemToMove) {
+                    const targetFolder = findItemRecursive(activeProject.tree, targetFolderId);
+                    if (targetFolder) {
+                        if (!targetFolder.children) targetFolder.children = [];
+                        targetFolder.children.push(itemToMove);
+                        expandedFolders.add(targetFolderId);
+                    }
+                }
+                draggedItemId = null;
+                renderArborescence();
+            }
+
+            window.dropToRoot = function(e) {
+                e.preventDefault();
+                if (!draggedItemId) return;
+
+                const itemToMove = extractTreeItem(activeProject.tree, draggedItemId);
+                if (itemToMove) {
+                    activeProject.tree.push(itemToMove);
+                }
+                draggedItemId = null;
+                renderArborescence();
+            }
+
+            function extractTreeItem(list, id) {
+                for (let i = 0; i < list.length; i++) {
+                    if (list[i].id === id) {
+                        return list.splice(i, 1)[0];
+                    }
+                    if (list[i].children) {
+                        const found = extractTreeItem(list[i].children, id);
+                        if (found) return found;
+                    }
+                }
+                return null;
+            }
+
+            function isDescendant(list, parentId, targetId) {
+                const parent = findItemRecursive(list, parentId);
+                if (!parent || !parent.children) return false;
+                for (let child of parent.children) {
+                    if (child.id === targetId) return true;
+                    if (child.children && isDescendant(child.children, child.id, targetId)) return true;
+                }
+                return false;
             }
 
             function renderArborescence() {
                 const treeContainer = document.getElementById('arborescence-tree');
                 treeContainer.innerHTML = '';
                 if (!activeProject.tree || activeProject.tree.length === 0) {
-                    treeContainer.innerHTML = `<div class="text-center py-8 text-gray-400 text-xs">Arborescence vide. Utilisez les boutons ci-dessus pour ajouter des dossiers ou des cartes.</div>`;
+                    treeContainer.innerHTML = `<div class="text-center py-12 text-gray-400 text-xs">Arborescence vide. Sélectionnez le dossier racine ou un dossier existant puis utilisez les boutons ci-dessus pour ajouter des éléments.</div>`;
                     return;
                 }
                 renderTreeLevel(activeProject.tree, treeContainer);
@@ -548,23 +652,26 @@
                 items.forEach(item => {
                     const el = document.createElement('div');
                     el.className = "space-y-1";
+                    el.setAttribute('draggable', 'true');
+                    el.setAttribute('onsend', 'return false;');
+                    el.addEventListener('dragstart', (e) => dragStart(e, item.id));
 
                     if (item.type === 'folder') {
+                        const isSelected = selectedFolderId === item.id;
+                        const isExpanded = expandedFolders.has(item.id);
+
                         el.innerHTML = `
-                            <div class="flex items-center justify-between p-2.5 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 text-xs hover:bg-gray-100 transition-all">
-                                <div class="flex items-center gap-2.5 flex-1 cursor-pointer" onclick="toggleFolder('${item.id}')">
-                                    <i class="fa-solid fa-chevron-right text-[10px] text-gray-400 transition-transform" id="chev-${item.id}"></i>
+                            <div draggable="true" ondragover="allowDrop(event)" ondrop="dropToFolder(event, '${item.id}')" 
+                                class="flex items-center justify-between p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${isSelected ? 'bg-[#5246EE]/10 border-[#5246EE] text-[#5246EE] font-semibold' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-100'}"
+                                onclick="selectFolder('${item.id}', event)">
+                                <div class="flex items-center gap-2.5 flex-1">
+                                    <i class="fa-solid fa-chevron-right text-[10px] text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}" onclick="toggleFolder('${item.id}', event)"></i>
                                     <i class="fa-solid fa-folder text-[#5246EE]"></i>
-                                    <span class="font-medium">${item.name}</span>
+                                    <span>${item.name}</span>
                                 </div>
-                                <div class="flex items-center gap-2">
-                                    <button onclick="addToFolder('${item.id}', 'folder')" title="Ajouter sous-dossier" class="text-gray-500 hover:text-[#5246EE]"><i class="fa-solid fa-folder-plus"></i></button>
-                                    <button onclick="addToFolder('${item.id}', 'txt')" title="Ajouter fichier .txt" class="text-gray-500 hover:text-emerald-500"><i class="fa-solid fa-file-lines"></i></button>
-                                    <button onclick="addToFolder('${item.id}', 'card')" title="Ajouter une carte" class="text-gray-500 hover:text-indigo-500"><i class="fa-solid fa-note-sticky"></i></button>
-                                    <button onclick="removeTreeItem('${item.id}')" class="text-red-500 hover:text-red-700 ml-2" title="Supprimer"><i class="fa-solid fa-xmark"></i></button>
-                                </div>
+                                <button onclick="removeTreeItem('${item.id}', event)" class="text-red-500 hover:text-red-700 px-2" title="Supprimer"><i class="fa-solid fa-xmark"></i></button>
                             </div>
-                            <div id="folder-content-${item.id}" class="pl-6 space-y-1 hidden mt-1 border-l-2 border-gray-100 dark:border-gray-800"></div>
+                            <div id="folder-content-${item.id}" class="pl-6 space-y-1 ${isExpanded ? '' : 'hidden'} mt-1 border-l-2 border-gray-100 dark:border-gray-800"></div>
                         `;
                         container.appendChild(el);
                         if (item.children && item.children.length > 0) {
@@ -573,14 +680,15 @@
                     } else {
                         const icon = item.type === 'txt' ? 'fa-file-lines text-emerald-500' : 'fa-note-sticky text-indigo-500';
                         const clickAction = item.type === 'card' ? `window.location.href='map.html?cardId=${item.id}'` : `alert('Ouverture du fichier texte...')`;
+                        
                         el.innerHTML = `
-                            <div class="flex items-center justify-between p-2.5 bg-gray-50/60 dark:bg-gray-800/60 rounded-xl border border-gray-200/60 dark:border-gray-700/60 text-xs hover:bg-gray-100 transition-all">
-                                <div class="flex items-center gap-2.5 flex-1 cursor-pointer" onclick="${clickAction}">
+                            <div draggable="true" class="flex items-center justify-between p-2.5 bg-gray-50/60 dark:bg-gray-800/60 rounded-xl border border-gray-200/60 dark:border-gray-700/60 text-xs hover:bg-gray-100 transition-all cursor-pointer" onclick="${clickAction}">
+                                <div class="flex items-center gap-2.5 flex-1">
                                     <i class="fa-solid ${icon}"></i>
                                     <span class="font-medium">${item.name}</span>
                                     ${item.type === 'card' ? '<span class="text-[9px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-semibold">Carte</span>' : ''}
                                 </div>
-                                <button onclick="removeTreeItem('${item.id}')" class="text-red-500 hover:text-red-700"><i class="fa-solid fa-xmark"></i></button>
+                                <button onclick="removeTreeItem('${item.id}', event)" class="text-red-500 hover:text-red-700 px-2"><i class="fa-solid fa-xmark"></i></button>
                             </div>
                         `;
                         container.appendChild(el);
@@ -588,7 +696,6 @@
                 });
             }
 
-            // Export ZIP complet
             window.openExportModal = async function() {
                 if (activeProject.pwd) {
                     const p = prompt("Entrez le mot de passe pour télécharger ce projet sécurisé :");
@@ -606,7 +713,6 @@
                 };
 
                 zip.file("project_manifest.json", JSON.stringify(projectData, null, 2));
-                
                 const contentBlob = await zip.generateAsync({ type: "blob" });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(contentBlob);
