@@ -12,6 +12,13 @@
     <!-- JSZip pour l'exportation en ZIP -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>
+        // Applique immédiatement le thème sauvegardé avant le rendu pour éviter les flashs lumineux
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+
         tailwind.config = {
             darkMode: 'class',
             theme: {
@@ -139,16 +146,16 @@
                 <button onclick="createInSelected('txt')" class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-lines text-emerald-500"></i> Fichier .txt</button>
                 <button onclick="createInSelected('card')" class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-note-sticky text-indigo-500"></i> Nouvelle Carte</button>
                 <button onclick="triggerFileImport()" class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-arrow-down text-[#5246EE]"></i> Importer</button>
-                <input type="file" id="tree-file-input" class="hidden" accept=".txt" onchange="handleFileImport(event)">
+                <input type="file" id="tree-file-input" class="hidden" accept=".txt" multiple onchange="handleFileImport(event)">
             </div>
             <div class="text-[11px] text-gray-400 font-medium" id="selected-folder-indicator">📁 Destination : Racine du projet</div>
         </div>
 
-        <!-- Arborescence Interactive -->
+        <!-- Arborescence Interactive (Accepte le Drag & Drop direct depuis le Finder) -->
         <div id="arborescence-tree" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex-1 space-y-2 overflow-y-auto" ondragover="allowDrop(event)" ondrop="dropToRoot(event)"></div>
     </div>
 
-    <!-- POPUP PERSONNALISÉ DARK/LIGHT MODE (PROMPT) -->
+    <!-- POPUPS PERSONNALISÉS DARK/LIGHT MODE -->
     <div id="custom-prompt-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-[28px] max-w-sm w-full p-6 shadow-2xl border border-gray-100 dark:border-gray-800 space-y-4">
             <h3 class="font-bold text-sm" id="custom-prompt-title">Titre</h3>
@@ -160,7 +167,6 @@
         </div>
     </div>
 
-    <!-- POPUP PERSONNALISÉ DARK/LIGHT MODE (CONFIRM) -->
     <div id="custom-confirm-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-[28px] max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-gray-100 dark:border-gray-800">
             <div class="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-500 flex items-center justify-center mx-auto text-lg"><i class="fa-solid fa-triangle-exclamation"></i></div>
@@ -265,8 +271,10 @@
             document.getElementById('nav-user-email').textContent = currentUser.email;
             document.getElementById('nav-user-initial').textContent = fullName.charAt(0).toUpperCase();
 
+            // TOGGLE DARK MODE AVEC PERSISTANCE DANS LOCALSTORAGE
             window.toggleDarkMode = function() {
-                document.documentElement.classList.toggle('dark');
+                const isDark = document.documentElement.classList.toggle('dark');
+                localStorage.setItem('theme', isDark ? 'dark' : 'light');
             }
 
             let promptResolve = null;
@@ -335,18 +343,17 @@
                 } else {
                     const { data, error } = await supabase.from('cards').select('*');
                     if (!error) cardsList = data || [];
-            }
+                }
+                renderDashboard();
 
-    // Vérifier si un projet doit être ouvert automatiquement (au retour de l'éditeur)
-    const urlParams = new URLSearchParams(window.location.search);
-    const openProjectId = urlParams.get('openProjectId');
-    if (openProjectId && currentTab === 'projects') {
-        // Nettoie l'URL sans recharger la page
-        window.history.replaceState({}, document.title, window.location.pathname);
-        // Ouvre l'arborescence du projet
-        openProject(openProjectId);
-    }
-}
+                // Ouverture automatique du projet en cas de retour depuis editor.html
+                const urlParams = new URLSearchParams(window.location.search);
+                const openProjectId = urlParams.get('openProjectId');
+                if (openProjectId && currentTab === 'projects') {
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    openProject(openProjectId);
+                }
+            }
 
             window.renderDashboard = function() {
                 const container = document.getElementById('items-grid-container');
@@ -592,29 +599,38 @@
             window.handleFileImport = function(e) {
                 const files = e.target.files;
                 if (!files || files.length === 0) return;
+                processUploadedFiles(Array.from(files), selectedFolderId);
+                e.target.value = '';
+            }
 
-                Array.from(files).forEach(file => {
+            // TRAITEMENT DES FICHIERS IMPORTÉS OU GLISSÉS-DÉPOSÉS
+            function processUploadedFiles(files, targetFolderId) {
+                let pending = files.length;
+                files.forEach(file => {
                     const reader = new FileReader();
                     reader.onload = function(event) {
                         const newItem = {
-                            id: 'item_' + Date.now() + Math.random(),
+                            id: 'item_' + Date.now() + Math.random().toString(36).substr(2, 5),
                             type: 'txt',
                             name: file.name,
                             content: event.target.result
                         };
 
-                        if (!selectedFolderId) {
+                        if (!targetFolderId) {
                             activeProject.tree.push(newItem);
                         } else {
-                            addItemRecursive(activeProject.tree, selectedFolderId, newItem);
-                            expandFolderRecursive(activeProject.tree, selectedFolderId);
+                            addItemRecursive(activeProject.tree, targetFolderId, newItem);
+                            expandFolderRecursive(activeProject.tree, targetFolderId);
                         }
-                        saveProjectTreeToSupabase();
-                        renderArborescence();
+
+                        pending--;
+                        if (pending === 0) {
+                            saveProjectTreeToSupabase();
+                            renderArborescence();
+                        }
                     };
                     reader.readAsText(file);
                 });
-                e.target.value = '';
             }
 
             function addItemRecursive(list, parentId, newItem) {
@@ -687,6 +703,7 @@
                 });
             }
 
+            // --- DRAG & DROP ARBORESCENCE & FINDER EXTERNE ---
             let draggedItemId = null;
 
             window.dragStart = function(e, id) {
@@ -703,6 +720,14 @@
             window.dropToFolder = function(e, targetFolderId) {
                 e.preventDefault();
                 e.stopPropagation();
+
+                // Cas 1 : Glisser-déposer un fichier externe depuis le Finder / bureau
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    processUploadedFiles(Array.from(e.dataTransfer.files), targetFolderId);
+                    return;
+                }
+
+                // Cas 2 : Déplacement interne dans l'arborescence
                 if (!draggedItemId || draggedItemId === targetFolderId) return;
 
                 if (isDescendant(activeProject.tree, draggedItemId, targetFolderId)) {
@@ -726,26 +751,15 @@
 
             window.dropToRoot = function(e) {
                 e.preventDefault();
-                if (!draggedItemId) return;
 
+                // Cas 1 : Glisser-déposer un fichier externe depuis le Finder vers la racine
                 if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                    Array.from(e.dataTransfer.files).forEach(file => {
-                        const reader = new FileReader();
-                        reader.onload = function(event) {
-                            activeProject.tree.push({
-                                id: 'item_' + Date.now() + Math.random(),
-                                type: 'txt',
-                                name: file.name,
-                                content: event.target.result
-                            });
-                            saveProjectTreeToSupabase();
-                            renderArborescence();
-                        };
-                        reader.readAsText(file);
-                    });
-                    draggedItemId = null;
+                    processUploadedFiles(Array.from(e.dataTransfer.files), null);
                     return;
                 }
+
+                // Cas 2 : Déplacement interne vers la racine
+                if (!draggedItemId) return;
 
                 const itemToMove = extractTreeItem(activeProject.tree, draggedItemId);
                 if (itemToMove) {
@@ -783,7 +797,7 @@
                 const treeContainer = document.getElementById('arborescence-tree');
                 treeContainer.innerHTML = '';
                 if (!activeProject.tree || activeProject.tree.length === 0) {
-                    treeContainer.innerHTML = `<div class="text-center py-12 text-gray-400 text-xs">Arborescence vide. Sélectionnez la racine ou un dossier puis utilisez les boutons ci-dessus (ou glissez-déposez un fichier .txt ici).</div>`;
+                    treeContainer.innerHTML = `<div class="text-center py-12 text-gray-400 text-xs">Arborescence vide. Sélectionnez la racine ou un dossier puis utilisez les boutons ci-dessus (ou glissez-déposez un fichier .txt depuis votre Finder ici).</div>`;
                     return;
                 }
                 renderTreeLevel(activeProject.tree, treeContainer);
@@ -802,7 +816,7 @@
 
                         el.innerHTML = `
                             <div draggable="true" ondragover="allowDrop(event)" ondrop="dropToFolder(event, '${item.id}')" 
-                                class="flex items-center justify-between p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${isSelected ? 'bg-[#5246EE]/10 border-[#5246EE] text-[#5246EE] font-semibold' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-100'}"
+                                class="flex items-center justify-between p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${isSelected ? 'bg-[#5246EE]/10 border-[#5246EE] text-[#5246EE] font-semibold' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'}"
                                 onclick="selectFolder('${item.id}', event)">
                                 <div class="flex items-center gap-2.5 flex-1">
                                     <i class="fa-solid fa-chevron-right text-[10px] text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}" onclick="toggleFolder('${item.id}', event)"></i>
@@ -819,7 +833,6 @@
                         }
                     } else {
                         const icon = item.type === 'txt' ? 'fa-file-lines text-emerald-500' : 'fa-note-sticky text-indigo-500';
-                        // Redirection vers la nouvelle page editor.html pour les txt, ou map.html pour les cartes
                         const clickAction = item.type === 'card' 
                             ? `window.location.href='map.html?cardId=${item.id}'` 
                             : `window.location.href='editor.html?projectId=${activeProject.id}&fileId=${item.id}'`;
@@ -858,7 +871,7 @@
                 zip.file("project_manifest.json", JSON.stringify(projectData, null, 2));
                 const contentBlob = await zip.generateAsync({ type: "blob" });
                 const link = document.createElement('a');
-                link.href = URL.createObjectURL(contentBlob);
+                link.href = URL.createObjectURL(link);
                 link.download = `${activeProject.name.toLowerCase().replace(/\s+/g, '_')}_mobius.zip`;
                 link.click();
             }
