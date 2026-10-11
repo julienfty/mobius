@@ -150,16 +150,8 @@
             <svg id="links-svg" class="absolute inset-0 w-full h-full pointer-events-none z-0" style="min-width: 4000px; min-height: 4000px;"></svg>
             <div id="nodes-layer" class="absolute inset-0 z-10" style="min-width: 4000px; min-height: 4000px;"></div>
 
-            <!-- Boîte de sélection multiple (générée dynamiquement) -->
+            <!-- Boîte de sélection multiple -->
             <div id="selection-box" class="hidden absolute border-2 border-[#5246EE] bg-[#5246EE]/10 pointer-events-none z-30 rounded-lg"></div>
-
-            <!-- Menu contextuel au clic droit -->
-            <div id="context-menu" class="hidden fixed bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 py-2 z-50 text-xs w-52">
-                <button onclick="executeContextMenuAction('add-person')" class="w-full text-left px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center space-x-2.5 text-slate-700 dark:text-slate-200 transition">
-                    <i data-lucide="user-plus" class="w-4 h-4 text-[#5246EE]"></i>
-                    <span class="font-medium">Ajouter une personne</span>
-                </button>
-            </div>
 
             <div class="absolute bottom-6 left-6 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-2.5 rounded-2xl shadow-lg border border-slate-200/80 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 pointer-events-none z-20 flex items-center space-x-2">
                 <i data-lucide="mouse-pointer-click" class="w-4 h-4 text-[#5246EE] shrink-0"></i>
@@ -184,6 +176,14 @@
             </div>
         </aside>
 
+    </div>
+
+    <!-- MENU CONTEXTUEL AU CLIC DROIT (Placé hors du canvas pour éviter les conflits de clics) -->
+    <div id="context-menu" class="hidden fixed bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 py-2 z-50 text-xs w-52">
+        <button onclick="executeContextMenuAction('add-person')" class="w-full text-left px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center space-x-2.5 text-slate-700 dark:text-slate-200 transition">
+            <i data-lucide="user-plus" class="w-4 h-4 text-[#5246EE]"></i>
+            <span class="font-medium">Ajouter une personne</span>
+        </button>
     </div>
 
     <!-- ================= MODALS ================= -->
@@ -270,7 +270,7 @@
         };
         let projectData = null;
 
-        let selectedNodeIds = []; // Support multi-sélection
+        let selectedNodeIds = [];
         let searchQuery = '';
         let isDraggingNode = false;
         let draggedNodeId = null;
@@ -280,7 +280,6 @@
         let handleSourceNodeId = null;
         let activeTempLineSvg = null;
 
-        // Variables Box Selection & Context Menu
         let isBoxSelecting = false;
         let boxStartX = 0, boxStartY = 0;
         let currentContextMenuCanvasX = 0;
@@ -381,7 +380,6 @@
             }
         }
 
-        // --- GESTION DU CLAVIER (SUPPRESSION PAR RETOUR ARRIÈRE) ---
         function setupKeyboardListeners() {
             window.addEventListener('keydown', (e) => {
                 if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
@@ -407,7 +405,6 @@
             showToast("Éléments supprimés");
         }
 
-        // --- FIL D'ARIANE ---
         function renderBreadcrumb() {
             const bc = document.getElementById('breadcrumb-container');
             if (projectId && projectData) {
@@ -493,7 +490,6 @@
             lucide.createIcons();
         }
 
-        // --- COLLABORATEURS & EXPORT ---
         function toggleCollaboratorsDropdown() {
             document.getElementById('collab-dropdown').classList.toggle('hidden');
         }
@@ -554,7 +550,6 @@
             }
         }
 
-        // --- COLLISIONS, CLIC DROIT CONTEXT MENU & SÉLECTION MULTIPLE PAR CADRE ---
         function checkCollision(x, y, ignoreNodeId, width = 160, height = 90) {
             const padding = 15;
             for (let node of (currentCard.nodes || [])) {
@@ -578,7 +573,6 @@
             const contextMenu = document.getElementById('context-menu');
             const selectionBox = document.getElementById('selection-box');
 
-            // Clic gauche : désélection / fermeture menus
             container.addEventListener('click', (e) => {
                 if (e.target === container || e.target.id === 'links-svg' || e.target.id === 'nodes-layer') {
                     selectedNodeIds = [];
@@ -588,7 +582,6 @@
                 contextMenu.classList.add('hidden');
             });
 
-            // Clic droit : ouverture du menu contextuel personnalisé
             container.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 const rect = container.getBoundingClientRect();
@@ -600,7 +593,10 @@
                 contextMenu.classList.remove('hidden');
             });
 
-            // Mousedown pour la boîte de sélection multiple (si clic gauche dans le vide)
+            contextMenu.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+            });
+
             container.addEventListener('mousedown', (e) => {
                 if (e.target.classList.contains('anchor-handle')) return;
                 contextMenu.classList.add('hidden');
@@ -635,7 +631,6 @@
                     selectionBox.style.width = `${width}px`;
                     selectionBox.style.height = `${height}px`;
 
-                    // Détection des nœuds dans le rectangle de sélection
                     selectedNodeIds = [];
                     (currentCard.nodes || []).forEach(node => {
                         const nx = node.x || 0;
@@ -769,7 +764,6 @@
             }
         }
 
-        // --- NŒUDS ET LIENS ---
         function renderCanvasNodes() {
             const nodesLayer = document.getElementById('nodes-layer');
             nodesLayer.innerHTML = '';
@@ -886,7 +880,6 @@
             });
         }
 
-        // --- INSPECTEUR & RECHERCHE ---
         function selectNode(nodeId) {
             selectedNodeIds = [nodeId];
             renderCanvasNodes();
@@ -915,7 +908,6 @@
             const container = document.getElementById('inspector-content');
             container.innerHTML = '';
 
-            // Si plusieurs personnes sélectionnées ou aucune : Afficher la liste / résumé
             if (selectedNodeIds.length !== 1) {
                 const nodes = (currentCard.nodes || []).filter(n => 
                     `${n.firstname} ${n.lastname}`.toLowerCase().includes(searchQuery) || 
@@ -962,7 +954,6 @@
                 return;
             }
 
-            // Si une seule personne est sélectionnée : Inspecteur complet
             const selectedNodeId = selectedNodeIds[0];
             const node = (currentCard.nodes || []).find(n => n.id === selectedNodeId);
             if (!node) {
@@ -1156,7 +1147,6 @@
             showToast("Lien supprimé.");
         }
 
-        // --- LÉGENDE ---
         function renderLegendList() {
             const listEl = document.getElementById('legend-types-container');
             listEl.innerHTML = '';
@@ -1250,7 +1240,6 @@
             showToast("Type de relation supprimé.");
         }
 
-        // --- QUICK LINK & EDIT LINK MODALS ---
         function openQuickLinkModal(sourceId, targetId) {
             pendingQuickLink = { sourceId, targetId };
             const s = (currentCard.nodes || []).find(n => n.id === sourceId);
@@ -1349,7 +1338,6 @@
             showToast("Lien supprimé.");
         }
 
-        // --- SAUVEGARDE SUPABASE ---
         async function saveCurrentMapState() {
             const SUPABASE_URL = 'https://nfvnayuqrmlldtixzdpx.supabase.co';
             const SUPABASE_KEY = 'sb_publishable_EwONSAsqSfu8_SocZ7wZBA_rVODWqSF';
