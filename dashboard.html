@@ -12,7 +12,6 @@
     <!-- JSZip pour l'exportation en ZIP -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>
-        // Applique immédiatement le thème sauvegardé avant le rendu pour éviter les flashs lumineux
         if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             document.documentElement.classList.add('dark');
         } else {
@@ -50,6 +49,14 @@
         }
         .dark .glass-card {
             border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        /* Animation fluide pour l'apparition d'un nouvel élément déposé */
+        @keyframes fadeInScale {
+            from { opacity: 0; transform: scale(0.97); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .animate-drop {
+            animation: fadeInScale 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
         @media (max-width: 768px) {
             input, select, textarea {
@@ -151,11 +158,12 @@
             <div class="text-[11px] text-gray-400 font-medium" id="selected-folder-indicator">📁 Destination : Racine du projet</div>
         </div>
 
-        <!-- Arborescence Interactive (Accepte le Drag & Drop direct depuis le Finder) -->
-        <div id="arborescence-tree" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex-1 space-y-2 overflow-y-auto" ondragover="allowDrop(event)" ondrop="dropToRoot(event)"></div>
+        <!-- Arborescence Interactive avec animation de survol Drag & Drop -->
+        <div id="arborescence-tree" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex-1 space-y-2 overflow-y-auto transition-all" 
+             ondragover="allowDrop(event)" ondragleave="dragLeaveRoot(event)" ondrop="dropToRoot(event)"></div>
     </div>
 
-    <!-- POPUPS PERSONNALISÉS DARK/LIGHT MODE -->
+    <!-- POPUPS PERSONNALISÉS -->
     <div id="custom-prompt-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-[28px] max-w-sm w-full p-6 shadow-2xl border border-gray-100 dark:border-gray-800 space-y-4">
             <h3 class="font-bold text-sm" id="custom-prompt-title">Titre</h3>
@@ -271,7 +279,6 @@
             document.getElementById('nav-user-email').textContent = currentUser.email;
             document.getElementById('nav-user-initial').textContent = fullName.charAt(0).toUpperCase();
 
-            // TOGGLE DARK MODE AVEC PERSISTANCE DANS LOCALSTORAGE
             window.toggleDarkMode = function() {
                 const isDark = document.documentElement.classList.toggle('dark');
                 localStorage.setItem('theme', isDark ? 'dark' : 'light');
@@ -346,7 +353,6 @@
                 }
                 renderDashboard();
 
-                // Ouverture automatique du projet en cas de retour depuis editor.html
                 const urlParams = new URLSearchParams(window.location.search);
                 const openProjectId = urlParams.get('openProjectId');
                 if (openProjectId && currentTab === 'projects') {
@@ -603,7 +609,6 @@
                 e.target.value = '';
             }
 
-            // TRAITEMENT DES FICHIERS IMPORTÉS OU GLISSÉS-DÉPOSÉS
             function processUploadedFiles(files, targetFolderId) {
                 let pending = files.length;
                 files.forEach(file => {
@@ -613,7 +618,8 @@
                             id: 'item_' + Date.now() + Math.random().toString(36).substr(2, 5),
                             type: 'txt',
                             name: file.name,
-                            content: event.target.result
+                            content: event.target.result,
+                            isNewDrop: true // Pour déclencher l'animation d'apparition
                         };
 
                         if (!targetFolderId) {
@@ -703,7 +709,7 @@
                 });
             }
 
-            // --- DRAG & DROP ARBORESCENCE & FINDER EXTERNE ---
+            // --- ANIMATIONS DE GLISSER-DÉPOSER VISUELLES (DRAG & DROP) ---
             let draggedItemId = null;
 
             window.dragStart = function(e, id) {
@@ -715,19 +721,28 @@
             window.allowDrop = function(e) {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
+                // Effet visuel de survol (fond coloré)
+                e.currentTarget.classList.add('bg-[#5246EE]/10', 'border-[#5246EE]', 'ring-2', 'ring-[#5246EE]/20');
+            }
+
+            window.dragLeaveRoot = function(e) {
+                e.currentTarget.classList.remove('bg-[#5246EE]/10', 'border-[#5246EE]', 'ring-2', 'ring-[#5246EE]/20');
+            }
+
+            window.dragLeaveFolder = function(e) {
+                e.currentTarget.classList.remove('bg-[#5246EE]/15', 'border-[#5246EE]');
             }
 
             window.dropToFolder = function(e, targetFolderId) {
                 e.preventDefault();
                 e.stopPropagation();
+                e.currentTarget.classList.remove('bg-[#5246EE]/15', 'border-[#5246EE]');
 
-                // Cas 1 : Glisser-déposer un fichier externe depuis le Finder / bureau
                 if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                     processUploadedFiles(Array.from(e.dataTransfer.files), targetFolderId);
                     return;
                 }
 
-                // Cas 2 : Déplacement interne dans l'arborescence
                 if (!draggedItemId || draggedItemId === targetFolderId) return;
 
                 if (isDescendant(activeProject.tree, draggedItemId, targetFolderId)) {
@@ -751,14 +766,13 @@
 
             window.dropToRoot = function(e) {
                 e.preventDefault();
+                e.currentTarget.classList.remove('bg-[#5246EE]/10', 'border-[#5246EE]', 'ring-2', 'ring-[#5246EE]/20');
 
-                // Cas 1 : Glisser-déposer un fichier externe depuis le Finder vers la racine
                 if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                     processUploadedFiles(Array.from(e.dataTransfer.files), null);
                     return;
                 }
 
-                // Cas 2 : Déplacement interne vers la racine
                 if (!draggedItemId) return;
 
                 const itemToMove = extractTreeItem(activeProject.tree, draggedItemId);
@@ -806,7 +820,10 @@
             function renderTreeLevel(items, container) {
                 items.forEach(item => {
                     const el = document.createElement('div');
-                    el.className = "space-y-1";
+                    // Application de l'animation d'apparition si c'est un fichier fraîchement déposé
+                    el.className = `space-y-1 ${item.isNewDrop ? 'animate-drop' : ''}`;
+                    if (item.isNewDrop) delete item.isNewDrop; // Nettoyer le flag après l'animation
+
                     el.setAttribute('draggable', 'true');
                     el.addEventListener('dragstart', (e) => dragStart(e, item.id));
 
@@ -815,7 +832,7 @@
                         const isExpanded = expandedFolders.has(item.id);
 
                         el.innerHTML = `
-                            <div draggable="true" ondragover="allowDrop(event)" ondrop="dropToFolder(event, '${item.id}')" 
+                            <div draggable="true" ondragover="allowDrop(event)" ondragleave="dragLeaveFolder(event)" ondrop="dropToFolder(event, '${item.id}')" 
                                 class="flex items-center justify-between p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${isSelected ? 'bg-[#5246EE]/10 border-[#5246EE] text-[#5246EE] font-semibold' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'}"
                                 onclick="selectFolder('${item.id}', event)">
                                 <div class="flex items-center gap-2.5 flex-1">
@@ -871,7 +888,7 @@
                 zip.file("project_manifest.json", JSON.stringify(projectData, null, 2));
                 const contentBlob = await zip.generateAsync({ type: "blob" });
                 const link = document.createElement('a');
-                link.href = URL.createObjectURL(link);
+                link.href = URL.createObjectURL(contentBlob);
                 link.download = `${activeProject.name.toLowerCase().replace(/\s+/g, '_')}_mobius.zip`;
                 link.click();
             }
