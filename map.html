@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Tableau Blanc - Mobius</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Supabase SDK -->
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- html2canvas pour export PNG -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -38,224 +39,316 @@
         }
     </script>
     <style>
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            transition: background-color 0.3s, color 0.3s;
-            overflow: hidden;
+        body { font-family: 'Inter', sans-serif; overflow: hidden; }
+        .node-card {
+            touch-action: none;
+            user-select: none;
         }
-        .glass-card {
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(0, 0, 0, 0.06);
+        .anchor-handle {
+            transition: transform 0.15s ease, background-color 0.15s ease;
         }
-        .dark .glass-card {
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-        .whiteboard-grid {
-            background-image: radial-gradient(circle, rgba(100, 100, 100, 0.15) 1px, transparent 1px);
-            background-size: 24px 24px;
-        }
-        .dark .whiteboard-grid {
-            background-image: radial-gradient(circle, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
-        }
-        .link-line {
-            transition: stroke 0.2s, stroke-width 0.2s;
-            cursor: pointer;
-        }
-        .link-line:hover {
-            stroke-width: 4px !important;
+        .anchor-handle:hover {
+            transform: scale(1.3);
+            background-color: #5246EE;
         }
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(100,100,100,0.2); border-radius: 4px; }
     </style>
 </head>
-<body class="h-full bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col selection:bg-[#5246EE] selection:text-white">
+<body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col antialiased selection:bg-[#5246EE] selection:text-white">
 
     <!-- TOP NAVIGATION BAR -->
-    <header class="w-full border-b border-gray-200 dark:border-gray-800 bg-white/90 dark:bg-gray-900/90 glass-card sticky top-0 z-40 px-4 py-3 flex items-center justify-between gap-2 shadow-sm">
+    <header class="w-full border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-40 px-4 py-3 flex items-center justify-between gap-2 shadow-xs">
         <div class="flex items-center gap-3 overflow-hidden">
-            <button onclick="goBack()" class="w-9 h-9 shrink-0 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 transition-all" title="Quitter la carte">
-                <i class="fa-solid fa-arrow-left"></i>
+            <button onclick="goBack()" class="w-9 h-9 shrink-0 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all" title="Quitter la carte">
+                <i data-lucide="arrow-left" class="w-4 h-4"></i>
             </button>
             <!-- Fil d'Ariane ou Titre cliquable pour ouvrir/fermer l'arborescence -->
-            <div id="breadcrumb-container" class="flex items-center gap-1.5 text-xs font-semibold overflow-x-auto whitespace-nowrap cursor-pointer py-1 px-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-all" onclick="toggleTreeSidebar()">
-                <span class="text-gray-400">Chargement...</span>
+            <div id="breadcrumb-container" class="flex items-center gap-1.5 text-xs font-semibold overflow-x-auto whitespace-nowrap cursor-pointer py-1 px-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all" onclick="toggleTreeSidebar()">
+                <span class="text-slate-400">Chargement...</span>
             </div>
         </div>
 
         <div class="flex items-center gap-2 shrink-0">
             <!-- Bouton Collaborateurs -->
             <div class="relative">
-                <button onclick="toggleCollabDropdown()" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all">
-                    <i class="fa-solid fa-users text-[#5246EE]"></i>
-                    <span class="hidden sm:inline">Collaborateurs</span>
+                <button onclick="toggleCollaboratorsDropdown()" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition">
+                    <i data-lucide="users" class="w-3.5 h-3.5 text-[#5246EE]"></i>
+                    <span id="collab-count-label">Collaborateurs (1)</span>
+                    <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
                 </button>
-                <div id="collab-dropdown" class="hidden absolute right-0 mt-2 w-72 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-2xl z-50 space-y-3">
-                    <h4 class="font-bold text-xs uppercase tracking-wider text-gray-500">Gestion des accès</h4>
-                    <div class="space-y-2">
-                        <div class="flex gap-1.5">
-                            <input type="email" id="collab-invite-email" placeholder="email@exemple.com" class="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none">
-                            <button onclick="inviteCollaborator()" class="bg-[#5246EE] text-white px-3 py-2 rounded-xl text-xs font-semibold">Inviter</button>
+                <div id="collab-dropdown" class="hidden absolute right-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-50">
+                    <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Gestion des collaborateurs</h4>
+                    <div id="collaborators-list" class="space-y-2 max-h-40 overflow-y-auto mb-3"></div>
+                    <div id="collab-add-section" class="pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <div class="flex space-x-2">
+                            <input type="email" id="new-collab-email" placeholder="email@membre.com" class="flex-1 px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#5246EE]">
+                            <button onclick="addCollaborator()" class="px-3 py-1.5 bg-[#5246EE] hover:bg-[#4538d8] text-white text-xs font-medium rounded-lg">Ajouter</button>
                         </div>
                     </div>
-                    <div id="collab-list-container" class="space-y-2 max-h-48 overflow-y-auto"></div>
                 </div>
             </div>
 
-            <!-- Bouton Téléchargement -->
+            <!-- Bouton Export / Téléchargement -->
             <div class="relative">
-                <button onclick="toggleDownloadDropdown()" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all">
-                    <i class="fa-solid fa-download text-emerald-500"></i>
-                    <span class="hidden sm:inline">Exporter</span>
+                <button onclick="toggleDownloadDropdown()" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition">
+                    <i data-lucide="download" class="w-3.5 h-3.5 text-emerald-500"></i>
+                    <span>Exporter</span>
                 </button>
-                <div id="download-dropdown" class="hidden absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-2 shadow-2xl z-50 space-y-1">
-                    <button onclick="exportMap('png')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"><i class="fa-solid fa-image text-blue-500"></i> Exporter en PNG</button>
-                    <button onclick="exportMap('json')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"><i class="fa-solid fa-file-code text-purple-500"></i> Exporter en JSON complet</button>
-                    <div class="pt-2 border-t border-gray-100 dark:border-gray-800">
-                        <label class="flex items-center gap-2 text-[10px] text-gray-500 cursor-pointer px-2">
-                            <input type="checkbox" id="secure-host-approval" class="accent-[#5246EE] rounded"> Validation de l'hôte à l'import
-                        </label>
-                    </div>
+                <div id="download-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 space-y-1">
+                    <button onclick="exportMap('png')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="image" class="w-4 h-4 text-blue-500"></i> Exporter en PNG</button>
+                    <button onclick="exportMap('json')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-code" class="w-4 h-4 text-purple-500"></i> Exporter en JSON</button>
                 </div>
             </div>
 
-            <button onclick="toggleDarkMode()" class="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 transition-all">
-                <i class="fa-solid fa-moon dark:hidden"></i>
-                <i class="fa-solid fa-sun hidden dark:block text-amber-400"></i>
+            <button onclick="toggleDarkMode()" class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
+                <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
+                <i data-lucide="sun" class="w-4 h-4 hidden dark:block text-amber-400"></i>
             </button>
         </div>
     </header>
 
-    <!-- ESPACE PUBLICITAIRE MOBILE -->
-    <div id="mobile-ad-banner" class="sm:hidden bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border-b border-indigo-500/20 px-4 py-2 text-center text-[11px] text-indigo-600 dark:text-indigo-400 font-medium">
-        ⭐ Passez à Mobius Pro pour des fonctionnalités IA illimitées !
-    </div>
-
     <!-- MAIN WORKSPACE CONTAINER -->
     <div class="flex-1 flex overflow-hidden relative">
 
-        <!-- 1. MENU ARBORESCENCE (Visible uniquement si relié à un projet, escamotable) -->
-        <aside id="tree-sidebar" class="hidden flex-col w-72 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 z-20 transition-all">
-            <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
-                <h3 class="font-bold text-xs uppercase tracking-wider text-gray-500">Arborescence du Projet</h3>
-                <button onclick="toggleTreeSidebar()" class="w-7 h-7 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark"></i></button>
+        <!-- 1. MENU ARBORESCENCE (Visible uniquement si relié à un projet) -->
+        <aside id="tree-sidebar" class="hidden flex-col w-72 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20 transition-all shadow-md">
+            <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <h3 class="font-bold text-xs uppercase tracking-wider text-slate-500">Arborescence du Projet</h3>
+                <button onclick="toggleTreeSidebar()" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
             </div>
             <div id="tree-sidebar-content" class="flex-1 p-3 overflow-y-auto space-y-1 text-xs"></div>
-            <div class="p-3 border-t border-gray-200 dark:border-gray-800">
-                <button onclick="downloadEntireProject()" class="w-full py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-xs font-semibold flex items-center justify-center gap-2 transition-all">
-                    <i class="fa-solid fa-download text-[#5246EE]"></i> Télécharger le projet (ZIP)
+        </aside>
+
+        <!-- 2. MENU LÉGENDE (À GAUCHE) -->
+        <aside id="sidebar-legend-left" class="w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col z-20 shadow-md">
+            <div class="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="bookmark" class="w-4 h-4 text-[#5246EE]"></i>
+                    <h3 class="font-bold text-slate-800 dark:text-slate-200 text-xs uppercase tracking-wider">Légende & Relations</h3>
+                </div>
+                <button onclick="openAddRelationModal()" class="px-2.5 py-1 bg-[#5246EE] hover:bg-[#4538d8] text-white text-xs font-medium rounded-lg flex items-center space-x-1 transition shadow-xs">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                    <span>Nouveau</span>
                 </button>
             </div>
-        </aside>
 
-        <!-- 2. MENU LÉGENDE -->
-        <aside id="legend-sidebar" class="hidden sm:flex flex-col w-64 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 z-20">
-            <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
-                <h3 class="font-bold text-xs uppercase tracking-wider text-gray-500">Légende des Liens</h3>
-                <button onclick="openNewLinkTypeModal()" class="w-7 h-7 rounded-lg bg-[#5246EE]/10 text-[#5246EE] flex items-center justify-center text-xs font-bold hover:bg-[#5246EE]/20"><i class="fa-solid fa-plus"></i></button>
+            <div class="p-4 flex-1 overflow-y-auto space-y-3">
+                <p class="text-[11px] text-slate-400">Gérez vos types de relations et leurs couleurs :</p>
+                <div id="legend-types-container" class="space-y-2"></div>
             </div>
-            <div id="legend-list-container" class="flex-1 p-3 overflow-y-auto space-y-2 text-xs"></div>
         </aside>
 
-        <!-- 3. TABLEAU BLANC -->
-        <main id="whiteboard-container" class="flex-1 whiteboard-grid relative overflow-hidden cursor-grab active:cursor-grabbing" 
-              oncontextmenu="handleWhiteboardRightClick(event)" onclick="handleWhiteboardLeftClick(event)" onmousedown="startPan(event)" onmousemove="doPan(event)" onmouseup="endPan()">
-            
-            <svg id="links-svg" class="absolute inset-0 w-full h-full pointer-events-none z-0"></svg>
-            <div id="whiteboard-canvas" class="absolute inset-0 pointer-events-none z-10" style="transform: translate(0px, 0px); transform-origin: 0 0;"></div>
-        </main>
+        <!-- 3. TABLEAU BLANC / CANVAS -->
+        <div id="canvas-container" class="flex-1 relative bg-slate-50 dark:bg-slate-950 overflow-auto cursor-default select-none" style="background-image: radial-gradient(#cbd5e1 1.2px, transparent 1.2px); background-size: 24px 24px;">
+            <svg id="links-svg" class="absolute inset-0 w-full h-full pointer-events-none z-0" style="min-width: 4000px; min-height: 4000px;"></svg>
+            <div id="nodes-layer" class="absolute inset-0 z-10" style="min-width: 4000px; min-height: 4000px;"></div>
 
-        <!-- 4. MENU INSPECTEUR / RECHERCHE -->
-        <aside id="inspector-sidebar" class="w-full sm:w-80 border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 z-20 flex flex-col transition-all">
-            <div class="p-4 border-b border-gray-200 dark:border-gray-800 space-y-3">
-                <div class="relative">
-                    <i class="fa-solid fa-search absolute left-3 top-3 text-gray-400 text-xs"></i>
-                    <input type="text" id="inspector-search-input" oninput="handleInspectorSearch(this.value)" placeholder="Rechercher une personne..." class="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none focus:border-[#5246EE]">
+            <div class="absolute bottom-6 left-6 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-2.5 rounded-2xl shadow-lg border border-slate-200/80 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 pointer-events-none z-20 flex items-center space-x-2">
+                <i data-lucide="mouse-pointer-click" class="w-4 h-4 text-[#5246EE] shrink-0"></i>
+                <span>Cliquez dans le vide pour ajouter une personne. Tirez depuis les poignées pour lier 2 cases.</span>
+            </div>
+        </div>
+
+        <!-- 4. INSPECTEUR (À DROITE) -->
+        <aside id="sidebar-inspector-right" class="w-80 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col z-20 shadow-md">
+            <div class="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center space-x-2">
+                <i data-lucide="user-cog" class="w-4 h-4 text-[#5246EE]"></i>
+                <h3 class="font-bold text-slate-800 dark:text-slate-200 text-xs uppercase tracking-wider">Inspecteur de Personne</h3>
+            </div>
+
+            <div id="inspector-body" class="flex-1 overflow-y-auto p-5">
+                <div id="inspector-empty" class="text-center py-16">
+                    <div class="w-12 h-12 bg-slate-100 dark:bg-slate-800 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <i data-lucide="mouse-pointer" class="w-6 h-6"></i>
+                    </div>
+                    <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Aucune personne sélectionnée</h4>
+                    <p class="text-xs text-slate-400">Cliquez sur une case dans le tableau pour modifier ses détails et ses connexions.</p>
+                </div>
+
+                <div id="inspector-content" class="hidden space-y-5">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Informations</span>
+                        <button onclick="deleteSelectedNode()" class="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition" title="Supprimer la personne">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Prénom *</label>
+                                <input type="text" id="node-firstname" oninput="updateActiveNodeData()" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#5246EE]/20 focus:border-[#5246EE]">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Nom *</label>
+                                <input type="text" id="node-lastname" oninput="updateActiveNodeData()" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#5246EE]/20 focus:border-[#5246EE]">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Surnom</label>
+                                <input type="text" id="node-nickname" oninput="updateActiveNodeData()" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#5246EE]/20 focus:border-[#5246EE]">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Âge</label>
+                                <input type="number" id="node-age" oninput="updateActiveNodeData()" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#5246EE]/20 focus:border-[#5246EE]">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Lieu de résidence</label>
+                            <input type="text" id="node-location" oninput="updateActiveNodeData()" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#5246EE]/20 focus:border-[#5246EE]">
+                        </div>
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Liens de cette personne</h4>
+                            <button onclick="toggleAddLinkMenu()" class="text-xs font-medium text-[#5246EE] hover:underline flex items-center space-x-1">
+                                <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+                                <span>Créer un lien</span>
+                            </button>
+                        </div>
+
+                        <div id="add-link-form" class="hidden p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                            <div>
+                                <label class="block text-[10px] font-semibold uppercase text-slate-500 mb-1">Associer à</label>
+                                <select id="link-target-select" class="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none"></select>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-semibold uppercase text-slate-500 mb-1">Type de relation</label>
+                                <select id="link-type-select" class="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none"></select>
+                            </div>
+                            <button onclick="createLinkFromInspector()" class="w-full py-1.5 bg-[#5246EE] hover:bg-[#4538d8] text-white text-xs font-medium rounded-lg shadow-xs">Valider la connexion</button>
+                        </div>
+
+                        <div id="node-links-list" class="space-y-2 max-h-52 overflow-y-auto"></div>
+                    </div>
                 </div>
             </div>
-            <div id="inspector-content" class="flex-1 p-4 overflow-y-auto space-y-4 text-xs"></div>
         </aside>
 
     </div>
 
-    <!-- NAVIGATION MOBILE -->
-    <nav class="sm:hidden h-16 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 z-40 flex items-center justify-around px-2">
-        <button onclick="switchMobileTab('tree')" id="mob-btn-tree" class="flex flex-col items-center gap-1 text-gray-400 text-[10px] font-semibold">
-            <i class="fa-solid fa-folder-tree text-base"></i> Arborescence
-        </button>
-        <button onclick="switchMobileTab('legend')" id="mob-btn-legend" class="flex flex-col items-center gap-1 text-gray-400 text-[10px] font-semibold">
-            <i class="fa-solid fa-bookmark text-base"></i> Légende
-        </button>
-        <button onclick="switchMobileTab('board')" id="mob-btn-board" class="flex flex-col items-center gap-1 text-[#5246EE] text-[10px] font-semibold">
-            <i class="fa-solid fa-compass-drafting text-base"></i> Tableau
-        </button>
-        <button onclick="switchMobileTab('inspector')" id="mob-btn-inspector" class="flex flex-col items-center gap-1 text-gray-400 text-[10px] font-semibold">
-            <i class="fa-solid fa-id-card text-base"></i> Inspecteur
-        </button>
-    </nav>
+    <!-- ================= MODALS ================= -->
 
-    <!-- MODAL TYPE DE LIEN -->
-    <div id="link-type-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-[28px] max-w-sm w-full p-6 shadow-2xl border border-gray-100 dark:border-gray-800 space-y-4">
-            <h3 class="font-bold text-sm">Nouveau Type de Lien</h3>
-            <input type="text" id="new-link-name" placeholder="Ex: Famille, Couple, Ami..." class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none">
-            <div class="flex items-center gap-3">
-                <label class="text-xs font-semibold text-gray-500">Couleur :</label>
-                <input type="color" id="new-link-color" value="#5246EE" class="w-10 h-10 rounded-xl cursor-pointer bg-transparent border-0">
+    <!-- Modal Ajouter / Modifier Type de Relation -->
+    <div id="modal-relation-type" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4">
+            <h3 id="relation-modal-title" class="font-bold text-slate-900 dark:text-slate-100 text-base">Type de relation</h3>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Intitulé du lien</label>
+                    <input type="text" id="rel-modal-name" placeholder="Ex: Mentor, Enfant, Associé..." class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Couleur</label>
+                    <div class="flex items-center space-x-3">
+                        <input type="color" id="rel-modal-color" value="#5246EE" class="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-700 p-1 cursor-pointer bg-white dark:bg-slate-800">
+                        <span class="text-xs text-slate-500">Couleur sur le schéma</span>
+                    </div>
+                </div>
             </div>
-            <div>
-                <label class="block text-[11px] font-semibold text-gray-500 mb-1 uppercase tracking-wider">Style du trait</label>
-                <select id="new-link-style" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none">
-                    <option value="solid">Continu</option>
-                    <option value="dashed">Pointillé (Dashed)</option>
-                    <option value="dotted">Pointé (Dotted)</option>
-                    <option value="thick">Épais</option>
-                </select>
-            </div>
-            <div class="flex gap-2 pt-2">
-                <button onclick="closeLinkTypeModal(false)" class="flex-1 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs font-semibold">Annuler</button>
-                <button onclick="closeLinkTypeModal(true)" class="flex-1 py-2.5 rounded-xl bg-[#5246EE] text-white text-xs font-semibold shadow-md">Créer</button>
+            <div class="flex justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button onclick="closeRelationTypeModal()" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl">Annuler</button>
+                <button onclick="submitRelationTypeModal()" class="px-3 py-1.5 bg-[#5246EE] text-white text-xs font-medium rounded-xl">Enregistrer</button>
             </div>
         </div>
     </div>
 
-    <!-- CONTEXT MENU CLIC DROIT -->
-    <div id="wb-context-menu" class="hidden absolute bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-2 z-50 text-xs space-y-1 w-48">
-        <button onclick="createNodeAtContext()" class="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"><i class="fa-solid fa-user-plus text-[#5246EE]"></i> Créer une personne</button>
-        <button onclick="triggerAiParsing()" class="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i> IA Parsing (CV / CSV)</button>
+    <!-- Popup Choix de Relation après tirage de poignée -->
+    <div id="modal-quick-link" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4">
+            <h3 class="font-bold text-slate-900 dark:text-slate-100 text-base">Établir la relation</h3>
+            <p class="text-xs text-slate-500">Choisissez la relation reliant <span id="ql-source-name" class="font-semibold text-slate-800 dark:text-slate-200"></span> à <span id="ql-target-name" class="font-semibold text-slate-800 dark:text-slate-200"></span> :</p>
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Type de relation</label>
+                <select id="ql-type-select" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none"></select>
+            </div>
+            <div class="flex justify-end space-x-2 pt-2">
+                <button onclick="cancelQuickLink()" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl">Annuler</button>
+                <button onclick="confirmQuickLink()" class="px-3 py-1.5 bg-[#5246EE] text-white text-xs font-medium rounded-xl">Valider</button>
+            </div>
+        </div>
     </div>
 
-    <!-- SCRIPT -->
+    <!-- Modal Édition / Suppression d'un lien -->
+    <div id="modal-edit-link" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4">
+            <h3 class="font-bold text-slate-900 dark:text-slate-100 text-base">Modifier ce lien</h3>
+            <p class="text-xs text-slate-500">Relation entre <span id="el-source-name" class="font-semibold text-slate-800 dark:text-slate-200"></span> et <span id="el-target-name" class="font-semibold text-slate-800 dark:text-slate-200"></span>.</p>
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Type de relation</label>
+                <select id="el-type-select" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none"></select>
+            </div>
+            <div class="flex items-center justify-between pt-2">
+                <button onclick="deleteLinkFromModal()" class="px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-medium rounded-xl transition flex items-center space-x-1">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    <span>Supprimer le lien</span>
+                </button>
+                <div class="space-x-2">
+                    <button onclick="closeEditLinkModal()" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl">Annuler</button>
+                    <button onclick="saveEditLinkModal()" class="px-3 py-1.5 bg-[#5246EE] text-white text-xs font-medium rounded-xl">Enregistrer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div id="toast-notification" class="hidden fixed bottom-6 right-6 bg-slate-900 text-white text-xs px-4 py-3 rounded-xl shadow-2xl z-50 flex items-center space-x-3 transition transform translate-y-2 opacity-0 pointer-events-none">
+        <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
+        <span id="toast-message">Notification</span>
+    </div>
+
+    <!-- APPLICATION SCRIPT -->
     <script>
+        let currentUser = null;
+        let cardId = null;
+        let projectId = null;
+        let currentCard = {
+            id: '',
+            name: '',
+            nodes: [],
+            links: [],
+            relationTypes: [
+                { id: 'rel-1', name: 'Ami / Proche', color: '#10b981' },
+                { id: 'rel-2', name: 'Collègue / Pro', color: '#5246EE' },
+                { id: 'rel-3', name: 'Famille', color: '#f59e0b' }
+            ],
+            collaborators: []
+        };
+        let projectData = null;
+
+        let selectedNodeId = null;
+        let isDraggingNode = false;
+        let draggedNodeId = null;
+        let dragOffsetX = 0, dragOffsetY = 0;
+
+        let isDrawingHandleLine = false;
+        let handleSourceNodeId = null;
+        let activeTempLineSvg = null;
+
+        let pendingQuickLink = null;
+        let activeEditLinkId = null;
+        let editingRelationTypeId = null;
+
         document.addEventListener('DOMContentLoaded', async () => {
+            lucide.createIcons();
+
             const SUPABASE_URL = 'https://nfvnayuqrmlldtixzdpx.supabase.co';
             const SUPABASE_KEY = 'sb_publishable_EwONSAsqSfu8_SocZ7wZBA_rVODWqSF';
             const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
             const urlParams = new URLSearchParams(window.location.search);
-            const cardId = urlParams.get('cardId');
-            const projectId = urlParams.get('projectId');
+            cardId = urlParams.get('cardId');
+            projectId = urlParams.get('projectId');
 
             if (!cardId) {
                 alert("Identifiant de carte manquant.");
                 window.location.href = 'dashboard.html';
                 return;
             }
-
-            let currentUser = null;
-            let currentCard = {
-                id: cardId,
-                name: 'Nouvelle Carte',
-                nodes: [],
-                links: [],
-                linkTypes: [],
-                collaborators: []
-            };
-            let projectData = null;
-            let selectedNodeId = null;
-            let contextMenuPos = { x: 100, y: 100 };
-            let isPanning = false, startPanX = 0, startPanY = 0, panX = 0, panY = 0;
 
             const { data: { session } } = await supabase.auth.getSession();
             if (!session || !session.user) {
@@ -264,7 +357,7 @@
             }
             currentUser = session.user;
 
-            // CHARGEMENT SUPABASE
+            // CHARGEMENT SUPABASE (PROJET OU CARTE LIBRE)
             if (projectId) {
                 const { data: pData } = await supabase.from('projects').select('*').eq('id', projectId).single();
                 if (pData) {
@@ -276,473 +369,838 @@
                 if (cData) currentCard = cData;
             }
 
+            if (!currentCard.relationTypes) {
+                currentCard.relationTypes = [
+                    { id: 'rel-1', name: 'Ami / Proche', color: '#10b981' },
+                    { id: 'rel-2', name: 'Collègue / Pro', color: '#5246EE' },
+                    { id: 'rel-3', name: 'Famille', color: '#f59e0b' }
+                ];
+            }
+            if (!currentCard.nodes) currentCard.nodes = [];
+            if (!currentCard.links) currentCard.links = [];
+            if (!currentCard.collaborators) currentCard.collaborators = [];
+
             renderBreadcrumb();
             setupTreeSidebarVisibility();
-            renderLegend();
-            renderWhiteboard();
+            renderLegendList();
+            renderCanvasNodes();
             renderInspector();
+            renderCollaboratorsList();
+            setupCanvasGlobalInteractivity();
+        });
 
-            window.toggleDarkMode = function() {
-                const isDark = document.documentElement.classList.toggle('dark');
-                localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        function showToast(msg) {
+            const toast = document.getElementById('toast-notification');
+            document.getElementById('toast-message').textContent = msg;
+            toast.classList.remove('hidden', 'translate-y-2', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.classList.add('hidden'), 300);
+            }, 3000);
+        }
+
+        window.toggleDarkMode = function() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        }
+
+        window.goBack = function() {
+            if (projectId) {
+                window.location.href = `dashboard.html?openProjectId=${projectId}`;
+            } else {
+                window.location.href = 'dashboard.html';
             }
+        }
 
-            window.goBack = function() {
-                if (projectId) {
-                    window.location.href = `dashboard.html?openProjectId=${projectId}`;
-                } else {
-                    window.location.href = 'dashboard.html';
+        // --- FIL D'ARIANE & ARBORESCENCE ---
+        function renderBreadcrumb() {
+            const bc = document.getElementById('breadcrumb-container');
+            if (projectId && projectData) {
+                const path = getTreePath(projectData.tree, cardId);
+                bc.innerHTML = `
+                    <span class="text-slate-500">${projectData.name}</span>
+                    <i data-lucide="chevron-right" class="w-3 h-3 text-slate-400"></i>
+                    <span class="text-slate-900 dark:text-slate-100 font-bold">${path ? path.join(' > ') : currentCard.name}</span>
+                `;
+            } else {
+                bc.innerHTML = `<span class="text-slate-900 dark:text-slate-100 font-bold"><i data-lucide="file-text" class="w-3.5 h-3.5 inline mr-1 text-[#5246EE]"></i> ${currentCard.name}</span>`;
+            }
+            lucide.createIcons();
+        }
+
+        function getTreePath(list, targetId, currentPath = []) {
+            for (let item of list) {
+                if (item.id === targetId) return [...currentPath, item.name];
+                if (item.children) {
+                    const found = getTreePath(item.children, targetId, [...currentPath, item.name]);
+                    if (found) return found;
                 }
             }
+            return null;
+        }
 
-            // --- FIL D'ARIANE / TITRE & ARBORESCENCE ---
-            function renderBreadcrumb() {
-                const bc = document.getElementById('breadcrumb-container');
-                if (projectId && projectData) {
-                    const path = getTreePath(projectData.tree, cardId);
-                    bc.innerHTML = `
-                        <span class="text-gray-500">${projectData.name}</span>
-                        <i class="fa-solid fa-chevron-right text-[9px] text-gray-400"></i>
-                        <span class="text-gray-900 dark:text-gray-100 font-bold">${path ? path.join(' > ') : currentCard.name}</span>
-                    `;
-                } else {
-                    bc.innerHTML = `<span class="text-gray-900 dark:text-gray-100 font-bold"><i class="fa-solid fa-note-sticky text-indigo-500 mr-1.5"></i> ${currentCard.name}</span>`;
+        function findCardInTree(list, id) {
+            for (let item of list) {
+                if (item.id === id) return item;
+                if (item.children) {
+                    const found = findCardInTree(item.children, id);
+                    if (found) return found;
                 }
             }
+            return null;
+        }
 
-            function getTreePath(list, targetId, currentPath = []) {
-                for (let item of list) {
-                    if (item.id === targetId) return [...currentPath, item.name];
-                    if (item.children) {
-                        const found = getTreePath(item.children, targetId, [...currentPath, item.name]);
-                        if (found) return found;
-                    }
+        function setupTreeSidebarVisibility() {
+            const sidebar = document.getElementById('tree-sidebar');
+            if (!projectId || !projectData) {
+                sidebar.classList.add('hidden');
+            } else {
+                sidebar.classList.remove('hidden');
+                sidebar.classList.add('flex');
+                renderTreeSidebarContent();
+            }
+        }
+
+        window.toggleTreeSidebar = function() {
+            if (!projectId || !projectData) return;
+            const sidebar = document.getElementById('tree-sidebar');
+            sidebar.classList.toggle('hidden');
+            sidebar.classList.toggle('flex');
+        }
+
+        function renderTreeSidebarContent() {
+            const container = document.getElementById('tree-sidebar-content');
+            if (!projectId || !projectData || !projectData.tree) return;
+            container.innerHTML = '';
+            renderTreeList(projectData.tree, container);
+        }
+
+        function renderTreeList(items, container) {
+            items.forEach(item => {
+                const el = document.createElement('div');
+                if (item.type === 'folder') {
+                    el.innerHTML = `<div class="font-semibold text-slate-700 dark:text-slate-300 py-1"><i data-lucide="folder" class="w-3.5 h-3.5 inline text-[#5246EE] mr-1"></i> ${escapeHtml(item.name)}</div>`;
+                    const sub = document.createElement('div');
+                    sub.className = "pl-4 space-y-1";
+                    if (item.children) renderTreeList(item.children, sub);
+                    el.appendChild(sub);
+                } else if (item.type === 'card') {
+                    const isCurrent = item.id === cardId;
+                    el.innerHTML = `<div onclick="window.location.href='map.html?cardId=${item.id}&projectId=${projectId}'" class="p-2 rounded-xl cursor-pointer ${isCurrent ? 'bg-[#5246EE]/10 text-[#5246EE] font-bold' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}"><i data-lucide="file-text" class="w-3.5 h-3.5 inline mr-1"></i> ${escapeHtml(item.name)}</div>`;
                 }
-                return null;
-            }
+                container.appendChild(el);
+            });
+            lucide.createIcons();
+        }
 
-            function findCardInTree(list, id) {
-                for (let item of list) {
-                    if (item.id === id) return item;
-                    if (item.children) {
-                        const found = findCardInTree(item.children, id);
-                        if (found) return found;
-                    }
-                }
-                return null;
-            }
+        // --- COLLABORATEURS ---
+        function toggleCollaboratorsDropdown() {
+            document.getElementById('collab-dropdown').classList.toggle('hidden');
+        }
 
-            function setupTreeSidebarVisibility() {
-                const sidebar = document.getElementById('tree-sidebar');
-                if (!projectId || !projectData) {
-                    sidebar.classList.add('hidden');
-                } else {
-                    sidebar.classList.add('flex');
-                    renderTreeSidebarContent();
-                }
-            }
+        function renderCollaboratorsList() {
+            const listEl = document.getElementById('collaborators-list');
+            document.getElementById('collab-count-label').textContent = `Collaborateurs (${(currentCard.collaborators || []).length + 1})`;
+            listEl.innerHTML = `
+                <div class="flex items-center justify-between text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                    <span class="font-medium text-slate-700 dark:text-slate-300">${currentUser.email} (Propriétaire)</span>
+                </div>
+            `;
+            (currentCard.collaborators || []).forEach((email, idx) => {
+                const item = document.createElement('div');
+                item.className = "flex items-center justify-between text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded-lg";
+                item.innerHTML = `
+                    <span class="text-slate-600 dark:text-slate-400 truncate max-w-[170px]">${escapeHtml(email)}</span>
+                    <button onclick="removeCollaborator(${idx})" class="text-rose-500 hover:text-rose-700 p-1"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+                `;
+                listEl.appendChild(item);
+            });
+            lucide.createIcons();
+        }
 
-            window.toggleTreeSidebar = function() {
-                if (!projectId || !projectData) return;
-                const sidebar = document.getElementById('tree-sidebar');
-                sidebar.classList.toggle('hidden');
-                sidebar.classList.toggle('flex');
+        async function addCollaborator() {
+            const email = document.getElementById('new-collab-email').value.trim();
+            if (!email) return;
+            if (!currentCard.collaborators) currentCard.collaborators = [];
+            if (!currentCard.collaborators.includes(email) && email !== currentUser.email) {
+                currentCard.collaborators.push(email);
+                await saveCurrentMapState();
+                renderCollaboratorsList();
+                document.getElementById('new-collab-email').value = '';
+                showToast("Collaborateur ajouté !");
             }
+        }
 
-            function renderTreeSidebarContent() {
-                const container = document.getElementById('tree-sidebar-content');
-                if (!projectId || !projectData || !projectData.tree) return;
-                container.innerHTML = '';
-                renderTreeList(projectData.tree, container);
-            }
+        async function removeCollaborator(idx) {
+            currentCard.collaborators.splice(idx, 1);
+            await saveCurrentMapState();
+            renderCollaboratorsList();
+        }
 
-            function renderTreeList(items, container) {
-                items.forEach(item => {
-                    const el = document.createElement('div');
-                    if (item.type === 'folder') {
-                        el.innerHTML = `<div class="font-semibold text-gray-700 dark:text-gray-300 py-1"><i class="fa-solid fa-folder text-[#5246EE] mr-1.5"></i> ${item.name}</div>`;
-                        const sub = document.createElement('div');
-                        sub.className = "pl-4 space-y-1";
-                        if (item.children) renderTreeList(item.children, sub);
-                        el.appendChild(sub);
-                    } else if (item.type === 'card') {
-                        const isCurrent = item.id === cardId;
-                        el.innerHTML = `<div onclick="window.location.href='map.html?cardId=${item.id}&projectId=${projectId}'" class="p-2 rounded-xl cursor-pointer ${isCurrent ? 'bg-[#5246EE]/10 text-[#5246EE] font-bold' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}"><i class="fa-solid fa-note-sticky mr-1.5 text-indigo-500"></i> ${item.name}</div>`;
-                    }
-                    container.appendChild(el);
-                });
+        // --- EXPORT ---
+        async function exportMap(format) {
+            if (format === 'json') {
+                const blob = new Blob([JSON.stringify(currentCard, null, 2)], { type: 'application/json' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `${currentCard.name.toLowerCase().replace(/\s+/g, '_')}_mobius.json`;
+                link.click();
+            } else if (format === 'png') {
+                const canvasEl = document.getElementById('canvas-container');
+                const canvas = await html2canvas(canvasEl, { backgroundColor: null });
+                const link = document.createElement('a');
+                link.download = `${currentCard.name}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
             }
+        }
 
-            window.downloadEntireProject = function() {
-                alert("Téléchargement du projet complet en ZIP...");
-            }
-
-            // --- LÉGENDE ---
-            function renderLegend() {
-                const container = document.getElementById('legend-list-container');
-                container.innerHTML = '';
-                if (!currentCard.linkTypes) currentCard.linkTypes = [];
-                currentCard.linkTypes.forEach(lt => {
-                    const row = document.createElement('div');
-                    row.className = "flex items-center justify-between p-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700";
-                    row.innerHTML = `
-                        <div class="flex items-center gap-2">
-                            <span class="w-3 h-3 rounded-full" style="background-color: ${lt.color};"></span>
-                            <span class="font-semibold">${lt.name}</span>
-                        </div>
-                        <button onclick="deleteLinkType('${lt.id}')" class="text-red-500 hover:text-red-700"><i class="fa-solid fa-trash text-[10px]"></i></button>
-                    `;
-                    container.appendChild(row);
-                });
-            }
-
-            window.openNewLinkTypeModal = function() {
-                document.getElementById('link-type-modal').classList.remove('hidden');
-            }
-            window.closeLinkTypeModal = function(confirmed) {
-                document.getElementById('link-type-modal').classList.add('hidden');
-                if (confirmed) {
-                    const name = document.getElementById('new-link-name').value.trim();
-                    const color = document.getElementById('new-link-color').value;
-                    const style = document.getElementById('new-link-style').value;
-                    if (name) {
-                        if (!currentCard.linkTypes) currentCard.linkTypes = [];
-                        currentCard.linkTypes.push({ id: 'lt_' + Date.now(), name, color, style });
-                        saveCurrentData();
-                        renderLegend();
-                    }
-                }
-            }
-            window.deleteLinkType = function(id) {
-                currentCard.linkTypes = currentCard.linkTypes.filter(l => l.id !== id);
-                saveCurrentData();
-                renderLegend();
-            }
-
-            // --- TABLEAU BLANC ---
-            window.handleWhiteboardRightClick = function(e) {
-                e.preventDefault();
-                const menu = document.getElementById('wb-context-menu');
-                menu.style.left = `${e.clientX}px`;
-                menu.style.top = `${e.clientY}px`;
-                menu.classList.remove('hidden');
-                contextMenuPos = { x: e.clientX - panX, y: e.clientY - panY };
-            }
-
-            window.handleWhiteboardLeftClick = function(e) {
-                document.getElementById('wb-context-menu').classList.add('hidden');
-                if (e.target.id === 'whiteboard-container' || e.target.id === 'whiteboard-canvas' || e.target.id === 'links-svg') {
-                    selectedNodeId = null;
-                    renderInspector();
-                    renderWhiteboard();
+        // --- GESTION DES COLLISIONS ---
+        function checkCollision(x, y, ignoreNodeId, width = 160, height = 90) {
+            const padding = 15;
+            for (let node of (currentCard.nodes || [])) {
+                if (node.id === ignoreNodeId) continue;
+                const nx = node.x || 0;
+                const ny = node.y || 0;
+                if (
+                    x < nx + width + padding &&
+                    x + width + padding > nx &&
+                    y < ny + height + padding &&
+                    y + height + padding > ny
+                ) {
+                    return true;
                 }
             }
+            return false;
+        }
 
-            window.createNodeAtContext = function() {
-                document.getElementById('wb-context-menu').classList.add('hidden');
-                const newNode = {
-                    id: 'node_' + Date.now(),
-                    name: 'Nouveau personnage',
-                    firstName: '',
-                    birthDate: '',
-                    role: 'Membre',
-                    color: '#5246EE',
-                    shape: 'rounded-2xl',
-                    x: contextMenuPos.x,
-                    y: contextMenuPos.y
-                };
-                if (!currentCard.nodes) currentCard.nodes = [];
-                currentCard.nodes.push(newNode);
-                selectedNodeId = newNode.id;
-                saveCurrentData();
-                renderWhiteboard();
-                renderInspector();
-            }
+        // --- INTERACTIONS DU CANVAS (TABLEAU BLANC) ---
+        function setupCanvasGlobalInteractivity() {
+            const container = document.getElementById('canvas-container');
 
-            window.triggerAiParsing = function() {
-                document.getElementById('wb-context-menu').classList.add('hidden');
-                const promptVal = prompt("Collez les informations pour l'IA :");
-                if (!promptVal) return;
-                const newNode = {
-                    id: 'node_' + Date.now(),
-                    name: promptVal.slice(0, 20),
-                    firstName: 'IA',
-                    birthDate: '1995-05-12',
-                    role: 'Analysé par IA',
-                    color: '#10B981',
-                    shape: 'rounded-full',
-                    x: contextMenuPos.x,
-                    y: contextMenuPos.y
-                };
-                if (!currentCard.nodes) currentCard.nodes = [];
-                currentCard.nodes.push(newNode);
-                selectedNodeId = newNode.id;
-                saveCurrentData();
-                renderWhiteboard();
-                renderInspector();
-            }
+            container.addEventListener('click', (e) => {
+                if (e.target === container || e.target.id === 'links-svg' || e.target.id === 'nodes-layer') {
+                    const rect = container.getBoundingClientRect();
+                    const x = e.clientX - rect.left + container.scrollLeft - 80;
+                    const y = e.clientY - rect.top + container.scrollTop - 40;
 
-            function startPan(e) {
-                if (e.target.id === 'whiteboard-container' || e.target.id === 'whiteboard-canvas' || e.target.id === 'links-svg') {
-                    isPanning = true;
-                    startPanX = e.clientX - panX;
-                    startPanY = e.clientY - startPanY;
-                }
-            }
-            function doPan(e) {
-                if (!isPanning) return;
-                panX = e.clientX - startPanX;
-                panY = e.clientY - startPanY;
-                document.getElementById('whiteboard-canvas').style.transform = `translate(${panX}px, ${panY}px)`;
-                document.getElementById('links-svg').style.transform = `translate(${panX}px, ${panY}px)`;
-            }
-            function endPan() { isPanning = false; }
-
-            function renderWhiteboard() {
-                const canvas = document.getElementById('whiteboard-canvas');
-                canvas.innerHTML = '';
-
-                if (currentCard.nodes) {
-                    currentCard.nodes.forEach(node => {
-                        const el = document.createElement('div');
-                        const isSelected = selectedNodeId === node.id;
-                        el.className = `absolute p-4 bg-white dark:bg-gray-900 border-2 ${isSelected ? 'border-[#5246EE] shadow-xl ring-4 ring-[#5246EE]/20' : 'border-gray-200 dark:border-gray-800 shadow-md'} ${node.shape} cursor-move select-none z-20 flex flex-col items-center justify-center min-w-[120px] transition-all`;
-                        el.style.left = `${node.x}px`;
-                        el.style.top = `${node.y}px`;
-                        el.innerHTML = `
-                            <div class="w-3 h-3 rounded-full mb-1" style="background-color: ${node.color};"></div>
-                            <div class="font-bold text-xs text-gray-900 dark:text-gray-100">${node.name}</div>
-                            <div class="text-[10px] text-gray-400">${node.role || ''}</div>
-                        `;
-
-                        let isDraggingNode = false, offsetX = 0, offsetY = 0;
-                        el.onmousedown = (ev) => {
-                            ev.stopPropagation();
-                            isDraggingNode = true;
-                            selectedNodeId = node.id;
-                            renderInspector();
-                            renderWhiteboard();
-                            const rect = el.getBoundingClientRect();
-                            offsetX = (ev.clientX - rect.left);
-                            offsetY = (ev.clientY - rect.top);
-                        };
-                        window.addEventListener('mousemove', (ev) => {
-                            if (!isDraggingNode) return;
-                            node.x = (ev.clientX - document.getElementById('whiteboard-container').getBoundingClientRect().left - offsetX - panX);
-                            node.y = (ev.clientY - document.getElementById('whiteboard-container').getBoundingClientRect().top - offsetY - panY);
-                            el.style.left = `${node.x}px`;
-                            el.style.top = `${node.y}px`;
-                            renderLinks();
-                        });
-                        window.addEventListener('mouseup', () => {
-                            if (isDraggingNode) {
-                                isDraggingNode = false;
-                                saveCurrentData();
-                            }
-                        });
-
-                        canvas.appendChild(el);
-                    });
-                }
-                renderLinks();
-            }
-
-            function renderLinks() {
-                const svg = document.getElementById('links-svg');
-                svg.innerHTML = '';
-                if (!currentCard.links || !currentCard.nodes) return;
-
-                currentCard.links.forEach(link => {
-                    const source = currentCard.nodes.find(n => n.id === link.sourceId);
-                    const target = currentCard.nodes.find(n => n.id === link.targetId);
-                    if (!source || !target) return;
-
-                    const lt = (currentCard.linkTypes || []).find(l => l.id === link.typeId) || { color: '#5246EE', style: 'solid' };
-
-                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                    line.setAttribute('x1', source.x + 60);
-                    line.setAttribute('y1', source.y + 35);
-                    line.setAttribute('x2', target.x + 60);
-                    line.setAttribute('y2', target.y + 35);
-                    line.setAttribute('stroke', lt.color);
-                    line.setAttribute('stroke-width', '2');
-                    svg.appendChild(line);
-                });
-            }
-
-            // --- INSPECTEUR & RECHERCHE ---
-            window.handleInspectorSearch = function(query) {
-                selectedNodeId = null;
-                renderInspector(query);
-            }
-
-            function renderInspector(searchQuery = '') {
-                const container = document.getElementById('inspector-content');
-                container.innerHTML = '';
-
-                if (!selectedNodeId || searchQuery) {
-                    const nodes = currentCard.nodes || [];
-                    const filtered = nodes.filter(n => n.name.toLowerCase().includes(searchQuery.toLowerCase()) || (n.role && n.role.toLowerCase().includes(searchQuery.toLowerCase())));
-
-                    container.innerHTML = `<h4 class="font-bold text-xs uppercase tracking-wider text-gray-400 mb-3">Personnes (${filtered.length})</h4>`;
-                    if (filtered.length === 0) {
-                        container.innerHTML += `<p class="text-gray-400 text-xs">Aucun personnage.</p>`;
+                    if (checkCollision(x, y, null)) {
+                        showToast("Impossible de placer une personne par-dessus une autre.");
                         return;
                     }
 
-                    filtered.forEach(node => {
-                        const item = document.createElement('div');
-                        item.className = "flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-2xl cursor-pointer hover:bg-gray-100 transition-all";
-                        item.innerHTML = `
-                            <div class="flex items-center gap-2.5">
-                                <span class="w-3.5 h-3.5 rounded-full" style="background-color: ${node.color};"></span>
-                                <div>
-                                    <div class="font-bold">${node.name}</div>
-                                    <div class="text-[10px] text-gray-400">${node.role || ''}</div>
-                                </div>
-                            </div>
-                            <i class="fa-solid fa-chevron-right text-gray-400 text-[10px]"></i>
-                        `;
-                        item.onclick = () => {
-                            selectedNodeId = node.id;
-                            document.getElementById('inspector-search-input').value = '';
-                            renderInspector();
-                            renderWhiteboard();
-                        };
-                        container.appendChild(item);
-                    });
-                    return;
-                }
+                    const newNode = {
+                        id: 'node-' + Date.now(),
+                        firstname: 'Nouvelle',
+                        lastname: 'Personne',
+                        location: '',
+                        x: Math.max(20, x),
+                        y: Math.max(20, y)
+                    };
 
-                const node = currentCard.nodes.find(n => n.id === selectedNodeId);
-                if (!node) return;
-
-                let ageText = '';
-                if (node.birthDate) {
-                    const birthYear = new Date(node.birthDate).getFullYear();
-                    const currentYear = new Date().getFullYear();
-                    ageText = `(${currentYear - birthYear} ans)`;
-                }
-
-                container.innerHTML = `
-                    <div class="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-gray-800">
-                        <h4 class="font-bold text-xs uppercase tracking-wider text-[#5246EE]">Inspecteur</h4>
-                        <button onclick="deleteSelectedNode()" class="w-7 h-7 rounded-lg bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100"><i class="fa-solid fa-trash text-xs"></i></button>
-                    </div>
-
-                    <div class="space-y-3">
-                        <div>
-                            <label class="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Nom</label>
-                            <input type="text" value="${node.name}" oninput="updateNodeField('${node.id}', 'name', this.value)" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none">
-                        </div>
-
-                        <div>
-                            <label class="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Prénom</label>
-                            <input type="text" value="${node.firstName || ''}" oninput="updateNodeField('${node.id}', 'firstName', this.value)" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none">
-                        </div>
-
-                        <div>
-                            <label class="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Date de naissance ${ageText}</label>
-                            <input type="date" value="${node.birthDate || ''}" onchange="updateNodeField('${node.id}', 'birthDate', this.value); renderInspector();" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none">
-                        </div>
-
-                        <div>
-                            <label class="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Rôle / Attribut</label>
-                            <div class="flex gap-2">
-                                <input type="text" value="${node.role || ''}" oninput="updateNodeField('${node.id}', 'role', this.value)" class="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none">
-                                <button onclick="applyBulkAttribute('${node.role}')" class="px-2.5 py-1 bg-[#5246EE]/10 text-[#5246EE] text-[10px] font-bold rounded-xl">Appliquer à tous</button>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <label class="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Couleur</label>
-                                <input type="color" value="${node.color || '#5246EE'}" onchange="updateNodeField('${node.id}', 'color', this.value); renderWhiteboard();" class="w-full h-9 rounded-xl cursor-pointer bg-transparent border-0">
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-semibold text-gray-400 uppercase mb-1">Forme</label>
-                                <select onchange="updateNodeField('${node.id}', 'shape', this.value); renderWhiteboard();" class="w-full px-2 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs">
-                                    <option value="rounded-2xl" ${node.shape==='rounded-2xl'?'selected':''}>Carré</option>
-                                    <option value="rounded-full" ${node.shape==='rounded-full'?'selected':''}>Cercle</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-
-            window.updateNodeField = function(nodeId, field, value) {
-                const node = currentCard.nodes.find(n => n.id === nodeId);
-                if (node) {
-                    node[field] = value;
-                    saveCurrentData();
-                    renderWhiteboard();
-                }
-            }
-
-            window.deleteSelectedNode = function() {
-                if (!selectedNodeId) return;
-                if (confirm("Supprimer cette personne ?")) {
-                    currentCard.nodes = currentCard.nodes.filter(n => n.id !== selectedNodeId);
-                    currentCard.links = currentCard.links.filter(l => l.sourceId !== selectedNodeId && l.targetId !== selectedNodeId);
-                    selectedNodeId = null;
-                    saveCurrentData();
-                    renderWhiteboard();
-                    renderInspector();
-                }
-            }
-
-            window.applyBulkAttribute = function(role) {
-                if (!role) return;
-                currentCard.nodes.forEach(n => {
-                    if (n.role === role) {
-                        const activeNode = currentCard.nodes.find(node => node.id === selectedNodeId);
-                        if (activeNode) {
-                            n.color = activeNode.color;
-                            n.shape = activeNode.shape;
-                        }
-                    }
-                });
-                saveCurrentData();
-                renderWhiteboard();
-                alert("Modifications appliquées en masse !");
-            }
-
-            window.addEventListener('keydown', (e) => {
-                if (e.key === 'Backspace' && selectedNodeId && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
-                    deleteSelectedNode();
+                    if (!currentCard.nodes) currentCard.nodes = [];
+                    currentCard.nodes.push(newNode);
+                    saveCurrentMapState();
+                    renderCanvasNodes();
+                    selectNode(newNode.id);
+                    showToast("Nouvelle personne créée !");
                 }
             });
 
-            // --- SAUVEGARDE SUPABASE ---
-            async function saveCurrentData() {
-                if (projectId && projectData) {
-                    updateCardInTree(projectData.tree, currentCard);
-                    await supabase.from('projects').update({ tree: projectData.tree }).eq('id', projectId);
-                } else {
-                    await supabase.from('cards').update({
-                        name: currentCard.name,
-                        nodes: currentCard.nodes,
-                        links: currentCard.links,
-                        linkTypes: currentCard.linkTypes,
-                        collaborators: currentCard.collaborators
-                    }).eq('id', currentCard.id);
+            document.addEventListener('mousedown', (e) => {
+                if (e.target.classList.contains('anchor-handle')) {
+                    e.stopPropagation();
+                    isDrawingHandleLine = true;
+                    handleSourceNodeId = e.target.getAttribute('data-node-id');
                 }
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (isDraggingNode && draggedNodeId) {
+                    const node = currentCard.nodes.find(n => n.id === draggedNodeId);
+                    if (node) {
+                        const mouseCanvasX = e.clientX - container.getBoundingClientRect().left + container.scrollLeft;
+                        const mouseCanvasY = e.clientY - container.getBoundingClientRect().top + container.scrollTop;
+
+                        const newX = mouseCanvasX - dragOffsetX;
+                        const newY = mouseCanvasY - dragOffsetY;
+                        
+                        const clampedX = Math.max(10, newX);
+                        const clampedY = Math.max(10, newY);
+
+                        if (!checkCollision(clampedX, clampedY, draggedNodeId)) {
+                            node.x = clampedX;
+                            node.y = clampedY;
+
+                            const card = document.getElementById(`card-${node.id}`);
+                            if (card) {
+                                card.style.left = `${node.x}px`;
+                                card.style.top = `${node.y}px`;
+                            }
+                            renderSvgLinks();
+                        }
+                    }
+                }
+
+                if (isDrawingHandleLine && handleSourceNodeId) {
+                    const source = currentCard.nodes.find(n => n.id === handleSourceNodeId);
+                    if (source) {
+                        const svg = document.getElementById('links-svg');
+                        if (activeTempLineSvg) activeTempLineSvg.remove();
+
+                        const curX = e.clientX - container.getBoundingClientRect().left + container.scrollLeft;
+                        const curY = e.clientY - container.getBoundingClientRect().top + container.scrollTop;
+
+                        activeTempLineSvg = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                        activeTempLineSvg.setAttribute("x1", source.x + 80);
+                        activeTempLineSvg.setAttribute("y1", source.y + 40);
+                        activeTempLineSvg.setAttribute("x2", curX);
+                        activeTempLineSvg.setAttribute("y2", curY);
+                        activeTempLineSvg.setAttribute("stroke", "#5246EE");
+                        activeTempLineSvg.setAttribute("stroke-width", "2.5");
+                        activeTempLineSvg.setAttribute("stroke-dasharray", "4");
+                        svg.appendChild(activeTempLineSvg);
+                    }
+                }
+            });
+
+            window.addEventListener('mouseup', (e) => {
+                if (isDraggingNode) {
+                    isDraggingNode = false;
+                    draggedNodeId = null;
+                    saveCurrentMapState();
+                }
+
+                if (isDrawingHandleLine) {
+                    const sourceNodeId = handleSourceNodeId;
+                    isDrawingHandleLine = false;
+                    handleSourceNodeId = null;
+
+                    if (activeTempLineSvg) {
+                        activeTempLineSvg.remove();
+                        activeTempLineSvg = null;
+                    }
+
+                    const targetEl = document.elementFromPoint(e.clientX, e.clientY);
+                    if (targetEl) {
+                        const targetCard = targetEl.closest('.node-card');
+                        if (targetCard) {
+                            const targetNodeId = targetCard.dataset.nodeId;
+                            if (targetNodeId && targetNodeId !== sourceNodeId) {
+                                openQuickLinkModal(sourceNodeId, targetNodeId);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- RENDU DES NŒUDS ET LIENS ---
+        function renderCanvasNodes() {
+            const nodesLayer = document.getElementById('nodes-layer');
+            nodesLayer.innerHTML = '';
+
+            (currentCard.nodes || []).forEach(node => {
+                const card = document.createElement('div');
+                const isSelected = selectedNodeId === node.id;
+                
+                card.id = `card-${node.id}`;
+                card.dataset.nodeId = node.id;
+                card.className = `absolute node-card bg-white dark:bg-slate-900 rounded-2xl border ${isSelected ? 'border-[#5246EE] ring-4 ring-[#5246EE]/20 shadow-xl' : 'border-slate-200 dark:border-slate-800 shadow-md'} p-3.5 flex flex-col items-center cursor-move`;
+                card.style.left = `${node.x}px`;
+                card.style.top = `${node.y}px`;
+                card.style.width = '160px';
+
+                card.innerHTML = `
+                    <div class="w-9 h-9 rounded-full bg-[#5246EE]/10 text-[#5246EE] flex items-center justify-center font-bold text-xs mb-1.5 shadow-inner pointer-events-none">
+                        ${(node.firstname[0] || 'P').toUpperCase()}${(node.lastname[0] || '').toUpperCase()}
+                    </div>
+                    <h5 class="font-bold text-slate-800 dark:text-slate-200 text-xs text-center truncate w-full pointer-events-none">${escapeHtml(node.firstname)} ${escapeHtml(node.lastname)}</h5>
+                    <p class="text-[10px] text-slate-400 text-center truncate w-full pointer-events-none">${escapeHtml(node.location || 'Non spécifié')}</p>
+
+                    <!-- Poignées d'ancrage aux 4 côtés -->
+                    <div class="anchor-handle absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-[#5246EE] rounded-full border-2 border-white dark:border-slate-900 shadow-sm cursor-crosshair" data-node-id="${node.id}" data-anchor="top"></div>
+                    <div class="anchor-handle absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-[#5246EE] rounded-full border-2 border-white dark:border-slate-900 shadow-sm cursor-crosshair" data-node-id="${node.id}" data-anchor="bottom"></div>
+                    <div class="anchor-handle absolute top-1/2 -left-2 -translate-y-1/2 w-4 h-4 bg-[#5246EE] rounded-full border-2 border-white dark:border-slate-900 shadow-sm cursor-crosshair" data-node-id="${node.id}" data-anchor="left"></div>
+                    <div class="anchor-handle absolute top-1/2 -right-2 -translate-y-1/2 w-4 h-4 bg-[#5246EE] rounded-full border-2 border-white dark:border-slate-900 shadow-sm cursor-crosshair" data-node-id="${node.id}" data-anchor="right"></div>
+                `;
+
+                card.addEventListener('mousedown', (e) => {
+                    if (e.target.classList.contains('anchor-handle')) return;
+                    e.stopPropagation();
+                    selectNode(node.id);
+
+                    isDraggingNode = true;
+                    draggedNodeId = node.id;
+
+                    const containerRect = document.getElementById('canvas-container').getBoundingClientRect();
+                    const mouseCanvasX = e.clientX - containerRect.left + document.getElementById('canvas-container').scrollLeft;
+                    const mouseCanvasY = e.clientY - containerRect.top + document.getElementById('canvas-container').scrollTop;
+
+                    dragOffsetX = mouseCanvasX - node.x;
+                    dragOffsetY = mouseCanvasY - node.y;
+                });
+
+                nodesLayer.appendChild(card);
+            });
+
+            renderSvgLinks();
+        }
+
+        function renderSvgLinks() {
+            const svg = document.getElementById('links-svg');
+            svg.innerHTML = '';
+
+            (currentCard.links || []).forEach(link => {
+                const source = (currentCard.nodes || []).find(n => n.id === link.sourceId);
+                const target = (currentCard.nodes || []).find(n => n.id === link.targetId);
+                if (!source || !target) return;
+
+                const relType = (currentCard.relationTypes || []).find(r => r.id === link.relationTypeId) || { color: '#5246EE', name: 'Lien' };
+
+                const x1 = source.x + 80;
+                const y1 = source.y + 40;
+                const x2 = target.x + 80;
+                const y2 = target.y + 40;
+
+                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                g.classList.add("cursor-pointer");
+
+                const hit = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                hit.setAttribute("x1", x1); hit.setAttribute("y1", y1);
+                hit.setAttribute("x2", x2); hit.setAttribute("y2", y2);
+                hit.setAttribute("stroke", "transparent"); hit.setAttribute("stroke-width", "18");
+
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", x1); line.setAttribute("y1", y1);
+                line.setAttribute("x2", x2); line.setAttribute("y2", y2);
+                line.setAttribute("stroke", relType.color); line.setAttribute("stroke-width", "3");
+                line.setAttribute("stroke-linecap", "round");
+
+                const midX = (x1 + x2) / 2;
+                const midY = (y1 + y2) / 2;
+                const textBg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                textBg.setAttribute("x", midX - 35); textBg.setAttribute("y", midY - 10);
+                textBg.setAttribute("width", "70"); textBg.setAttribute("height", "20");
+                textBg.setAttribute("rx", "6"); textBg.setAttribute("fill", "#ffffff");
+                textBg.setAttribute("stroke", relType.color); textBg.setAttribute("stroke-width", "1");
+
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", midX); text.setAttribute("y", midY + 4);
+                text.setAttribute("text-anchor", "middle"); text.setAttribute("font-size", "9");
+                text.setAttribute("fill", "#334155"); text.setAttribute("font-weight", "600");
+                text.textContent = relType.name;
+
+                const openModal = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openEditLinkModal(link.id);
+                };
+
+                let pressTimer;
+                const startPress = (e) => { pressTimer = setTimeout(() => openModal(e), 450); };
+                const cancelPress = () => clearTimeout(pressTimer);
+
+                g.addEventListener('mousedown', startPress);
+                g.addEventListener('mouseup', cancelPress);
+                g.addEventListener('mouseleave', cancelPress);
+                g.addEventListener('contextmenu', openModal);
+                g.addEventListener('click', openModal);
+
+                g.appendChild(hit);
+                g.appendChild(line);
+                g.appendChild(textBg);
+                g.appendChild(text);
+                svg.appendChild(g);
+            });
+        }
+
+        // --- INSPECTEUR ---
+        function selectNode(nodeId) {
+            selectedNodeId = nodeId;
+            renderCanvasNodes();
+            renderInspector();
+        }
+
+        function renderInspector() {
+            const emptyEl = document.getElementById('inspector-empty');
+            const contentEl = document.getElementById('inspector-content');
+
+            if (!selectedNodeId) {
+                emptyEl.classList.remove('hidden');
+                contentEl.classList.add('hidden');
+                return;
             }
 
-            function updateCardInTree(list, updatedCard) {
-                for (let i = 0; i < list.length; i++) {
-                    if (list[i].id === updatedCard.id) {
-                        list[i] = { ...list[i], ...updatedCard };
-                        return true;
-                    }
-                    if (list[i].children) {
-                        if (updateCardInTree(list[i].children, updatedCard)) return true;
-                    }
-                }
-                return false;
+            const node = (currentCard.nodes || []).find(n => n.id === selectedNodeId);
+            if (!node) {
+                selectedNodeId = null;
+                emptyEl.classList.remove('hidden');
+                contentEl.classList.add('hidden');
+                return;
             }
-        });
+
+            emptyEl.classList.add('hidden');
+            contentEl.classList.remove('hidden');
+
+            document.getElementById('node-firstname').value = node.firstname || '';
+            document.getElementById('node-lastname').value = node.lastname || '';
+            document.getElementById('node-nickname').value = node.nickname || '';
+            document.getElementById('node-age').value = node.age || '';
+            document.getElementById('node-location').value = node.location || '';
+
+            renderNodeLinksInInspector(node.id);
+            populateInspectorSelects(node.id);
+        }
+
+        function updateActiveNodeData() {
+            if (!selectedNodeId) return;
+            const node = (currentCard.nodes || []).find(n => n.id === selectedNodeId);
+            if (!node) return;
+
+            node.firstname = document.getElementById('node-firstname').value;
+            node.lastname = document.getElementById('node-lastname').value;
+            node.nickname = document.getElementById('node-nickname').value;
+            node.age = document.getElementById('node-age').value;
+            node.location = document.getElementById('node-location').value;
+
+            saveCurrentMapState();
+            renderCanvasNodes();
+        }
+
+        function deleteSelectedNode() {
+            if (!selectedNodeId) return;
+            currentCard.links = (currentCard.links || []).filter(l => l.sourceId !== selectedNodeId && l.targetId !== selectedNodeId);
+            currentCard.nodes = (currentCard.nodes || []).filter(n => n.id !== selectedNodeId);
+            selectedNodeId = null;
+
+            saveCurrentMapState();
+            renderInspector();
+            renderCanvasNodes();
+            showToast("Personne supprimée");
+        }
+
+        function toggleAddLinkMenu() {
+            document.getElementById('add-link-form').classList.toggle('hidden');
+        }
+
+        function populateInspectorSelects(currentNodeId) {
+            const targetSel = document.getElementById('link-target-select');
+            const typeSel = document.getElementById('link-type-select');
+
+            targetSel.innerHTML = '';
+            (currentCard.nodes || []).filter(n => n.id !== currentNodeId).forEach(n => {
+                const opt = document.createElement('option');
+                opt.value = n.id;
+                opt.textContent = `${n.firstname} ${n.lastname}`;
+                targetSel.appendChild(opt);
+            });
+
+            typeSel.innerHTML = '';
+            (currentCard.relationTypes || []).forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.id;
+                opt.textContent = r.name;
+                typeSel.appendChild(opt);
+            });
+        }
+
+        function renderNodeLinksInInspector(nodeId) {
+            const listEl = document.getElementById('node-links-list');
+            listEl.innerHTML = '';
+
+            const links = (currentCard.links || []).filter(l => l.sourceId === nodeId || l.targetId === nodeId);
+            if (links.length === 0) {
+                listEl.innerHTML = `<p class="text-xs text-slate-400 italic">Aucune connexion enregistrée[cite: 1].</p>`;
+                return;
+            }
+
+            links.forEach(link => {
+                const otherId = link.sourceId === nodeId ? link.targetId : link.sourceId;
+                const otherNode = (currentCard.nodes || []).find(n => n.id === otherId);
+                const relType = (currentCard.relationTypes || []).find(r => r.id === link.relationTypeId) || { name: 'Lien', color: '#5246EE' };
+
+                const item = document.createElement('div');
+                item.className = "flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs";
+                item.innerHTML = `
+                    <div class="flex items-center space-x-2 truncate">
+                        <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${relType.color}"></span>
+                        <span class="font-medium text-slate-800 dark:text-slate-200 truncate">${otherNode ? otherNode.firstname + ' ' + otherNode.lastname : 'Inconnu'}</span>
+                        <span class="text-slate-400">(${relType.name})</span>
+                    </div>
+                    <button onclick="deleteLink('${link.id}')" class="text-rose-500 hover:text-rose-700 p-1"><i data-lucide="trash" class="w-3.5 h-3.5"></i></button>
+                `;
+                listEl.appendChild(item);
+            });
+            lucide.createIcons();
+        }
+
+        async function createLinkFromInspector() {
+            if (!selectedNodeId) return;
+            const targetId = document.getElementById('link-target-select').value;
+            const relationTypeId = document.getElementById('link-type-select').value;
+
+            if (!targetId || !relationTypeId) return;
+
+            const exists = (currentCard.links || []).some(l => (l.sourceId === selectedNodeId && l.targetId === targetId) || (l.sourceId === targetId && l.targetId === selectedNodeId));
+            if (exists) {
+                showToast("Un lien existe déjà entre ces personnes.");
+                return;
+            }
+
+            if (!currentCard.links) currentCard.links = [];
+            currentCard.links.push({
+                id: 'link-' + Date.now(),
+                sourceId: selectedNodeId,
+                targetId,
+                relationTypeId
+            });
+
+            await saveCurrentMapState();
+            renderNodeLinksInInspector(selectedNodeId);
+            renderSvgLinks();
+            document.getElementById('add-link-form').classList.add('hidden');
+            showToast("Lien créé avec succès !");
+        }
+
+        async function deleteLink(linkId) {
+            currentCard.links = (currentCard.links || []).filter(l => l.id !== linkId);
+            await saveCurrentMapState();
+            if (selectedNodeId) renderNodeLinksInInspector(selectedNodeId);
+            renderSvgLinks();
+            showToast("Lien supprimé.");
+        }
+
+        // --- LÉGENDE & TYPES DE RELATION ---
+        function renderLegendList() {
+            const listEl = document.getElementById('legend-types-container');
+            listEl.innerHTML = '';
+
+            (currentCard.relationTypes || []).forEach(rel => {
+                const item = document.createElement('div');
+                item.className = "flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs";
+                item.innerHTML = `
+                    <div class="flex items-center space-x-2.5 truncate">
+                        <span class="w-3.5 h-3.5 rounded-full shrink-0 shadow-xs" style="background-color: ${rel.color}"></span>
+                        <span class="font-semibold text-slate-800 dark:text-slate-200 truncate">${escapeHtml(rel.name)}</span>
+                    </div>
+                    <div class="flex items-center space-x-1 shrink-0">
+                        <button onclick="openEditRelationModal('${rel.id}')" class="p-1 text-slate-400 hover:text-[#5246EE] rounded" title="Modifier"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
+                        <button onclick="deleteRelationType('${rel.id}')" class="p-1 text-slate-400 hover:text-rose-600 rounded" title="Supprimer"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                    </div>
+                `;
+                listEl.appendChild(item);
+            });
+            lucide.createIcons();
+        }
+
+        function openAddRelationModal() {
+            editingRelationTypeId = null;
+            document.getElementById('relation-modal-title').textContent = "Nouveau type de relation";
+            document.getElementById('rel-modal-name').value = '';
+            document.getElementById('rel-modal-color').value = '#5246EE';
+            document.getElementById('modal-relation-type').classList.remove('hidden');
+        }
+
+        function openEditRelationModal(relId) {
+            const rel = (currentCard.relationTypes || []).find(r => r.id === relId);
+            if (!rel) return;
+            editingRelationTypeId = relId;
+            document.getElementById('relation-modal-title').textContent = "Modifier le type de relation";
+            document.getElementById('rel-modal-name').value = rel.name;
+            document.getElementById('rel-modal-color').value = rel.color;
+            document.getElementById('modal-relation-type').classList.remove('hidden');
+        }
+
+        function closeRelationTypeModal() {
+            document.getElementById('modal-relation-type').classList.add('hidden');
+            editingRelationTypeId = null;
+        }
+
+        async function submitRelationTypeModal() {
+            const name = document.getElementById('rel-modal-name').value.trim();
+            const color = document.getElementById('rel-modal-color').value;
+
+            if (!name) {
+                showToast("Veuillez entrer un nom.");
+                return;
+            }
+
+            if (!currentCard.relationTypes) currentCard.relationTypes = [];
+
+            if (editingRelationTypeId) {
+                const rel = currentCard.relationTypes.find(r => r.id === editingRelationTypeId);
+                if (rel) {
+                    rel.name = name;
+                    rel.color = color;
+                    showToast("Type de relation mis à jour !");
+                }
+            } else {
+                currentCard.relationTypes.push({ id: 'rel-' + Date.now(), name, color });
+                showToast("Type de relation ajouté !");
+            }
+
+            await saveCurrentMapState();
+            renderLegendList();
+            renderSvgLinks();
+            if (selectedNodeId) renderNodeLinksInInspector(selectedNodeId);
+            closeRelationTypeModal();
+        }
+
+        async function deleteRelationType(relId) {
+            if (currentCard.relationTypes.length <= 1) {
+                showToast("Vous devez conserver au moins un type de relation.");
+                return;
+            }
+            const fallbackId = currentCard.relationTypes.find(r => r.id !== relId).id;
+            (currentCard.links || []).forEach(l => {
+                if (l.relationTypeId === relId) l.relationTypeId = fallbackId;
+            });
+
+            currentCard.relationTypes = currentCard.relationTypes.filter(r => r.id !== relId);
+            await saveCurrentMapState();
+            renderLegendList();
+            renderSvgLinks();
+            if (selectedNodeId) renderNodeLinksInInspector(selectedNodeId);
+            showToast("Type de relation supprimé.");
+        }
+
+        // --- MODALES DE LIAISON RAPIDE & ÉDITION DE LIENS ---
+        function openQuickLinkModal(sourceId, targetId) {
+            pendingQuickLink = { sourceId, targetId };
+            const s = (currentCard.nodes || []).find(n => n.id === sourceId);
+            const t = (currentCard.nodes || []).find(n => n.id === targetId);
+
+            document.getElementById('ql-source-name').textContent = s ? `${s.firstname} ${s.lastname}` : '';
+            document.getElementById('ql-target-name').textContent = t ? `${t.firstname} ${t.lastname}` : '';
+
+            const select = document.getElementById('ql-type-select');
+            select.innerHTML = '';
+            (currentCard.relationTypes || []).forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.id;
+                opt.textContent = r.name;
+                select.appendChild(opt);
+            });
+
+            document.getElementById('modal-quick-link').classList.remove('hidden');
+        }
+
+        function cancelQuickLink() {
+            pendingQuickLink = null;
+            document.getElementById('modal-quick-link').classList.add('hidden');
+        }
+
+        async function confirmQuickLink() {
+            if (!pendingQuickLink) return;
+            const relationTypeId = document.getElementById('ql-type-select').value;
+
+            const exists = (currentCard.links || []).some(l => (l.sourceId === pendingQuickLink.sourceId && l.targetId === pendingQuickLink.targetId) || (l.sourceId === pendingQuickLink.targetId && l.targetId === pendingQuickLink.sourceId));
+            if (!exists) {
+                if (!currentCard.links) currentCard.links = [];
+                currentCard.links.push({
+                    id: 'link-' + Date.now(),
+                    sourceId: pendingQuickLink.sourceId,
+                    targetId: pendingQuickLink.targetId,
+                    relationTypeId
+                });
+                await saveCurrentMapState();
+                renderSvgLinks();
+                if (selectedNodeId) renderNodeLinksInInspector(selectedNodeId);
+                showToast("Connexion créée !");
+            }
+            cancelQuickLink();
+        }
+
+        function openEditLinkModal(linkId) {
+            activeEditLinkId = linkId;
+            const link = (currentCard.links || []).find(l => l.id === linkId);
+            if (!link) return;
+
+            const s = (currentCard.nodes || []).find(n => n.id === link.sourceId);
+            const t = (currentCard.nodes || []).find(n => n.id === link.targetId);
+
+            document.getElementById('el-source-name').textContent = s ? `${s.firstname} ${s.lastname}` : '';
+            document.getElementById('el-target-name').textContent = t ? `${t.firstname} ${t.lastname}` : '';
+
+            const select = document.getElementById('el-type-select');
+            select.innerHTML = '';
+            (currentCard.relationTypes || []).forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.id;
+                opt.textContent = r.name;
+                if (r.id === link.relationTypeId) opt.selected = true;
+                select.appendChild(opt);
+            });
+
+            document.getElementById('modal-edit-link').classList.remove('hidden');
+        }
+
+        function closeEditLinkModal() {
+            activeEditLinkId = null;
+            document.getElementById('modal-edit-link').classList.add('hidden');
+        }
+
+        async function saveEditLinkModal() {
+            if (!activeEditLinkId) return;
+            const link = (currentCard.links || []).find(l => l.id === activeEditLinkId);
+            if (link) {
+                link.relationTypeId = document.getElementById('el-type-select').value;
+                await saveCurrentMapState();
+                renderSvgLinks();
+                if (selectedNodeId) renderNodeLinksInInspector(selectedNodeId);
+                showToast("Lien mis à jour !");
+            }
+            closeEditLinkModal();
+        }
+
+        async function deleteLinkFromModal() {
+            if (!activeEditLinkId) return;
+            currentCard.links = (currentCard.links || []).filter(l => l.id !== activeEditLinkId);
+            await saveCurrentMapState();
+            renderSvgLinks();
+            if (selectedNodeId) renderNodeLinksInInspector(selectedNodeId);
+            closeEditLinkModal();
+            showToast("Lien supprimé.");
+        }
+
+        // --- SAUVEGARDE SUPABASE ---
+        async function saveCurrentMapState() {
+            const SUPABASE_URL = 'https://nfvnayuqrmlldtixzdpx.supabase.co';
+            const SUPABASE_KEY = 'sb_publishable_EwONSAsqSfu8_SocZ7wZBA_rVODWqSF';
+            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+            if (projectId && projectData) {
+                updateCardInTree(projectData.tree, currentCard);
+                await supabase.from('projects').update({ tree: projectData.tree }).eq('id', projectId);
+            } else {
+                await supabase.from('cards').update({
+                    name: currentCard.name,
+                    nodes: currentCard.nodes,
+                    links: currentCard.links,
+                    relationTypes: currentCard.relationTypes,
+                    collaborators: currentCard.collaborators
+                }).eq('id', currentCard.id);
+            }
+        }
+
+        function updateCardInTree(list, updatedCard) {
+            for (let i = 0; i < list.length; i++) {
+                if (list[i].id === updatedCard.id) {
+                    list[i] = { ...list[i], ...updatedCard };
+                    return true;
+                }
+                if (list[i].children) {
+                    if (updateCardInTree(list[i].children, updatedCard)) return true;
+                }
+            }
+            return false;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
+        }
     </script>
 </body>
 </html>
