@@ -81,7 +81,7 @@
             <div class="relative">
                 <button onclick="toggleCollaboratorsDropdown()" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition">
                     <i data-lucide="users" class="w-3.5 h-3.5 text-[#5246EE]"></i>
-                    <span id="collab-count-label">Collaborateurs (1)</span>
+                    <span id="collab-count-label" class="hidden sm:inline">Collaborateurs (1)</span>
                     <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
                 </button>
                 <div id="collab-dropdown" class="hidden absolute right-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-50">
@@ -99,7 +99,7 @@
             <div class="relative">
                 <button onclick="toggleDownloadDropdown()" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition">
                     <i data-lucide="download" class="w-3.5 h-3.5 text-emerald-500"></i>
-                    <span>Exporter</span>
+                    <span class="hidden sm:inline">Exporter</span>
                 </button>
                 <div id="download-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 space-y-1">
                     <button onclick="exportMap('png')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="image" class="w-4 h-4 text-blue-500"></i> Exporter en PNG</button>
@@ -115,28 +115,31 @@
     </header>
 
     <!-- MAIN WORKSPACE CONTAINER -->
-    <div class="flex-1 flex overflow-hidden relative">
+    <div class="flex-1 flex overflow-hidden relative pb-16 md:pb-0">
 
-        <!-- 1. MENU ARBORESCENCE -->
-        <aside id="tree-sidebar" class="hidden flex-col w-72 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20 transition-all shadow-md">
+        <!-- 1. MENU ARBORESCENCE (Desktop: Sidebar fixe / Mobile: Panneau glissable) -->
+        <aside id="tree-sidebar" class="hidden md:flex flex-col w-72 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20 transition-all shadow-md">
             <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <h3 class="font-bold text-xs uppercase tracking-wider text-slate-500">Arborescence du Projet</h3>
-                <button onclick="toggleTreeSidebar()" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+                <button onclick="toggleTreeSidebar()" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-600 md:hidden"><i data-lucide="x" class="w-4 h-4"></i></button>
             </div>
             <div id="tree-sidebar-content" class="flex-1 p-3 overflow-y-auto space-y-1 text-xs"></div>
         </aside>
 
         <!-- 2. MENU LÉGENDE -->
-        <aside id="sidebar-legend-left" class="w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col z-20 shadow-md">
+        <aside id="sidebar-legend-left" class="hidden md:flex w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex-col z-20 shadow-md">
             <div class="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between">
                 <div class="flex items-center space-x-2">
                     <i data-lucide="bookmark" class="w-4 h-4 text-[#5246EE]"></i>
                     <h3 class="font-bold text-slate-800 dark:text-slate-200 text-xs uppercase tracking-wider">Légende & Relations</h3>
                 </div>
-                <button onclick="openAddRelationModal()" class="px-2.5 py-1 bg-[#5246EE] hover:bg-[#4538d8] text-white text-xs font-medium rounded-lg flex items-center space-x-1 transition shadow-xs">
-                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
-                    <span>Nouveau</span>
-                </button>
+                <div class="flex items-center space-x-2">
+                    <button onclick="openAddRelationModal()" class="px-2.5 py-1 bg-[#5246EE] hover:bg-[#4538d8] text-white text-xs font-medium rounded-lg flex items-center space-x-1 transition shadow-xs">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                        <span>Nouveau</span>
+                    </button>
+                    <button onclick="closeMobilePanels()" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 md:hidden"><i data-lucide="x" class="w-4 h-4"></i></button>
+                </div>
             </div>
 
             <div class="p-4 flex-1 overflow-y-auto space-y-3">
@@ -147,27 +150,28 @@
 
         <!-- 3. TABLEAU BLANC / CANVAS -->
         <div id="canvas-container" class="flex-1 relative whiteboard-grid overflow-auto cursor-default select-none">
-            <!-- Calque zoomable contenant les liens et les nœuds -->
             <div id="canvas-zoom-layer" class="absolute inset-0 origin-top-left" style="width: 6000px; height: 6000px; transform: scale(1);">
                 <svg id="links-svg" class="absolute inset-0 w-full h-full pointer-events-none z-0"></svg>
                 <div id="nodes-layer" class="absolute inset-0 z-10"></div>
             </div>
 
-            <!-- Boîte de sélection multiple -->
             <div id="selection-box" class="hidden absolute border-2 border-[#5246EE] bg-[#5246EE]/10 pointer-events-none z-30 rounded-lg"></div>
 
-            <div class="absolute bottom-6 left-6 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-2.5 rounded-2xl shadow-lg border border-slate-200/80 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 pointer-events-none z-20 flex items-center space-x-2">
+            <div class="absolute bottom-6 left-6 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-2.5 rounded-2xl shadow-lg border border-slate-200/80 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 pointer-events-none z-20 hidden md:flex items-center space-x-2">
                 <i data-lucide="mouse-pointer-click" class="w-4 h-4 text-[#5246EE] shrink-0"></i>
-                <span>Ctrl + Molette pour zoomer/dézoomer. Clic droit pour le menu.</span>
+                <span>Ctrl + Molette pour zoomer. Clic droit pour le menu.</span>
             </div>
         </div>
 
         <!-- 4. INSPECTEUR / RECHERCHE -->
-        <aside id="sidebar-inspector-right" class="w-80 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col z-20 shadow-md">
+        <aside id="sidebar-inspector-right" class="hidden md:flex w-80 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex-col z-20 shadow-md">
             <div class="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 space-y-2">
-                <div class="flex items-center space-x-2 mb-1">
-                    <i data-lucide="search" class="w-4 h-4 text-[#5246EE]"></i>
-                    <h3 class="font-bold text-slate-800 dark:text-slate-200 text-xs uppercase tracking-wider">Recherche & Inspecteur</h3>
+                <div class="flex items-center justify-between mb-1">
+                    <div class="flex items-center space-x-2">
+                        <i data-lucide="search" class="w-4 h-4 text-[#5246EE]"></i>
+                        <h3 class="font-bold text-slate-800 dark:text-slate-200 text-xs uppercase tracking-wider">Recherche & Inspecteur</h3>
+                    </div>
+                    <button onclick="closeMobilePanels()" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 md:hidden"><i data-lucide="x" class="w-4 h-4"></i></button>
                 </div>
                 <div class="relative">
                     <input type="text" id="inspector-search-input" oninput="handleInspectorSearch(this.value)" placeholder="Rechercher parmi les personnes..." class="w-full px-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#5246EE]/20 focus:border-[#5246EE]">
@@ -180,6 +184,22 @@
         </aside>
 
     </div>
+
+    <!-- MOBILE BOTTOM NAVIGATION BAR -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-30 flex items-center justify-around px-2 shadow-lg">
+        <button onclick="openMobilePanel('legend')" class="flex flex-col items-center justify-center text-slate-600 dark:text-slate-300 py-1 px-3">
+            <i data-lucide="bookmark" class="w-5 h-5 text-[#5246EE]"></i>
+            <span class="text-[10px] font-medium mt-1">Légende</span>
+        </button>
+        <button id="mobile-tree-nav-btn" onclick="openMobilePanel('tree')" class="hidden flex-col items-center justify-center text-slate-600 dark:text-slate-300 py-1 px-3">
+            <i data-lucide="folder-tree" class="w-5 h-5 text-[#5246EE]"></i>
+            <span class="text-[10px] font-medium mt-1">Projet</span>
+        </button>
+        <button onclick="openMobilePanel('inspector')" class="flex flex-col items-center justify-center text-slate-600 dark:text-slate-300 py-1 px-3 relative">
+            <i data-lucide="search" class="w-5 h-5 text-[#5246EE]"></i>
+            <span class="text-[10px] font-medium mt-1">Inspecteur</span>
+        </button>
+    </nav>
 
     <!-- MENU CONTEXTUEL AU CLIC DROIT -->
     <div id="context-menu" class="hidden fixed bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 py-2 z-50 text-xs w-52">
@@ -288,7 +308,6 @@
         let currentContextMenuCanvasX = 0;
         let currentContextMenuCanvasY = 0;
 
-        // Gestion du zoom du tableau blanc (de 15% à 250%)
         let whiteboardZoom = 1;
         const minZoom = 0.15;
         const maxZoom = 2.5;
@@ -296,6 +315,10 @@
         let pendingQuickLink = null;
         let activeEditLinkId = null;
         let editingRelationTypeId = null;
+
+        // Ordre des panneaux pour le swipe mobile: ['legend', 'tree' (si projet), 'inspector']
+        let mobilePanelsList = [];
+        let currentMobilePanelIndex = 0;
 
         document.addEventListener('DOMContentLoaded', async () => {
             lucide.createIcons();
@@ -355,6 +378,7 @@
             if (!currentCard.links) currentCard.links = [];
             if (!currentCard.collaborators) currentCard.collaborators = [];
 
+            setupMobilePanelsList();
             renderBreadcrumb();
             setupTreeSidebarVisibility();
             renderLegendList();
@@ -363,7 +387,100 @@
             renderCollaboratorsList();
             setupCanvasGlobalInteractivity();
             setupKeyboardListeners();
+            setupMobileSwipeGestures();
         });
+
+        function setupMobilePanelsList() {
+            mobilePanelsList = ['legend'];
+            if (projectId && projectData) {
+                mobilePanelsList.push('tree');
+                document.getElementById('mobile-tree-nav-btn').classList.remove('hidden');
+                document.getElementById('mobile-tree-nav-btn').classList.add('flex');
+            }
+            mobilePanelsList.push('inspector');
+        }
+
+        // --- GESTION DES PANNEAUX MOBLES & SWIPE ---
+        window.openMobilePanel = function(panelName) {
+            if (window.innerWidth >= 768) return; // Uniquement sur mobile
+            const legend = document.getElementById('sidebar-legend-left');
+            const tree = document.getElementById('tree-sidebar');
+            const inspector = document.getElementById('sidebar-inspector-right');
+
+            // Fermer tous
+            legend.classList.add('hidden');
+            legend.classList.remove('flex', 'absolute', 'inset-0', 'z-30');
+            tree.classList.add('hidden');
+            tree.classList.remove('flex', 'absolute', 'inset-0', 'z-30');
+            inspector.classList.add('hidden');
+            inspector.classList.remove('flex', 'absolute', 'inset-0', 'z-30');
+
+            let target = null;
+            if (panelName === 'legend') target = legend;
+            else if (panelName === 'tree') target = tree;
+            else if (panelName === 'inspector') target = inspector;
+
+            if (target) {
+                target.classList.remove('hidden');
+                target.classList.add('flex', 'absolute', 'inset-0', 'z-30');
+                currentMobilePanelIndex = mobilePanelsList.indexOf(panelName);
+            }
+        }
+
+        window.closeMobilePanels = function() {
+            if (window.innerWidth >= 768) return;
+            const legend = document.getElementById('sidebar-legend-left');
+            const tree = document.getElementById('tree-sidebar');
+            const inspector = document.getElementById('sidebar-inspector-right');
+
+            legend.classList.add('hidden');
+            legend.classList.remove('flex', 'absolute', 'inset-0', 'z-30');
+            tree.classList.add('hidden');
+            tree.classList.remove('flex', 'absolute', 'inset-0', 'z-30');
+            inspector.classList.add('hidden');
+            inspector.classList.remove('flex', 'absolute', 'inset-0', 'z-30');
+        }
+
+        function setupMobileSwipeGestures() {
+            let touchStartX = 0;
+            let touchEndX = 0;
+
+            const panels = [
+                document.getElementById('sidebar-legend-left'),
+                document.getElementById('tree-sidebar'),
+                document.getElementById('sidebar-inspector-right')
+            ];
+
+            panels.forEach(panel => {
+                if (!panel) return;
+                panel.addEventListener('touchstart', (e) => {
+                    touchStartX = e.changedTouches[0].screenX;
+                }, { passive: true });
+
+                panel.addEventListener('touchend', (e) => {
+                    touchEndX = e.changedTouches[0].screenX;
+                    handleSwipeGesture();
+                }, { passive: true });
+            });
+
+            function handleSwipeGesture() {
+                const threshold = 50;
+                if (touchEndX < touchStartX - threshold) {
+                    // Swipe gauche -> Panneau suivant
+                    if (currentMobilePanelIndex < mobilePanelsList.length - 1) {
+                        currentMobilePanelIndex++;
+                        openMobilePanel(mobilePanelsList[currentMobilePanelIndex]);
+                    }
+                }
+                if (touchEndX > touchStartX + threshold) {
+                    // Swipe droite -> Panneau précédent
+                    if (currentMobilePanelIndex > 0) {
+                        currentMobilePanelIndex--;
+                        openMobilePanel(mobilePanelsList[currentMobilePanelIndex]);
+                    }
+                }
+            }
+        }
 
         function showToast(msg) {
             const toast = document.getElementById('toast-notification');
@@ -460,17 +577,23 @@
             if (!projectId || !projectData) {
                 sidebar.classList.add('hidden');
             } else {
-                sidebar.classList.remove('hidden');
-                sidebar.classList.add('flex');
+                if (window.innerWidth >= 768) {
+                    sidebar.classList.remove('hidden');
+                    sidebar.classList.add('flex');
+                }
                 renderTreeSidebarContent();
             }
         }
 
         window.toggleTreeSidebar = function() {
             if (!projectId || !projectData) return;
-            const sidebar = document.getElementById('tree-sidebar');
-            sidebar.classList.toggle('hidden');
-            sidebar.classList.toggle('flex');
+            if (window.innerWidth < 768) {
+                openMobilePanel('tree');
+            } else {
+                const sidebar = document.getElementById('tree-sidebar');
+                sidebar.classList.toggle('hidden');
+                sidebar.classList.toggle('flex');
+            }
         }
 
         function renderTreeSidebarContent() {
@@ -582,10 +705,9 @@
             const selectionBox = document.getElementById('selection-box');
             const zoomLayer = document.getElementById('canvas-zoom-layer');
 
-            // --- GESTION DU ZOOM PAR MOLETTE (BLOQUE LE ZOOM DE LA PAGE & ZOOM VERS LE CURSEUR) ---
             container.addEventListener('wheel', (e) => {
                 if (e.ctrlKey || e.metaKey) {
-                    e.preventDefault(); // Bloque totalement le zoom de la page du navigateur
+                    e.preventDefault();
                     const zoomFactor = 1.15;
                     const oldZoom = whiteboardZoom;
 
@@ -595,7 +717,6 @@
                         whiteboardZoom = Math.max(minZoom, whiteboardZoom / zoomFactor);
                     }
 
-                    // Calcul de la position de la souris par rapport au conteneur pour zoomer vers le curseur
                     const rect = container.getBoundingClientRect();
                     const mouseX = e.clientX - rect.left + container.scrollLeft;
                     const mouseY = e.clientY - rect.top + container.scrollTop;
@@ -846,6 +967,11 @@
                     renderCanvasNodes();
                     renderInspector();
 
+                    // Sur mobile, l'action de sélection ouvre automatiquement l'inspecteur
+                    if (window.innerWidth < 768) {
+                        openMobilePanel('inspector');
+                    }
+
                     isDraggingNode = true;
                     draggedNodeId = node.id;
 
@@ -930,6 +1056,9 @@
             renderInspector();
             const node = (currentCard.nodes || []).find(n => n.id === nodeId);
             if (node) centerCameraOnNode(node);
+            if (window.innerWidth < 768) {
+                openMobilePanel('inspector');
+            }
         }
 
         function centerCameraOnNode(node) {
@@ -1408,7 +1537,7 @@
                     return true;
                 }
                 if (list[i].children) {
-                    if (updateCardInTree(list[i].children, updatedCard)) return true;
+                    if (updateCardInTest = updateCardInTree(list[i].children, updatedCard)) return true;
                 }
             }
             return false;
