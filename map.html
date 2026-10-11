@@ -147,15 +147,18 @@
 
         <!-- 3. TABLEAU BLANC / CANVAS -->
         <div id="canvas-container" class="flex-1 relative whiteboard-grid overflow-auto cursor-default select-none">
-            <svg id="links-svg" class="absolute inset-0 w-full h-full pointer-events-none z-0" style="min-width: 4000px; min-height: 4000px;"></svg>
-            <div id="nodes-layer" class="absolute inset-0 z-10" style="min-width: 4000px; min-height: 4000px;"></div>
+            <!-- Calque zoomable contenant les liens et les nœuds -->
+            <div id="canvas-zoom-layer" class="absolute inset-0 origin-top-left" style="width: 6000px; height: 6000px; transform: scale(1);">
+                <svg id="links-svg" class="absolute inset-0 w-full h-full pointer-events-none z-0"></svg>
+                <div id="nodes-layer" class="absolute inset-0 z-10"></div>
+            </div>
 
             <!-- Boîte de sélection multiple -->
             <div id="selection-box" class="hidden absolute border-2 border-[#5246EE] bg-[#5246EE]/10 pointer-events-none z-30 rounded-lg"></div>
 
             <div class="absolute bottom-6 left-6 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-2.5 rounded-2xl shadow-lg border border-slate-200/80 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 pointer-events-none z-20 flex items-center space-x-2">
                 <i data-lucide="mouse-pointer-click" class="w-4 h-4 text-[#5246EE] shrink-0"></i>
-                <span>Clic droit pour le menu. Glissez depuis les poignées pour lier[cite: 1].</span>
+                <span>Ctrl + Molette pour zoomer/dézoomer. Clic droit pour le menu.</span>
             </div>
         </div>
 
@@ -284,6 +287,11 @@
         let boxStartX = 0, boxStartY = 0;
         let currentContextMenuCanvasX = 0;
         let currentContextMenuCanvasY = 0;
+
+        // Gestion du zoom du tableau blanc (de 15% à 250%)
+        let whiteboardZoom = 1;
+        const minZoom = 0.15;
+        const maxZoom = 2.5;
 
         let pendingQuickLink = null;
         let activeEditLinkId = null;
@@ -572,9 +580,36 @@
             const container = document.getElementById('canvas-container');
             const contextMenu = document.getElementById('context-menu');
             const selectionBox = document.getElementById('selection-box');
+            const zoomLayer = document.getElementById('canvas-zoom-layer');
+
+            // --- GESTION DU ZOOM PAR MOLETTE (BLOQUE LE ZOOM DE LA PAGE & ZOOM VERS LE CURSEUR) ---
+            container.addEventListener('wheel', (e) => {
+                if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault(); // Bloque totalement le zoom de la page du navigateur
+                    const zoomFactor = 1.15;
+                    const oldZoom = whiteboardZoom;
+
+                    if (e.deltaY < 0) {
+                        whiteboardZoom = Math.min(maxZoom, whiteboardZoom * zoomFactor);
+                    } else {
+                        whiteboardZoom = Math.max(minZoom, whiteboardZoom / zoomFactor);
+                    }
+
+                    // Calcul de la position de la souris par rapport au conteneur pour zoomer vers le curseur
+                    const rect = container.getBoundingClientRect();
+                    const mouseX = e.clientX - rect.left + container.scrollLeft;
+                    const mouseY = e.clientY - rect.top + container.scrollTop;
+
+                    const zoomRatio = whiteboardZoom / oldZoom;
+                    container.scrollLeft = mouseX * zoomRatio - (e.clientX - rect.left);
+                    container.scrollTop = mouseY * zoomRatio - (e.clientY - rect.top);
+
+                    zoomLayer.style.transform = `scale(${whiteboardZoom})`;
+                }
+            }, { passive: false });
 
             container.addEventListener('click', (e) => {
-                if (e.target === container || e.target.id === 'links-svg' || e.target.id === 'nodes-layer') {
+                if (e.target === container || e.target.id === 'links-svg' || e.target.id === 'nodes-layer' || e.target.id === 'canvas-zoom-layer') {
                     selectedNodeIds = [];
                     renderCanvasNodes();
                     renderInspector();
@@ -585,8 +620,8 @@
             container.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 const rect = container.getBoundingClientRect();
-                currentContextMenuCanvasX = e.clientX - rect.left + container.scrollLeft - 80;
-                currentContextMenuCanvasY = e.clientY - rect.top + container.scrollTop - 40;
+                currentContextMenuCanvasX = (e.clientX - rect.left + container.scrollLeft) / whiteboardZoom - 80;
+                currentContextMenuCanvasY = (e.clientY - rect.top + container.scrollTop) / whiteboardZoom - 40;
 
                 contextMenu.style.left = `${e.clientX}px`;
                 contextMenu.style.top = `${e.clientY}px`;
@@ -597,7 +632,6 @@
                 e.stopPropagation();
             });
 
-            // Écouteur global robuste pour capturer les poignées d'ancrage avec .closest()
             document.addEventListener('mousedown', (e) => {
                 const handle = e.target.closest('.anchor-handle');
                 if (handle) {
@@ -611,14 +645,14 @@
                 if (e.target.closest('.anchor-handle')) return;
                 contextMenu.classList.add('hidden');
 
-                if (e.button === 0 && (e.target === container || e.target.id === 'links-svg' || e.target.id === 'nodes-layer')) {
+                if (e.button === 0 && (e.target === container || e.target.id === 'links-svg' || e.target.id === 'nodes-layer' || e.target.id === 'canvas-zoom-layer')) {
                     isBoxSelecting = true;
                     const rect = container.getBoundingClientRect();
-                    boxStartX = e.clientX - rect.left + container.scrollLeft;
-                    boxStartY = e.clientY - rect.top + container.scrollTop;
+                    boxStartX = (e.clientX - rect.left + container.scrollLeft) / whiteboardZoom;
+                    boxStartY = (e.clientY - rect.top + container.scrollTop) / whiteboardZoom;
 
-                    selectionBox.style.left = `${boxStartX}px`;
-                    selectionBox.style.top = `${boxStartY}px`;
+                    selectionBox.style.left = `${boxStartX * whiteboardZoom}px`;
+                    selectionBox.style.top = `${boxStartY * whiteboardZoom}px`;
                     selectionBox.style.width = `0px`;
                     selectionBox.style.height = `0px`;
                     selectionBox.classList.remove('hidden');
@@ -628,18 +662,18 @@
             window.addEventListener('mousemove', (e) => {
                 if (isBoxSelecting) {
                     const rect = container.getBoundingClientRect();
-                    const currentX = e.clientX - rect.left + container.scrollLeft;
-                    const currentY = e.clientY - rect.top + container.scrollTop;
+                    const currentX = (e.clientX - rect.left + container.scrollLeft) / whiteboardZoom;
+                    const currentY = (e.clientY - rect.top + container.scrollTop) / whiteboardZoom;
 
                     const left = Math.min(boxStartX, currentX);
                     const top = Math.min(boxStartY, currentY);
                     const width = Math.abs(currentX - boxStartX);
                     const height = Math.abs(currentY - boxStartY);
 
-                    selectionBox.style.left = `${left}px`;
-                    selectionBox.style.top = `${top}px`;
-                    selectionBox.style.width = `${width}px`;
-                    selectionBox.style.height = `${height}px`;
+                    selectionBox.style.left = `${left * whiteboardZoom}px`;
+                    selectionBox.style.top = `${top * whiteboardZoom}px`;
+                    selectionBox.style.width = `${width * whiteboardZoom}px`;
+                    selectionBox.style.height = `${height * whiteboardZoom}px`;
 
                     selectedNodeIds = [];
                     (currentCard.nodes || []).forEach(node => {
@@ -663,8 +697,8 @@
                 if (isDraggingNode && draggedNodeId) {
                     const node = currentCard.nodes.find(n => n.id === draggedNodeId);
                     if (node) {
-                        const mouseCanvasX = e.clientX - container.getBoundingClientRect().left + container.scrollLeft;
-                        const mouseCanvasY = e.clientY - container.getBoundingClientRect().top + container.scrollTop;
+                        const mouseCanvasX = (e.clientX - container.getBoundingClientRect().left + container.scrollLeft) / whiteboardZoom;
+                        const mouseCanvasY = (e.clientY - container.getBoundingClientRect().top + container.scrollTop) / whiteboardZoom;
 
                         const newX = mouseCanvasX - dragOffsetX;
                         const newY = mouseCanvasY - dragOffsetY;
@@ -692,8 +726,8 @@
                         const svg = document.getElementById('links-svg');
                         if (activeTempLineSvg) activeTempLineSvg.remove();
 
-                        const curX = e.clientX - container.getBoundingClientRect().left + container.scrollLeft;
-                        const curY = e.clientY - container.getBoundingClientRect().top + container.scrollTop;
+                        const curX = (e.clientX - container.getBoundingClientRect().left + container.scrollLeft) / whiteboardZoom;
+                        const curY = (e.clientY - container.getBoundingClientRect().top + container.scrollTop) / whiteboardZoom;
 
                         activeTempLineSvg = document.createElementNS("http://www.w3.org/2000/svg", "line");
                         activeTempLineSvg.setAttribute("x1", source.x + 80);
@@ -796,7 +830,6 @@
                     <h5 class="font-bold text-slate-800 dark:text-slate-200 text-xs text-center truncate w-full pointer-events-none">${escapeHtml(node.firstname)} ${escapeHtml(node.lastname)}</h5>
                     <p class="text-[10px] text-slate-400 text-center truncate w-full pointer-events-none">${escapeHtml(node.location || 'Non spécifié')}</p>
 
-                    <!-- Poignées d'ancrage agrandies à w-5 h-5 pour un confort tactile et visuel optimal -->
                     <div class="anchor-handle absolute -top-2.5 left-1/2 -translate-x-1/2 w-5 h-5 bg-[#5246EE] rounded-full border-2 border-white dark:border-slate-900 shadow-sm cursor-crosshair" data-node-id="${node.id}"></div>
                     <div class="anchor-handle absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-5 h-5 bg-[#5246EE] rounded-full border-2 border-white dark:border-slate-900 shadow-sm cursor-crosshair" data-node-id="${node.id}"></div>
                     <div class="anchor-handle absolute top-1/2 -left-2.5 -translate-y-1/2 w-5 h-5 bg-[#5246EE] rounded-full border-2 border-white dark:border-slate-900 shadow-sm cursor-crosshair" data-node-id="${node.id}"></div>
@@ -817,8 +850,8 @@
                     draggedNodeId = node.id;
 
                     const containerRect = document.getElementById('canvas-container').getBoundingClientRect();
-                    const mouseCanvasX = e.clientX - containerRect.left + document.getElementById('canvas-container').scrollLeft;
-                    const mouseCanvasY = e.clientY - containerRect.top + document.getElementById('canvas-container').scrollTop;
+                    const mouseCanvasX = (e.clientX - containerRect.left + document.getElementById('canvas-container').scrollLeft) / whiteboardZoom;
+                    const mouseCanvasY = (e.clientY - containerRect.top + document.getElementById('canvas-container').scrollTop) / whiteboardZoom;
 
                     dragOffsetX = mouseCanvasX - node.x;
                     dragOffsetY = mouseCanvasY - node.y;
@@ -904,8 +937,8 @@
             const containerWidth = container.clientWidth;
             const containerHeight = container.clientHeight;
             container.scrollTo({
-                left: node.x - containerWidth / 2 + 80,
-                top: node.y - containerHeight / 2 + 45,
+                left: (node.x * whiteboardZoom) - containerWidth / 2 + (80 * whiteboardZoom),
+                top: (node.y * whiteboardZoom) - containerHeight / 2 + (45 * whiteboardZoom),
                 behavior: 'smooth'
             });
         }
