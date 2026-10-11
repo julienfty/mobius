@@ -73,13 +73,12 @@
     <div class="w-full h-full sm:h-auto sm:max-w-[420px] bg-white sm:glass-card sm:rounded-[28px] sm:shadow-[0_20px_50px_rgba(0,0,0,0.07)] flex flex-col justify-between sm:justify-start overflow-y-auto relative z-10 p-6 sm:p-10">
         
         <div>
-            <!-- Header Branding avec un conteneur strictement verrouillé -->
-<div class="text-center mb-6 sm:mb-8 pt-4 sm:pt-0">
-    <!-- Un carré verrouillé à w-16 h-16 (64px) ou w-20 h-20 (80px). Modifie ces valeurs pour grossir le cadre en toute sécurité ! -->
-    <div class="w-20 h-20 mx-auto mb-3 rounded-2xl bg-center bg-no-repeat bg-contain" style="background-image: url('logo_mobius_light.png');"></div>
-    <h1 class="text-xl font-bold tracking-tight text-gray-900" id="main-title">Bon retour parmi nous</h1>
-    <p class="text-xs text-gray-500 mt-1" id="main-subtitle">Connectez-vous à votre espace sécurisé</p>
-</div>
+            <!-- Header Branding avec conteneur verrouillé -->
+            <div class="text-center mb-6 sm:mb-8 pt-4 sm:pt-0">
+                <div class="w-20 h-20 mx-auto mb-3 rounded-2xl bg-center bg-no-repeat bg-contain" style="background-image: url('logo_mobius_light.png');"></div>
+                <h1 class="text-xl font-bold tracking-tight text-gray-900" id="main-title">Bon retour parmi nous</h1>
+                <p class="text-xs text-gray-500 mt-1" id="main-subtitle">Connectez-vous à votre espace sécurisé</p>
+            </div>
 
             <!-- Toggle Switcher (Login / Register) -->
             <div class="bg-gray-100/80 p-1 rounded-xl flex relative mb-6 sm:mb-8 border border-gray-200/50">
@@ -117,8 +116,21 @@
                     </button>
                 </form>
 
-                <!-- REGISTER FORM -->
+                <!-- REGISTER FORM (AVEC PRÉNOM ET NOM) -->
                 <form id="form-register" class="space-y-4 hidden">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">Prénom</label>
+                            <input type="text" id="register-firstname" required placeholder="Jean" 
+                                class="w-full px-4 py-3 bg-gray-50/80 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder-gray-400 focus:outline-none input-apple">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">Nom</label>
+                            <input type="text" id="register-lastname" required placeholder="Dupont" 
+                                class="w-full px-4 py-3 bg-gray-50/80 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder-gray-400 focus:outline-none input-apple">
+                        </div>
+                    </div>
+
                     <div>
                         <label class="block text-[11px] font-semibold text-gray-600 mb-1.5 uppercase tracking-wider">Adresse e-mail</label>
                         <input type="email" id="register-email" required placeholder="nom@exemple.com" 
@@ -147,7 +159,8 @@
                         U
                     </div>
                     <div>
-                        <h2 class="text-sm font-bold text-gray-900 truncate" id="user-email-display">utilisateur@example.com</h2>
+                        <h2 class="text-sm font-bold text-gray-900 truncate" id="user-name-display">Prénom Nom</h2>
+                        <p class="text-xs text-gray-500 truncate" id="user-email-display">utilisateur@example.com</p>
                         <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-semibold border border-emerald-200/60 mt-1">
                             <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                             Connecté via Supabase
@@ -174,7 +187,7 @@
             </div>
         </div>
 
-        <!-- Footer Legal/Tech Note (BIEN DANS LA CARTE MAINTENANT) -->
+        <!-- Footer Legal/Tech Note -->
         <div class="mt-8 pt-4 border-t border-gray-100 text-center pb-4 sm:pb-0">
             <p class="text-[10px] text-gray-400">Authentification sécurisée Supabase</p>
         </div>
@@ -269,6 +282,8 @@
 
             formRegister.addEventListener('submit', async (e) => {
                 e.preventDefault();
+                const firstName = document.getElementById('register-firstname').value;
+                const lastName = document.getElementById('register-lastname').value;
                 const email = document.getElementById('register-email').value;
                 const password = document.getElementById('register-password').value;
                 const btn = document.getElementById('btn-submit-register');
@@ -278,7 +293,17 @@
                 hideToast();
 
                 try {
-                    const { data, error } = await supabase.auth.signUp({ email, password });
+                    // Enregistrement dans Supabase avec les métadonnées (Prénom et Nom)
+                    const { data, error } = await supabase.auth.signUp({ 
+                        email, 
+                        password,
+                        options: {
+                            data: {
+                                first_name: firstName,
+                                last_name: lastName
+                            }
+                        }
+                    });
                     if (error) throw error;
 
                     if (data.session) {
@@ -318,8 +343,14 @@
                     if (mainTitle) mainTitle.textContent = 'Espace Personnel';
                     if (mainSubtitle) mainSubtitle.textContent = 'Vous êtes connecté à l\'application';
 
+                    const meta = session.user.user_metadata || {};
+                    const fName = meta.first_name || '';
+                    const lName = meta.last_name || '';
+                    const fullName = (fName || lName) ? `${fName} ${lName}`.trim() : session.user.email;
+
+                    document.getElementById('user-name-display').textContent = fullName;
                     document.getElementById('user-email-display').textContent = session.user.email;
-                    document.getElementById('user-initial').textContent = session.user.email.charAt(0).toUpperCase();
+                    document.getElementById('user-initial').textContent = (fName ? fName.charAt(0) : session.user.email.charAt(0)).toUpperCase();
                     document.getElementById('user-id-display').textContent = session.user.id;
                 } else {
                     if (authContainer) authContainer.classList.remove('hidden');
