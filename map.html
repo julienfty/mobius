@@ -185,20 +185,20 @@
 
     <!-- MOBILE INSTAGRAM-LIKE BOTTOM NAVIGATION BAR -->
     <nav class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-40 flex items-center justify-around px-2 shadow-lg">
-        <button onclick="switchMobilePage('legend')" id="nav-btn-legend" class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 px-3 transition-all">
+        <button onclick="switchMobilePage('legend', false)" id="nav-btn-legend" class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 px-3 transition-all">
             <i data-lucide="bookmark" class="w-5 h-5"></i>
             <span class="text-[10px] font-medium mt-1">Légende</span>
         </button>
-        <button id="nav-btn-tree" onclick="switchMobilePage('tree')" class="hidden flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 px-3 transition-all">
+        <button id="nav-btn-tree" onclick="switchMobilePage('tree', false)" class="hidden flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 px-3 transition-all">
             <i data-lucide="folder-tree" class="w-5 h-5"></i>
             <span class="text-[10px] font-medium mt-1">Projet</span>
         </button>
         <!-- Icône MAP centrale -->
-        <button onclick="switchMobilePage('map')" id="nav-btn-map" class="flex flex-col items-center justify-center text-[#5246EE] py-1 px-3 transition-all scale-105 font-bold">
+        <button onclick="switchMobilePage('map', false)" id="nav-btn-map" class="flex flex-col items-center justify-center text-[#5246EE] py-1 px-3 transition-all scale-105 font-bold">
             <i data-lucide="map" class="w-6 h-6"></i>
             <span class="text-[10px] font-bold mt-1">Map</span>
         </button>
-        <button onclick="switchMobilePage('inspector')" id="nav-btn-inspector" class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 px-3 transition-all">
+        <button onclick="switchMobilePage('inspector', false)" id="nav-btn-inspector" class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 px-3 transition-all">
             <i data-lucide="search" class="w-5 h-5"></i>
             <span class="text-[10px] font-medium mt-1">Inspecteur</span>
         </button>
@@ -424,7 +424,7 @@
             currentMobilePageIndex = mobilePagesOrder.indexOf('map');
         }
 
-        // --- NAVIGATION MOBILE : ANIMATION UNIQUEMENT SUR SWIPE, INSTANTANÉE SUR CLIC NAVBAR ---
+        // --- NAVIGATION MOBILE : CLIC = INSTANTANÉ, SWIPE = ANIMÉ ---
         window.switchMobilePage = function(pageName, animate = false, direction = 'next') {
             if (window.innerWidth >= 768) return;
 
@@ -494,14 +494,12 @@
             function handleSwipeGesture() {
                 const threshold = 60;
                 if (touchEndX < touchStartX - threshold) {
-                    // Swipe gauche -> Page suivante
                     if (currentMobilePageIndex < mobilePagesOrder.length - 1) {
                         currentMobilePageIndex++;
                         switchMobilePage(mobilePagesOrder[currentMobilePageIndex], true, 'next');
                     }
                 }
                 if (touchEndX > touchStartX + threshold) {
-                    // Swipe droite -> Page précédente
                     if (currentMobilePageIndex > 0) {
                         currentMobilePageIndex--;
                         switchMobilePage(mobilePagesOrder[currentMobilePageIndex], true, 'prev');
@@ -616,7 +614,7 @@
         window.toggleTreeSidebar = function() {
             if (!projectId || !projectData) return;
             if (window.innerWidth < 768) {
-                switchMobilePage('tree');
+                switchMobilePage('tree', false);
             } else {
                 const sidebar = document.getElementById('tree-sidebar');
                 sidebar.classList.toggle('hidden');
@@ -733,7 +731,7 @@
             const selectionBox = document.getElementById('selection-box');
             const zoomLayer = document.getElementById('canvas-zoom-layer');
 
-            // --- GESTION DU ZOOM PAR MOLETTE (DESKTOP) ---
+            // --- ZOOM MOLETTE (DESKTOP) ---
             container.addEventListener('wheel', (e) => {
                 if (e.ctrlKey || e.metaKey) {
                     e.preventDefault();
@@ -758,7 +756,7 @@
                 }
             }, { passive: false });
 
-            // --- GESTION DU PINCH-TO-ZOOM (TACTILE MOBILE) ---
+            // --- PINCH-TO-ZOOM & DRAG & LINKS (TACTILE) ---
             let initialPinchDistance = null;
             container.addEventListener('touchstart', (e) => {
                 if (e.touches.length === 2) {
@@ -895,7 +893,7 @@
                 }
             }, { passive: true });
 
-            // --- GESTION DE L'APPUI LONG (CLIC DROIT / SÉLECTION MULTIPLE TACTILE) ---
+            // --- APPUI LONG SUR CANVAS (MENU CONTEXTUEL) ---
             let longPressTimer = null;
             let touchStartClientX = 0;
             let touchStartClientY = 0;
@@ -914,7 +912,7 @@
                         contextMenu.style.left = `${touchStartClientX}px`;
                         contextMenu.style.top = `${touchStartClientY}px`;
                         contextMenu.classList.remove('hidden');
-                    }, 500); // 500ms d'appui long pour afficher le menu d'ajout
+                    }, 500);
                 }
             }, { passive: true });
 
@@ -960,7 +958,6 @@
                 e.stopPropagation();
             });
 
-            // Écouteurs globaux Desktop & Poignées
             document.addEventListener('mousedown', (e) => {
                 const handle = e.target.closest('.anchor-handle');
                 if (handle) {
@@ -1174,17 +1171,18 @@
                     <div class="anchor-handle absolute top-1/2 -right-2.5 -translate-y-1/2 w-5 h-5 bg-[#5246EE] rounded-full border-2 border-white dark:border-slate-900 shadow-sm cursor-crosshair" data-node-id="${node.id}"></div>
                 `;
 
-                // Gestionnaire de début de déplacement (Mouse & Touch)
+                // --- GESTION DES CLICS / APPIS LONGS POUR DÉPLACEMENT TACTILE ---
+                let nodeTouchTimer = null;
+                let nodeTouchMoved = false;
+                let nodeTouchStartX = 0;
+                let nodeTouchStartY = 0;
+
                 const startDrag = (clientX, clientY) => {
                     if (!selectedNodeIds.includes(node.id)) {
                         selectedNodeIds = [node.id];
                     }
                     renderCanvasNodes();
                     renderInspector();
-
-                    if (window.innerWidth < 768) {
-                        switchMobilePage('inspector');
-                    }
 
                     isDraggingNode = true;
                     draggedNodeId = node.id;
@@ -1197,17 +1195,53 @@
                     dragOffsetY = mouseCanvasY - node.y;
                 };
 
+                // Desktop Mouse Down
                 card.addEventListener('mousedown', (e) => {
                     if (e.target.closest('.anchor-handle')) return;
                     e.stopPropagation();
                     startDrag(e.clientX, e.clientY);
                 });
 
+                // Tactile Touch Down avec Timer pour différencier le Tap du Long-Press (déplacement)
                 card.addEventListener('touchstart', (e) => {
                     if (e.target.closest('.anchor-handle')) return;
                     e.stopPropagation();
                     if (e.touches.length === 1) {
-                        startDrag(e.touches[0].clientX, e.touches[0].clientY);
+                        nodeTouchMoved = false;
+                        nodeTouchStartX = e.touches[0].clientX;
+                        nodeTouchStartY = e.touches[0].clientY;
+
+                        // Appui prolongé de 350ms pour activer le déplacement
+                        nodeTouchTimer = setTimeout(() => {
+                            if (!nodeTouchMoved) {
+                                startDrag(nodeTouchStartX, nodeTouchStartY);
+                                showToast("Déplacement activé");
+                            }
+                        }, 350);
+                    }
+                }, { passive: true });
+
+                card.addEventListener('touchmove', (e) => {
+                    if (e.touches.length === 1) {
+                        const moveDist = Math.hypot(e.touches[0].clientX - nodeTouchStartX, e.touches[0].clientY - nodeTouchStartY);
+                        if (moveDist > 10) {
+                            nodeTouchMoved = true;
+                            if (nodeTouchTimer) {
+                                clearTimeout(nodeTouchTimer);
+                                nodeTouchTimer = null;
+                            }
+                        }
+                    }
+                }, { passive: true });
+
+                card.addEventListener('touchend', (e) => {
+                    if (nodeTouchTimer) {
+                        clearTimeout(nodeTouchTimer);
+                        nodeTouchTimer = null;
+                    }
+                    // Si on a levé le doigt rapidement sans bouger : c'est un TAP simple (ouvre l'inspecteur)
+                    if (!nodeTouchMoved && !isDraggingNode) {
+                        selectNode(node.id);
                     }
                 }, { passive: true });
 
@@ -1285,7 +1319,7 @@
             const node = (currentCard.nodes || []).find(n => n.id === nodeId);
             if (node) centerCameraOnNode(node);
             if (window.innerWidth < 768) {
-                switchMobilePage('inspector');
+                switchMobilePage('inspector', false);
             }
         }
 
