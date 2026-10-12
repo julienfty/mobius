@@ -806,26 +806,6 @@
                         }
                     });
                     renderCanvasNodes();
-                } else if (isDrawingHandleLine && handleSourceNodeId && e.touches.length === 1) {
-                    const touch = e.touches[0];
-                    const source = currentCard.nodes.find(n => n.id === handleSourceNodeId);
-                    if (source) {
-                        const svg = document.getElementById('links-svg');
-                        if (activeTempLineSvg) activeTempLineSvg.remove();
-
-                        const curX = (touch.clientX - container.getBoundingClientRect().left + container.scrollLeft) / whiteboardZoom;
-                        const curY = (touch.clientY - container.getBoundingClientRect().top + container.scrollTop) / whiteboardZoom;
-
-                        activeTempLineSvg = document.createElementNS("http://www.w3.org/2000/svg", "line");
-                        activeTempLineSvg.setAttribute("x1", source.x + 80);
-                        activeTempLineSvg.setAttribute("y1", source.y + 40);
-                        activeTempLineSvg.setAttribute("x2", curX);
-                        activeTempLineSvg.setAttribute("y2", curY);
-                        activeTempLineSvg.setAttribute("stroke", "#5246EE");
-                        activeTempLineSvg.setAttribute("stroke-width", "2.5");
-                        activeTempLineSvg.setAttribute("stroke-dasharray", "4");
-                        svg.appendChild(activeTempLineSvg);
-                    }
                 }
             }, { passive: false });
 
@@ -838,6 +818,44 @@
                     selectionBox.classList.add('hidden');
                     renderInspector();
                 }
+            }, { passive: true });
+
+            // --- GESTION DES POIGNÉES D'ANCRAGE (TIRAGE DE LIENS) ---
+            document.addEventListener('touchstart', (e) => {
+                const handle = e.target.closest('.anchor-handle');
+                if (handle) {
+                    e.stopPropagation();
+                    isDrawingHandleLine = true;
+                    handleSourceNodeId = handle.getAttribute('data-node-id');
+                }
+            }, { passive: true });
+
+            document.addEventListener('touchmove', (e) => {
+                if (isDrawingHandleLine && handleSourceNodeId && e.touches.length === 1) {
+                    const touch = e.touches[0];
+                    const source = (currentCard.nodes || []).find(n => n.id === handleSourceNodeId);
+                    if (source) {
+                        const svg = document.getElementById('links-svg');
+                        if (activeTempLineSvg) activeTempLineSvg.remove();
+
+                        const containerRect = container.getBoundingClientRect();
+                        const curX = (touch.clientX - containerRect.left + container.scrollLeft) / whiteboardZoom;
+                        const curY = (touch.clientY - containerRect.top + container.scrollTop) / whiteboardZoom;
+
+                        activeTempLineSvg = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                        activeTempLineSvg.setAttribute("x1", source.x + 80);
+                        activeTempLineSvg.setAttribute("y1", source.y + 40);
+                        activeTempLineSvg.setAttribute("x2", curX);
+                        activeTempLineSvg.setAttribute("y2", curY);
+                        activeTempLineSvg.setAttribute("stroke", "#5246EE");
+                        activeTempLineSvg.setAttribute("stroke-width", "2.5");
+                        activeTempLineSvg.setAttribute("stroke-dasharray", "4");
+                        svg.appendChild(activeTempLineSvg);
+                    }
+                }
+            }, { passive: true });
+
+            document.addEventListener('touchend', (e) => {
                 if (isDrawingHandleLine) {
                     const sourceNodeId = handleSourceNodeId;
                     isDrawingHandleLine = false;
@@ -935,15 +953,6 @@
                     handleSourceNodeId = handle.getAttribute('data-node-id');
                 }
             });
-
-            document.addEventListener('touchstart', (e) => {
-                const handle = e.target.closest('.anchor-handle');
-                if (handle) {
-                    e.stopPropagation();
-                    isDrawingHandleLine = true;
-                    handleSourceNodeId = handle.getAttribute('data-node-id');
-                }
-            }, { passive: true });
 
             container.addEventListener('mousedown', (e) => {
                 if (e.target.closest('.anchor-handle')) return;
@@ -1140,7 +1149,7 @@
                     <div class="anchor-handle absolute top-1/2 -right-2.5 -translate-y-1/2 w-5 h-5 bg-[#5246EE] rounded-full border-2 border-white dark:border-slate-900 shadow-sm cursor-crosshair" data-node-id="${node.id}"></div>
                 `;
 
-                // --- GESTION DES CLICS ET DU DÉPLACEMENT TACTILE FLUIDE DIRECT ---
+                // --- GESTION PROPRE DES CLICS ET DU DÉPLACEMENT TACTILE FLUIDE ---
                 let touchStartX = 0;
                 let touchStartY = 0;
                 let initialX = 0;
@@ -1165,14 +1174,12 @@
                     dragOffsetY = mouseCanvasY - node.y;
                 };
 
-                // Desktop Mouse Down
                 card.addEventListener('mousedown', (e) => {
                     if (e.target.closest('.anchor-handle')) return;
                     e.stopPropagation();
                     startDragDesktop(e.clientX, e.clientY);
                 });
 
-                // Tactile Autonome : Mouvement direct et instantané sans relâcher
                 card.addEventListener('touchstart', (e) => {
                     if (e.target.closest('.anchor-handle')) return;
                     e.stopPropagation();
@@ -1194,7 +1201,7 @@
                         const dx = (currentX - touchStartX) / whiteboardZoom;
                         const dy = (currentY - touchStartY) / whiteboardZoom;
 
-                        if (Math.hypot(currentX - touchStartX, currentY - touchStartY) > 5) {
+                        if (Math.hypot(currentX - touchStartX, currentY - touchStartY) > 4) {
                             isMoving = true;
                             if (!selectedNodeIds.includes(node.id)) {
                                 selectedNodeIds = [node.id];
