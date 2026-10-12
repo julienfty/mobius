@@ -117,8 +117,8 @@
     <!-- MAIN WORKSPACE CONTAINER -->
     <div class="flex-1 flex overflow-hidden relative pb-16 md:pb-0">
 
-        <!-- 1. MENU ARBORESCENCE (Page Projet) -->
-        <aside id="tree-sidebar" class="hidden md:flex flex-col w-72 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20 shadow-md">
+        <!-- 1. MENU ARBORESCENCE (Page Projet - 100% largeur mobile) -->
+        <aside id="tree-sidebar" class="hidden md:flex flex-col w-full md:w-72 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20 shadow-md">
             <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <h3 class="font-bold text-xs uppercase tracking-wider text-slate-500">Arborescence du Projet</h3>
                 <button onclick="switchMobilePage('map')" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-600 md:hidden"><i data-lucide="x" class="w-4 h-4"></i></button>
@@ -126,8 +126,8 @@
             <div id="tree-sidebar-content" class="flex-1 p-3 overflow-y-auto space-y-1 text-xs"></div>
         </aside>
 
-        <!-- 2. MENU LÉGENDE (Page Légende) -->
-        <aside id="sidebar-legend-left" class="hidden md:flex w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex-col z-20 shadow-md">
+        <!-- 2. MENU LÉGENDE (Page Légende - 100% largeur mobile) -->
+        <aside id="sidebar-legend-left" class="hidden md:flex w-full md:w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex-col z-20 shadow-md">
             <div class="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between">
                 <div class="flex items-center space-x-2">
                     <i data-lucide="bookmark" class="w-4 h-4 text-[#5246EE]"></i>
@@ -162,8 +162,8 @@
             </div>
         </div>
 
-        <!-- 4. INSPECTEUR / RECHERCHE (Page Inspecteur) -->
-        <aside id="sidebar-inspector-right" class="hidden md:flex w-80 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex-col z-20 shadow-md">
+        <!-- 4. INSPECTEUR / RECHERCHE (Page Inspecteur - 100% largeur mobile) -->
+        <aside id="sidebar-inspector-right" class="hidden md:flex w-full md:w-80 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex-col z-20 shadow-md">
             <div class="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 space-y-2">
                 <div class="flex items-center justify-between mb-1">
                     <div class="flex items-center space-x-2">
@@ -193,7 +193,7 @@
             <i data-lucide="folder-tree" class="w-5 h-5"></i>
             <span class="text-[10px] font-medium mt-1">Projet</span>
         </button>
-        <!-- Icône MAP centrale pour la page principale -->
+        <!-- Icône MAP centrale -->
         <button onclick="switchMobilePage('map')" id="nav-btn-map" class="flex flex-col items-center justify-center text-[#5246EE] py-1 px-3 transition-all scale-105 font-bold">
             <i data-lucide="map" class="w-6 h-6"></i>
             <span class="text-[10px] font-bold mt-1">Map</span>
@@ -319,7 +319,6 @@
         let activeEditLinkId = null;
         let editingRelationTypeId = null;
 
-        // Ordre des pages mobiles (style Instagram)
         let mobilePagesOrder = [];
         let currentMobilePageIndex = 0;
 
@@ -392,7 +391,6 @@
             setupKeyboardListeners();
             setupMobileSwipeGestures();
             
-            // Initialisation de la vue par défaut sur mobile : 'map' au centre
             if (window.innerWidth < 768) {
                 switchMobilePage('map', false);
             }
@@ -426,8 +424,8 @@
             currentMobilePageIndex = mobilePagesOrder.indexOf('map');
         }
 
-        // --- NAVIGATION MOBILE PLEIN ÉCRAN TYPE INSTAGRAM AVEC ANIMATION DE SWIPE ---
-        window.switchMobilePage = function(pageName, animate = true) {
+        // --- NAVIGATION MOBILE PLEIN ÉCRAN AVEC ANIMATION DIRECTIONNELLE ---
+        window.switchMobilePage = function(pageName, animate = true, direction = 'next') {
             if (window.innerWidth >= 768) return;
 
             const legend = document.getElementById('sidebar-legend-left');
@@ -437,7 +435,6 @@
 
             const pages = { legend, tree, map: canvas, inspector };
             
-            // Cacher toutes les pages mobiles
             Object.keys(pages).forEach(key => {
                 const el = pages[key];
                 if (!el) return;
@@ -452,9 +449,8 @@
                 targetEl.classList.add('absolute', 'inset-0', 'z-30', 'flex');
                 if (animate) {
                     targetEl.classList.add('transition-transform', 'duration-300', 'ease-in-out');
-                    const targetIndex = mobilePagesOrder.indexOf(pageName);
-                    const direction = targetIndex > currentMobilePageIndex ? '100%' : '-100%';
-                    targetEl.style.transform = `translateX(${direction})`;
+                    const startTransform = direction === 'next' ? 'translateX(100%)' : 'translateX(-100%)';
+                    targetEl.style.transform = startTransform;
                     setTimeout(() => {
                         targetEl.style.transform = 'translateX(0)';
                     }, 10);
@@ -462,7 +458,6 @@
                 currentMobilePageIndex = mobilePagesOrder.indexOf(pageName);
             }
 
-            // Mise à jour visuelle de la Navbar
             ['legend', 'tree', 'map', 'inspector'].forEach(p => {
                 const btn = document.getElementById(`nav-btn-${p}`);
                 if (btn) {
@@ -481,7 +476,6 @@
 
             const container = document.body;
             container.addEventListener('touchstart', (e) => {
-                // Désactiver le swipe si on touche directement le canvas (tableau blanc)
                 if (e.target.closest('#canvas-container') && !e.target.closest('#canvas-container > div:not(#canvas-zoom-layer)')) {
                     touchStartX = null;
                     return;
@@ -498,17 +492,17 @@
             function handleSwipeGesture() {
                 const threshold = 60;
                 if (touchEndX < touchStartX - threshold) {
-                    // Swipe gauche -> Page suivante
+                    // Swipe gauche -> Page suivante (glisse vers la gauche, vient de la droite)
                     if (currentMobilePageIndex < mobilePagesOrder.length - 1) {
                         currentMobilePageIndex++;
-                        switchMobilePage(mobilePagesOrder[currentMobilePageIndex]);
+                        switchMobilePage(mobilePagesOrder[currentMobilePageIndex], true, 'next');
                     }
                 }
                 if (touchEndX > touchStartX + threshold) {
-                    // Swipe droite -> Page précédente
+                    // Swipe droite -> Page précédente (glisse vers la droite, vient de la gauche)
                     if (currentMobilePageIndex > 0) {
                         currentMobilePageIndex--;
-                        switchMobilePage(mobilePagesOrder[currentMobilePageIndex]);
+                        switchMobilePage(mobilePagesOrder[currentMobilePageIndex], true, 'prev');
                     }
                 }
             }
@@ -737,6 +731,7 @@
             const selectionBox = document.getElementById('selection-box');
             const zoomLayer = document.getElementById('canvas-zoom-layer');
 
+            // --- GESTION DU ZOOM PAR MOLETTE (DESKTOP) ---
             container.addEventListener('wheel', (e) => {
                 if (e.ctrlKey || e.metaKey) {
                     e.preventDefault();
@@ -760,6 +755,127 @@
                     zoomLayer.style.transform = `scale(${whiteboardZoom})`;
                 }
             }, { passive: false });
+
+            // --- GESTION DU PINCH-TO-ZOOM (TACTILE MOBILE) ---
+            let initialPinchDistance = null;
+            container.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    initialPinchDistance = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                }
+            }, { passive: true });
+
+            container.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2 && initialPinchDistance !== null) {
+                    e.preventDefault();
+                    const currentDistance = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                    const zoomFactor = currentDistance / initialPinchDistance;
+                    const oldZoom = whiteboardZoom;
+                    whiteboardZoom = Math.min(maxZoom, Math.max(minZoom, oldZoom * zoomFactor));
+                    initialPinchDistance = currentDistance;
+                    zoomLayer.style.transform = `scale(${whiteboardZoom})`;
+                }
+            }, { passive: false });
+
+            container.addEventListener('touchend', (e) => {
+                if (e.touches.length < 2) {
+                    initialPinchDistance = null;
+                }
+            }, { passive: true });
+
+            // --- APPUI LONG = CLIC DROIT / SÉLECTION MULTIPLE (TACTILE) ---
+            let longPressTimer = null;
+            let isLongPressActive = false;
+            let touchStartClientX = 0;
+            let touchStartClientY = 0;
+
+            container.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1 && (e.target === container || e.target.id === 'links-svg' || e.target.id === 'nodes-layer' || e.target.id === 'canvas-zoom-layer')) {
+                    const touch = e.touches[0];
+                    touchStartClientX = touch.clientX;
+                    touchStartClientY = touch.clientY;
+
+                    longPressTimer = setTimeout(() => {
+                        isLongPressActive = true;
+                        const rect = container.getBoundingClientRect();
+                        currentContextMenuCanvasX = (touchStartClientX - rect.left + container.scrollLeft) / whiteboardZoom - 80;
+                        currentContextMenuCanvasY = (touchStartClientY - rect.top + container.scrollTop) / whiteboardZoom - 40;
+
+                        contextMenu.style.left = `${touchStartClientX}px`;
+                        contextMenu.style.top = `${touchStartClientY}px`;
+                        contextMenu.classList.remove('hidden');
+                    }, 500); // 500ms pour l'appui long
+                }
+            }, { passive: true });
+
+            container.addEventListener('touchmove', (e) => {
+                if (longPressTimer && e.touches.length === 1) {
+                    const touch = e.touches[0];
+                    const moveDist = Math.hypot(touch.clientX - touchStartClientX, touch.clientY - touchStartClientY);
+                    if (moveDist > 12) {
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
+                        if (isLongPressActive) {
+                            // Si on bouge après l'appui long -> passage en mode sélection par boîte
+                            contextMenu.classList.add('hidden');
+                            isBoxSelecting = true;
+                            const rect = container.getBoundingClientRect();
+                            boxStartX = (touchStartClientX - rect.left + container.scrollLeft) / whiteboardZoom;
+                            boxStartY = (touchStartClientY - rect.top + container.scrollTop) / whiteboardZoom;
+                            selectionBox.style.left = `${boxStartX * whiteboardZoom}px`;
+                            selectionBox.style.top = `${boxStartY * whiteboardZoom}px`;
+                            selectionBox.style.width = `0px`;
+                            selectionBox.style.height = `0px`;
+                            selectionBox.classList.remove('hidden');
+                        }
+                    }
+                } else if (isBoxSelecting && e.touches.length === 1) {
+                    const touch = e.touches[0];
+                    const rect = container.getBoundingClientRect();
+                    const currentX = (touch.clientX - rect.left + container.scrollLeft) / whiteboardZoom;
+                    const currentY = (touch.clientY - rect.top + container.scrollTop) / whiteboardZoom;
+
+                    const left = Math.min(boxStartX, currentX);
+                    const top = Math.min(boxStartY, currentY);
+                    const width = Math.abs(currentX - boxStartX);
+                    const height = Math.abs(currentY - boxStartY);
+
+                    selectionBox.style.left = `${left * whiteboardZoom}px`;
+                    selectionBox.style.top = `${top * whiteboardZoom}px`;
+                    selectionBox.style.width = `${width * whiteboardZoom}px`;
+                    selectionBox.style.height = `${height * whiteboardZoom}px`;
+
+                    selectedNodeIds = [];
+                    (currentCard.nodes || []).forEach(node => {
+                        const nx = node.x || 0;
+                        const ny = node.y || 0;
+                        const nw = 160;
+                        const nh = 90;
+                        if (nx < left + width && nx + nw > left && ny < top + height && ny + nh > top) {
+                            selectedNodeIds.push(node.id);
+                        }
+                    });
+                    renderCanvasNodes();
+                }
+            }, { passive: true });
+
+            container.addEventListener('touchend', (e) => {
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+                if (isBoxSelecting) {
+                    isBoxSelecting = false;
+                    selectionBox.classList.add('hidden');
+                    renderInspector();
+                }
+                isLongPressActive = false;
+            }, { passive: true });
 
             container.addEventListener('click', (e) => {
                 if (e.target === container || e.target.id === 'links-svg' || e.target.id === 'nodes-layer' || e.target.id === 'canvas-zoom-layer') {
