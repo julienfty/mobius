@@ -295,6 +295,7 @@
             collaborators: []
         };
         let projectData = null;
+        let supabaseClient = null;
 
         let selectedNodeIds = [];
         let searchQuery = '';
@@ -327,7 +328,7 @@
 
             const SUPABASE_URL = 'https://nfvnayuqrmlldtixzdpx.supabase.co';
             const SUPABASE_KEY = 'sb_publishable_EwONSAsqSfu8_SocZ7wZBA_rVODWqSF';
-            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
             const urlParams = new URLSearchParams(window.location.search);
             cardId = urlParams.get('cardId');
@@ -339,7 +340,7 @@
                 return;
             }
 
-            const { data: { session } } = await supabase.auth.getSession();
+            const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session || !session.user) {
                 window.location.href = 'index.html';
                 return;
@@ -347,7 +348,7 @@
             currentUser = session.user;
 
             if (!projectId) {
-                const { data: allProjects } = await supabase.from('projects').select('*');
+                const { data: allProjects } = await supabaseClient.from('projects').select('*');
                 if (allProjects) {
                     for (let p of allProjects) {
                         if (p.tree && findCardInTree(p.tree, cardId)) {
@@ -358,14 +359,14 @@
                     }
                 }
             } else {
-                const { data: pData } = await supabase.from('projects').select('*').eq('id', projectId).single();
+                const { data: pData } = await supabaseClient.from('projects').select('*').eq('id', projectId).single();
                 if (pData) projectData = pData;
             }
 
             if (projectId && projectData) {
                 currentCard = findCardInTree(projectData.tree, cardId) || currentCard;
             } else {
-                const { data: cData } = await supabase.from('cards').select('*').eq('id', cardId).single();
+                const { data: cData } = await supabaseClient.from('cards').select('*').eq('id', cardId).single();
                 if (cData) currentCard = cData;
             }
 
@@ -390,6 +391,8 @@
             setupCanvasGlobalInteractivity();
             setupKeyboardListeners();
             setupMobileSwipeGestures();
+            centerCameraOnSandboxCenter();
+            setupRealtimeSubscription();
             
             if (window.innerWidth < 768) {
                 switchMobilePage('map', false);
@@ -411,6 +414,54 @@
                 }
             });
         });
+
+        // --- MISE À JOUR EN DIRECT (REALTIME SUPABASE) ---
+        function setupRealtimeSubscription() {
+            if (projectId) {
+                supabaseClient
+                    .channel('public:projects:' + projectId)
+                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'projects', filter: `id=eq.${projectId}` }, payload => {
+                        const updatedProj = payload.new;
+                        if (updatedProj && updatedProj.tree) {
+                            projectData = updatedProj;
+                            const freshCard = findCardInTree(projectData.tree, cardId);
+                            if (freshCard) {
+                                currentCard = freshCard;
+                                renderCanvasNodes();
+                                renderLegendList();
+                                if (selectedNodeIds.length === 1) renderInspector();
+                            }
+                        }
+                    })
+                    .subscribe();
+            } else {
+                supabaseClient
+                    .channel('public:cards:' + cardId)
+                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'cards', filter: `id=eq.${cardId}` }, payload => {
+                        const updatedCard = payload.new;
+                        if (updatedCard) {
+                            currentCard = updatedCard;
+                            renderCanvasNodes();
+                            renderLegendList();
+                            if (selectedNodeIds.length === 1) renderInspector();
+                        }
+                    })
+                    .subscribe();
+            }
+        }
+
+        function centerCameraOnSandboxCenter() {
+            const container = document.getElementById('canvas-container');
+            if (!container) return;
+            // Centre du canvas de 6000x6000 = 3000, 3000
+            const centerX = 3000;
+            const centerY = 3000;
+            container.scrollTo({
+                left: (centerX * whiteboardZoom) - container.clientWidth / 2,
+                top: (centerY * whiteboardZoom) - container.clientHeight / 2,
+                behavior: 'auto'
+            });
+        }
 
         function setupMobilePagesOrder() {
             mobilePagesOrder = ['legend'];
@@ -1149,7 +1200,7 @@
                     <div class="anchor-handle absolute top-1/2 -right-2.5 -translate-y-1/2 w-5 h-5 bg-[#5246EE] rounded-full border-2 border-white dark:border-slate-900 shadow-sm cursor-crosshair" data-node-id="${node.id}"></div>
                 `;
 
-                // --- GESTION PROPRE DES CLICS ET DU DÉPLACEMENT TACTILE FLUIDE ---
+                // --- GESTION DES CLICS ET DU DÉPLACEMENT TACTILE FLUIDE ---
                 let touchStartX = 0;
                 let touchStartY = 0;
                 let initialX = 0;
@@ -1324,6 +1375,10 @@
 
         window.handleInspectorSearch = function(query) {
             searchQuery = query.toLowerCase();
+            // --- FERMER LA FICHE DÉTAILLÉE SI ON CHERCHE POUR LAISSER PLACE AUX RÉSULTATS ---
+            if (searchQuery.trim().length > 0 && selectedNodeIds.length === 1) {
+                selectedNodeIds = [];
+            }
             renderInspector();
         }
 
@@ -1762,15 +1817,11 @@
         }
 
         async function saveCurrentMapState() {
-            const SUPABASE_URL = 'https://nfvnayuqrmlldtixzdpx.supabase.co';
-            const SUPABASE_KEY = 'sb_publishable_EwONSAsqSfu8_SocZ7wZBA_rVODWqSF';
-            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
             if (projectId && projectData) {
                 updateCardInTree(projectData.tree, currentCard);
-                await supabase.from('projects').update({ tree: projectData.tree }).eq('id', projectId);
+                await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId);
             } else {
-                await supabase.from('cards').update({
+                await supabaseClient.from('cards').update({
                     name: currentCard.name,
                     nodes: currentCard.nodes,
                     links: currentCard.links,
