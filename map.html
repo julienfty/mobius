@@ -453,7 +453,6 @@
         function centerCameraOnSandboxCenter() {
             const container = document.getElementById('canvas-container');
             if (!container) return;
-            // Centre du canvas de 6000x6000 = 3000, 3000
             const centerX = 3000;
             const centerY = 3000;
             container.scrollTo({
@@ -475,7 +474,6 @@
             currentMobilePageIndex = mobilePagesOrder.indexOf('map');
         }
 
-        // --- NAVIGATION MOBILE : CLIC = INSTANTANÉ, SWIPE = ANIMÉ ---
         window.switchMobilePage = function(pageName, animate = false, direction = 'next') {
             if (window.innerWidth >= 768) return;
 
@@ -668,8 +666,13 @@
                 switchMobilePage('tree', false);
             } else {
                 const sidebar = document.getElementById('tree-sidebar');
-                sidebar.classList.toggle('hidden');
-                sidebar.classList.toggle('flex');
+                if (sidebar.classList.contains('hidden')) {
+                    sidebar.classList.remove('hidden');
+                    sidebar.classList.add('flex');
+                } else {
+                    sidebar.classList.remove('flex');
+                    sidebar.classList.add('hidden');
+                }
             }
         }
 
@@ -782,7 +785,6 @@
             const selectionBox = document.getElementById('selection-box');
             const zoomLayer = document.getElementById('canvas-zoom-layer');
 
-            // --- ZOOM MOLETTE (DESKTOP) ---
             container.addEventListener('wheel', (e) => {
                 if (e.ctrlKey || e.metaKey) {
                     e.preventDefault();
@@ -807,7 +809,6 @@
                 }
             }, { passive: false });
 
-            // --- PINCH-TO-ZOOM & BOX SELECT (TACTILE) ---
             let initialPinchDistance = null;
             container.addEventListener('touchstart', (e) => {
                 if (e.touches.length === 2) {
@@ -871,7 +872,6 @@
                 }
             }, { passive: true });
 
-            // --- GESTION DES POIGNÉES D'ANCRAGE (TIRAGE DE LIENS) ---
             document.addEventListener('touchstart', (e) => {
                 const handle = e.target.closest('.anchor-handle');
                 if (handle) {
@@ -931,7 +931,6 @@
                 }
             }, { passive: true });
 
-            // --- APPUI LONG SUR CANVAS (MENU CONTEXTUEL) ---
             let longPressTimer = null;
             let touchStartClientX = 0;
             let touchStartClientY = 0;
@@ -1200,7 +1199,6 @@
                     <div class="anchor-handle absolute top-1/2 -right-2.5 -translate-y-1/2 w-5 h-5 bg-[#5246EE] rounded-full border-2 border-white dark:border-slate-900 shadow-sm cursor-crosshair" data-node-id="${node.id}"></div>
                 `;
 
-                // --- GESTION DES CLICS ET DU DÉPLACEMENT TACTILE FLUIDE ---
                 let touchStartX = 0;
                 let touchStartY = 0;
                 let initialX = 0;
@@ -1375,7 +1373,6 @@
 
         window.handleInspectorSearch = function(query) {
             searchQuery = query.toLowerCase();
-            // --- FERMER LA FICHE DÉTAILLÉE SI ON CHERCHE POUR LAISSER PLACE AUX RÉSULTATS ---
             if (searchQuery.trim().length > 0 && selectedNodeIds.length === 1) {
                 selectedNodeIds = [];
             }
