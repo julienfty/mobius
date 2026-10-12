@@ -117,7 +117,7 @@
     <!-- MAIN WORKSPACE CONTAINER -->
     <div class="flex-1 flex overflow-hidden relative pb-16 md:pb-0">
 
-        <!-- 1. MENU ARBORESCENCE (Desktop: Sidebar fixe / Mobile: Panneau glissable) -->
+        <!-- 1. MENU ARBORESCENCE (Desktop Fixe / Mobile Panneau Page) -->
         <aside id="tree-sidebar" class="hidden md:flex flex-col w-72 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20 transition-all shadow-md">
             <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <h3 class="font-bold text-xs uppercase tracking-wider text-slate-500">Arborescence du Projet</h3>
@@ -138,7 +138,6 @@
                         <i data-lucide="plus" class="w-3.5 h-3.5"></i>
                         <span>Nouveau</span>
                     </button>
-                    <button onclick="closeMobilePanels()" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 md:hidden"><i data-lucide="x" class="w-4 h-4"></i></button>
                 </div>
             </div>
 
@@ -171,7 +170,6 @@
                         <i data-lucide="search" class="w-4 h-4 text-[#5246EE]"></i>
                         <h3 class="font-bold text-slate-800 dark:text-slate-200 text-xs uppercase tracking-wider">Recherche & Inspecteur</h3>
                     </div>
-                    <button onclick="closeMobilePanels()" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 md:hidden"><i data-lucide="x" class="w-4 h-4"></i></button>
                 </div>
                 <div class="relative">
                     <input type="text" id="inspector-search-input" oninput="handleInspectorSearch(this.value)" placeholder="Rechercher parmi les personnes..." class="w-full px-3 py-2 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#5246EE]/20 focus:border-[#5246EE]">
@@ -185,18 +183,23 @@
 
     </div>
 
-    <!-- MOBILE BOTTOM NAVIGATION BAR -->
-    <nav class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-30 flex items-center justify-around px-2 shadow-lg">
-        <button onclick="openMobilePanel('legend')" class="flex flex-col items-center justify-center text-slate-600 dark:text-slate-300 py-1 px-3">
-            <i data-lucide="bookmark" class="w-5 h-5 text-[#5246EE]"></i>
+    <!-- MOBILE INSTAGRAM-LIKE BOTTOM NAVIGATION BAR -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-40 flex items-center justify-around px-2 shadow-lg">
+        <button onclick="switchMobilePage('legend')" id="nav-btn-legend" class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 px-3 transition-all">
+            <i data-lucide="bookmark" class="w-5 h-5"></i>
             <span class="text-[10px] font-medium mt-1">Légende</span>
         </button>
-        <button id="mobile-tree-nav-btn" onclick="openMobilePanel('tree')" class="hidden flex-col items-center justify-center text-slate-600 dark:text-slate-300 py-1 px-3">
-            <i data-lucide="folder-tree" class="w-5 h-5 text-[#5246EE]"></i>
+        <button id="nav-btn-tree" onclick="switchMobilePage('tree')" class="hidden flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 px-3 transition-all">
+            <i data-lucide="folder-tree" class="w-5 h-5"></i>
             <span class="text-[10px] font-medium mt-1">Projet</span>
         </button>
-        <button onclick="openMobilePanel('inspector')" class="flex flex-col items-center justify-center text-slate-600 dark:text-slate-300 py-1 px-3 relative">
-            <i data-lucide="search" class="w-5 h-5 text-[#5246EE]"></i>
+        <!-- Icône MAP centrale pour comprendre la navigation -->
+        <button onclick="switchMobilePage('map')" id="nav-btn-map" class="flex flex-col items-center justify-center text-[#5246EE] py-1 px-3 transition-all">
+            <i data-lucide="map" class="w-6 h-6"></i>
+            <span class="text-[10px] font-bold mt-1">Map</span>
+        </button>
+        <button onclick="switchMobilePage('inspector')" id="nav-btn-inspector" class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 px-3 transition-all">
+            <i data-lucide="search" class="w-5 h-5"></i>
             <span class="text-[10px] font-medium mt-1">Inspecteur</span>
         </button>
     </nav>
@@ -316,9 +319,9 @@
         let activeEditLinkId = null;
         let editingRelationTypeId = null;
 
-        // Ordre des panneaux pour le swipe mobile: ['legend', 'tree' (si projet), 'inspector']
-        let mobilePanelsList = [];
-        let currentMobilePanelIndex = 0;
+        // Ordre des pages mobiles (style Instagram)
+        let mobilePagesOrder = [];
+        let currentMobilePageIndex = 0;
 
         document.addEventListener('DOMContentLoaded', async () => {
             lucide.createIcons();
@@ -378,7 +381,7 @@
             if (!currentCard.links) currentCard.links = [];
             if (!currentCard.collaborators) currentCard.collaborators = [];
 
-            setupMobilePanelsList();
+            setupMobilePagesOrder();
             renderBreadcrumb();
             setupTreeSidebarVisibility();
             renderLegendList();
@@ -388,95 +391,106 @@
             setupCanvasGlobalInteractivity();
             setupKeyboardListeners();
             setupMobileSwipeGestures();
+            
+            // Initialisation de la vue par défaut sur mobile : 'map' au centre
+            if (window.innerWidth < 768) {
+                switchMobilePage('map', false);
+            }
         });
 
-        function setupMobilePanelsList() {
-            mobilePanelsList = ['legend'];
+        function setupMobilePagesOrder() {
+            mobilePagesOrder = ['legend'];
             if (projectId && projectData) {
-                mobilePanelsList.push('tree');
-                document.getElementById('mobile-tree-nav-btn').classList.remove('hidden');
-                document.getElementById('mobile-tree-nav-btn').classList.add('flex');
+                mobilePagesOrder.push('tree');
+                document.getElementById('nav-btn-tree').classList.remove('hidden');
+                document.getElementById('nav-btn-tree').classList.add('flex');
             }
-            mobilePanelsList.push('inspector');
+            mobilePagesOrder.push('map');
+            mobilePagesOrder.push('inspector');
+            currentMobilePageIndex = mobilePagesOrder.indexOf('map');
         }
 
-        // --- GESTION DES PANNEAUX MOBLES & SWIPE ---
-        window.openMobilePanel = function(panelName) {
-            if (window.innerWidth >= 768) return; // Uniquement sur mobile
-            const legend = document.getElementById('sidebar-legend-left');
-            const tree = document.getElementById('tree-sidebar');
-            const inspector = document.getElementById('sidebar-inspector-right');
-
-            // Fermer tous
-            legend.classList.add('hidden');
-            legend.classList.remove('flex', 'absolute', 'inset-0', 'z-30');
-            tree.classList.add('hidden');
-            tree.classList.remove('flex', 'absolute', 'inset-0', 'z-30');
-            inspector.classList.add('hidden');
-            inspector.classList.remove('flex', 'absolute', 'inset-0', 'z-30');
-
-            let target = null;
-            if (panelName === 'legend') target = legend;
-            else if (panelName === 'tree') target = tree;
-            else if (panelName === 'inspector') target = inspector;
-
-            if (target) {
-                target.classList.remove('hidden');
-                target.classList.add('flex', 'absolute', 'inset-0', 'z-30');
-                currentMobilePanelIndex = mobilePanelsList.indexOf(panelName);
-            }
-        }
-
-        window.closeMobilePanels = function() {
+        // --- NAVIGATION MOBILE TYPE INSTAGRAM AVEC ANIMATION DE SLIDE ---
+        window.switchMobilePage = function(pageName, animate = true) {
             if (window.innerWidth >= 768) return;
+
             const legend = document.getElementById('sidebar-legend-left');
             const tree = document.getElementById('tree-sidebar');
+            const canvas = document.getElementById('canvas-container');
             const inspector = document.getElementById('sidebar-inspector-right');
 
-            legend.classList.add('hidden');
-            legend.classList.remove('flex', 'absolute', 'inset-0', 'z-30');
-            tree.classList.add('hidden');
-            tree.classList.remove('flex', 'absolute', 'inset-0', 'z-30');
-            inspector.classList.add('hidden');
-            inspector.classList.remove('flex', 'absolute', 'inset-0', 'z-30');
+            const pages = { legend, tree, canvas, inspector };
+            Object.keys(pages).forEach(key => {
+                const el = pages[key];
+                if (!el) return;
+                el.classList.add('hidden');
+                el.classList.remove('absolute', 'inset-0', 'z-30', 'flex', 'transition-transform', 'duration-300', 'ease-in-out');
+                el.style.transform = '';
+            });
+
+            const targetEl = pages[pageName];
+            if (targetEl) {
+                targetEl.classList.remove('hidden');
+                targetEl.classList.add('absolute', 'inset-0', 'z-30', 'flex');
+                if (animate) {
+                    targetEl.classList.add('transition-transform', 'duration-300', 'ease-in-out');
+                    const targetIndex = mobilePagesOrder.indexOf(pageName);
+                    const direction = targetIndex > currentMobilePageIndex ? '100px' : '-100px';
+                    targetEl.style.transform = `translateX(${direction})`;
+                    setTimeout(() => {
+                        targetEl.style.transform = 'translateX(0)';
+                    }, 10);
+                }
+                currentMobilePageIndex = mobilePagesOrder.indexOf(pageName);
+            }
+
+            // Mise à jour visuelle de la Navbar
+            ['legend', 'tree', 'map', 'inspector'].forEach(p => {
+                const btn = document.getElementById(`nav-btn-${p}`);
+                if (btn) {
+                    if (p === pageName) {
+                        btn.className = "flex flex-col items-center justify-center text-[#5246EE] py-1 px-3 transition-all scale-105 font-bold";
+                    } else {
+                        btn.className = "flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 px-3 transition-all font-medium";
+                    }
+                }
+            });
         }
 
         function setupMobileSwipeGestures() {
             let touchStartX = 0;
             let touchEndX = 0;
 
-            const panels = [
-                document.getElementById('sidebar-legend-left'),
-                document.getElementById('tree-sidebar'),
-                document.getElementById('sidebar-inspector-right')
-            ];
+            const container = document.body;
+            container.addEventListener('touchstart', (e) => {
+                // Désactiver le swipe si on touche le canvas (tableau blanc)
+                if (e.target.closest('#canvas-container') && !e.target.closest('#canvas-container > div:not(#canvas-zoom-layer)')) {
+                    touchStartX = null;
+                    return;
+                }
+                touchStartX = e.changedTouches[0].screenX;
+            }, { passive: true });
 
-            panels.forEach(panel => {
-                if (!panel) return;
-                panel.addEventListener('touchstart', (e) => {
-                    touchStartX = e.changedTouches[0].screenX;
-                }, { passive: true });
-
-                panel.addEventListener('touchend', (e) => {
-                    touchEndX = e.changedTouches[0].screenX;
-                    handleSwipeGesture();
-                }, { passive: true });
-            });
+            container.addEventListener('touchend', (e) => {
+                if (touchStartX === null) return;
+                touchEndX = e.changedTouches[0].screenX;
+                handleSwipeGesture();
+            }, { passive: true });
 
             function handleSwipeGesture() {
-                const threshold = 50;
+                const threshold = 60;
                 if (touchEndX < touchStartX - threshold) {
-                    // Swipe gauche -> Panneau suivant
-                    if (currentMobilePanelIndex < mobilePanelsList.length - 1) {
-                        currentMobilePanelIndex++;
-                        openMobilePanel(mobilePanelsList[currentMobilePanelIndex]);
+                    // Swipe gauche -> Page suivante
+                    if (currentMobilePageIndex < mobilePagesOrder.length - 1) {
+                        currentMobilePageIndex++;
+                        switchMobilePage(mobilePagesOrder[currentMobilePageIndex]);
                     }
                 }
                 if (touchEndX > touchStartX + threshold) {
-                    // Swipe droite -> Panneau précédent
-                    if (currentMobilePanelIndex > 0) {
-                        currentMobilePanelIndex--;
-                        openMobilePanel(mobilePanelsList[currentMobilePanelIndex]);
+                    // Swipe droite -> Page précédente
+                    if (currentMobilePageIndex > 0) {
+                        currentMobilePageIndex--;
+                        switchMobilePage(mobilePagesOrder[currentMobilePageIndex]);
                     }
                 }
             }
@@ -588,7 +602,7 @@
         window.toggleTreeSidebar = function() {
             if (!projectId || !projectData) return;
             if (window.innerWidth < 768) {
-                openMobilePanel('tree');
+                switchMobilePage('tree');
             } else {
                 const sidebar = document.getElementById('tree-sidebar');
                 sidebar.classList.toggle('hidden');
@@ -967,9 +981,8 @@
                     renderCanvasNodes();
                     renderInspector();
 
-                    // Sur mobile, l'action de sélection ouvre automatiquement l'inspecteur
                     if (window.innerWidth < 768) {
-                        openMobilePanel('inspector');
+                        switchMobilePage('inspector');
                     }
 
                     isDraggingNode = true;
@@ -1057,7 +1070,7 @@
             const node = (currentCard.nodes || []).find(n => n.id === nodeId);
             if (node) centerCameraOnNode(node);
             if (window.innerWidth < 768) {
-                openMobilePanel('inspector');
+                switchMobilePage('inspector');
             }
         }
 
@@ -1537,7 +1550,7 @@
                     return true;
                 }
                 if (list[i].children) {
-                    if (updateCardInTest = updateCardInTree(list[i].children, updatedCard)) return true;
+                    if (updateCardInTree(list[i].children, updatedCard)) return true;
                 }
             }
             return false;
