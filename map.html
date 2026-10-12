@@ -1171,11 +1171,10 @@
                     <div class="anchor-handle absolute top-1/2 -right-2.5 -translate-y-1/2 w-5 h-5 bg-[#5246EE] rounded-full border-2 border-white dark:border-slate-900 shadow-sm cursor-crosshair" data-node-id="${node.id}"></div>
                 `;
 
-                // --- GESTION DES CLICS / APPIS LONGS POUR DÉPLACEMENT TACTILE ---
-                let nodeTouchTimer = null;
-                let nodeTouchMoved = false;
-                let nodeTouchStartX = 0;
-                let nodeTouchStartY = 0;
+                // --- GESTION DES CLICS ET DU DÉPLACEMENT TACTILE INSTANTANÉ ---
+                let touchStartX = 0;
+                let touchStartY = 0;
+                let hasMoved = false;
 
                 const startDrag = (clientX, clientY) => {
                     if (!selectedNodeIds.includes(node.id)) {
@@ -1202,45 +1201,34 @@
                     startDrag(e.clientX, e.clientY);
                 });
 
-                // Tactile Touch Down avec Timer pour différencier le Tap du Long-Press (déplacement)
+                // Tactile Touch Down & Move (Glissement immédiat sans lever le doigt)
                 card.addEventListener('touchstart', (e) => {
                     if (e.target.closest('.anchor-handle')) return;
                     e.stopPropagation();
                     if (e.touches.length === 1) {
-                        nodeTouchMoved = false;
-                        nodeTouchStartX = e.touches[0].clientX;
-                        nodeTouchStartY = e.touches[0].clientY;
-
-                        // Appui prolongé de 350ms pour activer le déplacement
-                        nodeTouchTimer = setTimeout(() => {
-                            if (!nodeTouchMoved) {
-                                startDrag(nodeTouchStartX, nodeTouchStartY);
-                                showToast("Déplacement activé");
-                            }
-                        }, 350);
+                        hasMoved = false;
+                        touchStartX = e.touches[0].clientX;
+                        touchStartY = e.touches[0].clientY;
                     }
                 }, { passive: true });
 
                 card.addEventListener('touchmove', (e) => {
-                    if (e.touches.length === 1) {
-                        const moveDist = Math.hypot(e.touches[0].clientX - nodeTouchStartX, e.touches[0].clientY - nodeTouchStartY);
-                        if (moveDist > 10) {
-                            nodeTouchMoved = true;
-                            if (nodeTouchTimer) {
-                                clearTimeout(nodeTouchTimer);
-                                nodeTouchTimer = null;
-                            }
+                    if (e.touches.length === 1 && !isDraggingNode) {
+                        const currentX = e.touches[0].clientX;
+                        const currentY = e.touches[0].clientY;
+                        const dist = Math.hypot(currentX - touchStartX, currentY - touchStartY);
+
+                        // Dès qu'on bouge de plus de 8px, on active le drag instantanément
+                        if (dist > 8) {
+                            hasMoved = true;
+                            startDrag(currentX, currentY);
                         }
                     }
                 }, { passive: true });
 
                 card.addEventListener('touchend', (e) => {
-                    if (nodeTouchTimer) {
-                        clearTimeout(nodeTouchTimer);
-                        nodeTouchTimer = null;
-                    }
-                    // Si on a levé le doigt rapidement sans bouger : c'est un TAP simple (ouvre l'inspecteur)
-                    if (!nodeTouchMoved && !isDraggingNode) {
+                    // Si on a levé le doigt sans avoir bougé : c'est un clic simple (ouvre l'inspecteur)
+                    if (!hasMoved && !isDraggingNode) {
                         selectNode(node.id);
                     }
                 }, { passive: true });
