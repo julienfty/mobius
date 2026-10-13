@@ -396,28 +396,46 @@
             }
 
             window.acceptInvitationJson = async function(projectId) {
-                const { data: proj } = await supabase.from('projects').select('collaborators').eq('id', projectId).single();
-                if (!proj) return;
-                const collabs = proj.collaborators || [];
-                const me = collabs.find(c => (c.email || '').toLowerCase() === currentUser.email.toLowerCase());
-                if (me) {
-                    me.status = 'accepted';
-                    me.acceptedAt = new Date().toISOString();
-                    await supabase.from('projects').update({ collaborators: collabs }).eq('id', projectId);
-                    // Disparition instantanée et rafraîchissement sans popup bloquante
-                    loadDashboardData();
-                }
-            }
+    const { data: proj, error } = await supabase.from('projects').select('collaborators').eq('id', projectId).single();
+    if (error || !proj) return;
+    
+    let collabs = proj.collaborators || [];
+    const me = collabs.find(c => (c.email || '').toLowerCase() === currentUser.email.toLowerCase());
+    
+    if (me) {
+        me.status = 'accepted';
+        me.acceptedAt = new Date().toISOString();
+        
+        // Mise à jour explicite dans Supabase
+        const { error: updateError } = await supabase
+            .from('projects')
+            .update({ collaborators: collabs })
+            .eq('id', projectId);
+            
+        if (!updateError) {
+            // Recharge immédiatement le dashboard pour actualiser l'affichage
+            loadDashboardData();
+        }
+    }
+}
 
             window.declineInvitationJson = async function(projectId) {
-                const { data: proj } = await supabase.from('projects').select('collaborators').eq('id', projectId).single();
-                if (!proj) return;
-                let collabs = proj.collaborators || [];
-                collabs = collabs.filter(c => (c.email || '').toLowerCase() !== currentUser.email.toLowerCase());
-                await supabase.from('projects').update({ collaborators: collabs }).eq('id', projectId);
-                // Disparition instantanée et rafraîchissement sans confirmation
-                loadDashboardData();
-            }
+    const { data: proj, error } = await supabase.from('projects').select('collaborators').eq('id', projectId).single();
+    if (error || !proj) return;
+    
+    let collabs = proj.collaborators || [];
+    // Filtrer pour retirer l'utilisateur connecté du tableau des collaborateurs
+    collabs = collabs.filter(c => (c.email || '').toLowerCase() !== currentUser.email.toLowerCase());
+    
+    const { error: updateError } = await supabase
+        .from('projects')
+        .update({ collaborators: collabs })
+        .eq('id', projectId);
+        
+    if (!updateError) {
+        loadDashboardData();
+    }
+}
 
             window.renderDashboard = function() {
                 const container = document.getElementById('items-grid-container');
