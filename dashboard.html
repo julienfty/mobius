@@ -130,7 +130,7 @@
                 <button data-create="txt" class="tree-create px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-lines text-emerald-500"></i> Fichier .txt</button>
                 <button data-create="card" class="tree-create px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-note-sticky text-indigo-500"></i> Nouvelle Carte</button>
                 <button id="import-btn" class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-arrow-down text-[#5246EE]"></i> Importer</button>
-                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json" multiple>
+                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius" multiple>
             </div>
             <div class="text-[11px] text-gray-400 font-medium" id="selected-folder-indicator">📁 Destination : Racine du projet</div>
         </div>
@@ -390,57 +390,62 @@ document.addEventListener('DOMContentLoaded', async () => {
         else openCard(card.dataset.id);
     });
 
-    /* ---------- Importation fichier .mobius depuis le dashboard ---------- */
+    /* ---------- Importation fichier .mobius ---------- */
+    // Lit le JSON d'un .mobius et renvoie l'objet carte (même format que dans tree / cards.info),
+    // avec un nouvel id « item_... » : une importation crée toujours une NOUVELLE carte.
+    function parseMobiusCard(text, fileName) {
+        let data;
+        try { data = JSON.parse(text); } catch (e) { return null; }
+        if (!data || !Array.isArray(data.nodes) || !Array.isArray(data.links)) return null;
+        return {
+            id: 'item_' + Date.now() + Math.random().toString(36).slice(2, 7),
+            name: data.name || String(fileName || 'Carte importée').replace(/\.[^/.]+$/, ''),
+            type: 'card',
+            links: data.links,
+            nodes: data.nodes,
+            content: data.content || '',
+            relationTypes: Array.isArray(data.relationTypes) ? data.relationTypes : []
+        };
+    }
+
+    // Bouton « Importer » du dashboard : crée une carte libre (table cards, colonne info)
     window.importDashboardMobiusFile = function(event) {
         const file = event.target.files[0];
+        event.target.value = '';
         if (!file) return;
 
         const reader = new FileReader();
         reader.onload = async function(e) {
-            try {
-                const cardData = JSON.parse(e.target.result);
-                
-                if (!cardData.nodes || !cardData.links) {
-                    alert("Ce fichier ne correspond pas à un format de carte Mobius valide.");
-                    return;
-                }
-
-                // Génération d'un ID unique textuel (compatible avec le format de la table cards)
-                const cardId = 'id_' + Date.now();
-
-                const newCardRecord = {
-                    id: cardId,
-                    name: cardData.name || file.name.replace(/\.[^/.]+$/, ""),
-                    owner_email: user.email,
-                    owner_id: user.id,
-                    nodes: cardData.nodes || [],
-                    links: cardData.links || [],
-                    relationTypes: cardData.relationTypes || [],
-                    collaborators: []
-                };
-
-                const { error } = await sb.from('cards').insert([newCardRecord]);
-                if (error) {
-                    console.error("Erreur d'insertion :", error);
-                    alert("Erreur lors de l'enregistrement de la carte : " + error.message);
-                    return;
-                }
-
-                toast("Carte .mobius importée avec succès !", "success");
-                
-                // Basculer automatiquement sur l'onglet "Cartes Libres" et recharger
-                state.tab = 'cards';
-                await loadAll();
-
-                // Ouvrir directement la carte importée
-                openCard(cardId);
-            } catch (err) {
-                console.error("Erreur de lecture JSON :", err);
-                alert("Impossible de lire le fichier .mobius.");
+            const info = parseMobiusCard(e.target.result, file.name);
+            if (!info) {
+                alert("Ce fichier ne correspond pas à un format de carte Mobius valide.");
+                return;
             }
+
+            const cardId = 'id_' + Date.now();
+            const newCardRecord = {
+                id: cardId,
+                name: info.name,
+                owner_email: user.email,
+                owner_id: user.id,
+                is_collab: false,
+                collaborators: [],
+                info
+            };
+
+            const { error } = await sb.from('cards').insert([newCardRecord]);
+            if (error) {
+                console.error("Erreur d'insertion :", error);
+                alert("Erreur lors de l'enregistrement de la carte : " + error.message);
+                return;
+            }
+
+            toast("Carte .mobius importée avec succès !", "success");
+            state.tab = 'cards';
+            await loadAll();
+            openCard(cardId);
         };
         reader.readAsText(file);
-        event.target.value = '';
     }
 
     /* ---------- Prompt / Confirm (promesses) ---------- */
@@ -759,13 +764,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('import-btn').addEventListener('click', () => $('tree-file-input').click());$('tree-file-input').addEventListener('change', (e) => { importFiles([...e.target.files], state.selectedFolderId); e.target.value = ''; });
 
     async function importFiles(files, folderId) {
-        const accepted = files.filter(f => /\.(txt|json)$/i.test(f.name));
-        if (accepted.length < files.length) toast('Seuls les fichiers .txt et .json sont acceptés.', 'info');
+        const accepted = files.filter(f => /\.(txt|json|mobius)$/i.test(f.name));
+        if (accepted.length < files.length) toast('Seuls les fichiers .txt, .json et .mobius sont acceptés.', 'info');
+        let added = 0;
         for (const file of accepted) {
             const content = await file.text();
-            insertInto({ id: 'id_' + Date.now() + Math.random().toString(36).slice(2, 7), type: 'txt', name: file.name, content, isNewDrop: true }, folderId);
+            if (/\.mobius$/i.test(file.name)) {
+                // .mobius : nouvelle carte dans l'arborescence (même format que cards.info)
+                const card = parseMobiusCard(content, file.name);
+                if (!card) { toast(`« ${file.name} » n'est pas une carte Mobius valide.`, 'error'); continue; }
+                card.isNewDrop = true;
+                insertInto(card, folderId);
+            } else {
+                insertInto({ id: 'id_' + Date.now() + Math.random().toString(36).slice(2, 7), type: 'txt', name: file.name, content, isNewDrop: true }, folderId);
+            }
+            added++;
         }
-        if (accepted.length) { saveTree(); renderTree(); }
+        if (added) { saveTree(); renderTree(); }
     }
 
     function renderTree() {
