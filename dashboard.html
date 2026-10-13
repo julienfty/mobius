@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
         if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             document.documentElement.classList.add('dark');
@@ -130,7 +131,7 @@
                 <button data-create="txt" class="tree-create px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-lines text-emerald-500"></i> Fichier .txt</button>
                 <button data-create="card" class="tree-create px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-note-sticky text-indigo-500"></i> Nouvelle Carte</button>
                 <button id="import-btn" class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-arrow-down text-[#5246EE]"></i> Importer</button>
-                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius" multiple>
+                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx" multiple>
             </div>
             <div class="text-[11px] text-gray-400 font-medium" id="selected-folder-indicator">📁 Destination : Racine du projet</div>
         </div>
@@ -438,7 +439,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try { data = JSON.parse(text); } catch (e) { return null; }
         if (data && !Array.isArray(data) && Array.isArray(data.tree)) data = data.tree;
         if (!Array.isArray(data)) return null;
-        const valid = (it) => it && typeof it === 'object' && typeof it.name === 'string' && ['folder', 'txt', 'card'].includes(it.type)
+        const valid = (it) => it && typeof it === 'object' && typeof it.name === 'string' && ['folder', 'txt', 'card', 'pdf'].includes(it.type)
             && (it.type !== 'folder' || !it.children || (Array.isArray(it.children) && it.children.every(valid)));
         return data.every(valid) ? data : null;
     }
@@ -813,20 +814,119 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     $('import-btn').addEventListener('click', () => $('tree-file-input').click());$('tree-file-input').addEventListener('change', (e) => { importFiles([...e.target.files], state.selectedFolderId); e.target.value = ''; });
 
+    const newItemId = () => 'id_' + Date.now() + Math.random().toString(36).slice(2, 7);
+    const MAX_INPUT_BYTES = 20 * 1024 * 1024;   // taille max du fichier source
+    const MAX_TEXT_CHARS = 2000000;              // taille max du texte stocké dans la colonne tree
+
+    // --- Détection de fichiers binaires / images (signatures + octets de contrôle) ---
+    function detectBinaryKind(bytes) {
+        const sig = (...b) => b.every((v, i) => bytes[i] === v);
+        if (sig(0x89, 0x50, 0x4E, 0x47)) return 'une image PNG';
+        if (sig(0xFF, 0xD8, 0xFF)) return 'une image JPEG';
+        if (sig(0x47, 0x49, 0x46, 0x38)) return 'une image GIF';
+        if (sig(0x52, 0x49, 0x46, 0x46)) return 'un fichier RIFF (image WebP / audio / vidéo)';
+        if (sig(0x25, 0x50, 0x44, 0x46)) return 'un PDF (renommé)';
+        if (sig(0x50, 0x4B, 0x03, 0x04)) return 'une archive ZIP (ex. fichier Pages ou Word)';
+        if (sig(0xD0, 0xCF, 0x11, 0xE0)) return 'un ancien document Office (.doc)';
+        const head = bytes.subarray(0, 8192);
+        if (head[0] === 0xFF && head[1] === 0xFE || head[0] === 0xFE && head[1] === 0xFF) return null; // UTF-16 avec BOM
+        let ctrl = 0;
+        for (const v of head) { if (v === 0) return 'des données binaires'; if (v < 9 || (v > 13 && v < 32)) ctrl++; }
+        return head.length && ctrl / head.length > 0.02 ? 'des données binaires' : null;
+    }
+
+    // --- Décodage avec détection d'encodage (UTF-16 BOM, UTF-8, sinon Windows-1252) ---
+    function decodeTextBytes(bytes) {
+        if (bytes[0] === 0xFF && bytes[1] === 0xFE) return new TextDecoder('utf-16le').decode(bytes.subarray(2));
+        if (bytes[0] === 0xFE && bytes[1] === 0xFF) return new TextDecoder('utf-16be').decode(bytes.subarray(2));
+        try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes).replace(/^\uFEFF/, ''); }
+        catch (e) { return new TextDecoder('windows-1252').decode(bytes); }
+    }
+
+    async function pdfToText(buf) {
+        if (!window.pdfjsLib) throw new Error("lecteur PDF indisponible (connexion ?)");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+        const pages = [];
+        for (let n = 1; n <= pdf.numPages; n++) {
+            const content = await (await pdf.getPage(n)).getTextContent();
+            let out = '', lastY = null;
+            for (const it of content.items) {
+                const y = it.transform ? it.transform[5] : null;
+                if (lastY !== null && y !== null && Math.abs(y - lastY) > 2 && out && !out.endsWith('\n')) out += '\n';
+                out += it.str;
+                if (it.hasEOL) out += '\n';
+                if (y !== null) lastY = y;
+            }
+            pages.push(out.trim());
+        }
+        return pages.filter(Boolean).join('\n\n');
+    }
+
+    async function docxToText(buf) {
+        const zip = await JSZip.loadAsync(buf);
+        const entry = zip.file('word/document.xml');
+        if (!entry) throw new Error("ce n'est pas un document Word valide");
+        const xml = new DOMParser().parseFromString(await entry.async('string'), 'application/xml');
+        const walk = (node) => {
+            let t = '';
+            for (const ch of node.childNodes) {
+                const n = ch.localName;
+                if (n === 't') t += ch.textContent;
+                else if (n === 'tab') t += '\t';
+                else if (n === 'br' || n === 'cr') t += '\n';
+                else if (ch.nodeType === 1) t += walk(ch);
+            }
+            return t;
+        };
+        return [...xml.getElementsByTagNameNS('*', 'p')].map(walk).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    // Transforme n'importe quel fichier accepté en texte brut (images et mise en forme ignorées).
+    // Lance une Error (message lisible) si le fichier est refusé.
+    async function fileToText(file) {
+        if (file.size > MAX_INPUT_BYTES) throw new Error('fichier trop volumineux (max 20 Mo)');
+        const buf = await file.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let text;
+        if (/\.pdf$/i.test(file.name)) {
+            if (!(bytes[0] === 0x25 && bytes[1] === 0x50)) throw new Error("ce n'est pas un vrai PDF");
+            text = await pdfToText(buf);
+        } else if (/\.docx$/i.test(file.name)) {
+            if (!(bytes[0] === 0x50 && bytes[1] === 0x4B)) throw new Error("ce n'est pas un vrai .docx");
+            text = await docxToText(buf);
+        } else {
+            const kind = detectBinaryKind(bytes);
+            if (kind) throw new Error(`le fichier contient ${kind}, pas du texte`);
+            text = decodeTextBytes(bytes);
+        }
+        if (!text.trim()) throw new Error('aucun texte trouvé (document scanné ou composé uniquement d\'images ?)');
+        if (text.length > MAX_TEXT_CHARS) throw new Error('texte trop long (max 2 millions de caractères)');
+        return text;
+    }
+
     async function importFiles(files, folderId) {
-        const accepted = files.filter(f => /\.(txt|json|mobius)$/i.test(f.name));
-        if (accepted.length < files.length) toast('Seuls les fichiers .txt, .json et .mobius sont acceptés.', 'info');
+        const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx)$/i.test(f.name));
+        if (accepted.length < files.length) toast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx et .mobius.', 'info');
         let added = 0;
         for (const file of accepted) {
-            const content = await file.text();
             if (/\.mobius$/i.test(file.name)) {
                 // .mobius : nouvelle carte dans l'arborescence (même format que cards.info)
-                const card = parseMobiusCard(content, file.name);
+                const card = parseMobiusCard(await file.text(), file.name);
                 if (!card) { toast(`« ${file.name} » n'est pas une carte Mobius valide.`, 'error'); continue; }
                 card.isNewDrop = true;
                 insertInto(card, folderId);
             } else {
-                insertInto({ id: 'id_' + Date.now() + Math.random().toString(36).slice(2, 7), type: 'txt', name: file.name, content, isNewDrop: true }, folderId);
+                // tous les autres formats sont retranscrits en texte brut (type txt)
+                try {
+                    const content = await fileToText(file);
+                    const name = /\.(pdf|docx)$/i.test(file.name) ? file.name.replace(/\.[^.]+$/, '') + '.txt' : file.name;
+                    insertInto({ id: newItemId(), type: 'txt', name, content, isNewDrop: true }, folderId);
+                } catch (err) {
+                    console.error(err);
+                    toast(`« ${file.name} » refusé : ${err.message}.`, 'error');
+                    continue;
+                }
             }
             added++;
         }
@@ -836,7 +936,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function renderTree() {
         const c = $('tree');
         if (!tree().length) {
-            c.innerHTML = `<div class="text-center py-12 text-gray-400 text-xs">Arborescence vide. Utilisez les boutons ci-dessus ou glissez-déposez des fichiers .txt ici.</div>`;
+            c.innerHTML = `<div class="text-center py-12 text-gray-400 text-xs">Arborescence vide. Utilisez les boutons ci-dessus ou glissez-déposez des fichiers (.txt, .fountain, .page, .pdf, .docx, .mobius) ici.</div>`;
             return;
         }
         c.innerHTML = '';
@@ -869,7 +969,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 container.appendChild(el);
                 if (item.children?.length) renderLevel(item.children, el.querySelector('[data-children]'));
             } else {
-                const icon = item.type === 'txt' ? 'fa-file-lines text-emerald-500' : 'fa-note-sticky text-indigo-500';
+                const icon = item.type === 'txt' ? 'fa-file-lines text-emerald-500' : item.type === 'pdf' ? 'fa-file-pdf text-red-500' : 'fa-note-sticky text-indigo-500';
                 el.innerHTML = `
                     <div class="file-row flex items-center justify-between p-2.5 bg-gray-50/60 dark:bg-gray-800/60 rounded-xl border border-gray-200/60 dark:border-gray-700/60 text-xs hover:bg-gray-100 dark:hover:bg-gray-800 transition-all cursor-pointer" data-file="${esc(item.id)}">
                         <div class="flex items-center gap-2.5 flex-1 min-w-0">
