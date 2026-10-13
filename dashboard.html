@@ -95,8 +95,8 @@
                     <option value="chrono">Plus récents</option>
                 </select>
                 <!-- Bouton d'importation global .mobius -->
-                <input type="file" id="import-mobius-input" accept=".mobius,.json" class="hidden" onchange="importDashboardMobiusFile(event)">
-                <button onclick="document.getElementById('import-mobius-input').click()" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all" title="Importer une carte .mobius">
+                <input type="file" id="import-mobius-input" accept=".mobius,.mobpro,.json" multiple class="hidden" onchange="importDashboardMobiusFile(event)">
+                <button onclick="document.getElementById('import-mobius-input').click()" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all" title="Importer une carte (.mobius) ou un projet (.mobpro)">
                     <i class="fa-solid fa-file-arrow-down text-[#5246EE]"></i>
                     <span class="hidden sm:inline">Importer</span>
                 </button>
@@ -120,7 +120,7 @@
                 </div>
             </div>
             <button id="export-btn" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all">
-                <i class="fa-solid fa-download text-[#5246EE]"></i><span>Télécharger (ZIP)</span>
+                <i class="fa-solid fa-download text-[#5246EE]"></i><span>Télécharger le projet (.mobpro)</span>
             </button>
         </div>
 
@@ -408,45 +408,95 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     }
 
-    // Bouton « Importer » du dashboard : crée une carte libre (table cards, colonne info)
-    window.importDashboardMobiusFile = function(event) {
-        const file = event.target.files[0];
-        event.target.value = '';
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = async function(e) {
-            const info = parseMobiusCard(e.target.result, file.name);
-            if (!info) {
-                alert("Ce fichier ne correspond pas à un format de carte Mobius valide.");
-                return;
-            }
-
-            const cardId = 'id_' + Date.now();
-            const newCardRecord = {
-                id: cardId,
-                name: info.name,
-                owner_email: user.email,
-                owner_id: user.id,
-                is_collab: false,
-                collaborators: [],
-                info
-            };
-
-            const { error } = await sb.from('cards').insert([newCardRecord]);
-            if (error) {
-                console.error("Erreur d'insertion :", error);
-                alert("Erreur lors de l'enregistrement de la carte : " + error.message);
-                return;
-            }
-
-            toast("Carte .mobius importée avec succès !", "success");
-            state.tab = 'cards';
-            await loadAll();
-            openCard(cardId);
-        };
-        reader.readAsText(file);
+    // .mobius -> nouvelle carte libre (table cards, colonne info)
+    async function importCardFile(file, text) {
+        const info = parseMobiusCard(text, file.name);
+        if (!info) { toast(`« ${file.name} » n'est pas une carte Mobius valide.`, 'error'); return null; }
+        const id = 'id_' + Date.now() + Math.random().toString(36).slice(2, 5);
+        const { error } = await sb.from('cards').insert([{
+            id, name: info.name, owner_email: user.email, owner_id: user.id,
+            is_collab: false, collaborators: [], info
+        }]);
+        if (error) { console.error(error); toast("Erreur d'enregistrement de la carte : " + error.message, 'error'); return null; }
+        return { tab: 'cards', id };
     }
+
+    // .mobpro -> nouveau projet dont la colonne tree reçoit le contenu du fichier
+    let idCounter = 0;
+    const freshId = () => 'item_' + Date.now() + '_' + (++idCounter);
+    // Nouveaux ids pour tous les éléments de l'arbre : évite les doublons avec le projet d'origine
+    // (map.html retrouve la carte par son id dans tous les projets)
+    function regenTreeIds(items) {
+        return items.map(it => {
+            const copy = { ...it, id: freshId() };
+            if (Array.isArray(it.children)) copy.children = regenTreeIds(it.children);
+            return copy;
+        });
+    }
+    function parseMobpro(text) {
+        let data;
+        try { data = JSON.parse(text); } catch (e) { return null; }
+        if (data && !Array.isArray(data) && Array.isArray(data.tree)) data = data.tree;
+        if (!Array.isArray(data)) return null;
+        const valid = (it) => it && typeof it === 'object' && typeof it.name === 'string' && ['folder', 'txt', 'card'].includes(it.type)
+            && (it.type !== 'folder' || !it.children || (Array.isArray(it.children) && it.children.every(valid)));
+        return data.every(valid) ? data : null;
+    }
+    async function importProjectFile(file, text) {
+        const tree = parseMobpro(text);
+        if (!tree) { toast(`« ${file.name} » n'est pas un projet Mobius valide.`, 'error'); return null; }
+        const id = 'id_' + Date.now() + Math.random().toString(36).slice(2, 5);
+        const { error } = await sb.from('projects').insert([{
+            id, name: file.name.replace(/\.[^/.]+$/, '') || 'Projet importé',
+            pwd: null, owner_email: user.email, owner_id: user.id,
+            is_collab: false, collaborators: [], tree: regenTreeIds(tree)
+        }]);
+        if (error) { console.error(error); toast("Erreur d'enregistrement du projet : " + error.message, 'error'); return null; }
+        return { tab: 'projects', id };
+    }
+
+    // Point d'entrée commun (bouton « Importer » et glisser-déposer de la page principale) :
+    // reconnaît .mobius / .mobpro et bascule sur l'onglet correspondant à la fin.
+    async function importDashboardFiles(files) {
+        const results = [];
+        for (const file of files) {
+            const ext = (file.name.split('.').pop() || '').toLowerCase();
+            if (ext !== 'mobius' && ext !== 'mobpro') { toast(`« ${file.name} » ignoré : seuls .mobius et .mobpro sont acceptés.`, 'info'); continue; }
+            const text = await file.text();
+            const r = ext === 'mobpro' ? await importProjectFile(file, text) : await importCardFile(file, text);
+            if (r) results.push(r);
+        }
+        if (!results.length) return;
+        const last = results[results.length - 1];
+        state.tab = last.tab;
+        await loadAll();
+        const nCards = results.filter(r => r.tab === 'cards').length;
+        const nProj = results.length - nCards;
+        toast([nProj && `${nProj} projet${nProj > 1 ? 's' : ''}`, nCards && `${nCards} carte${nCards > 1 ? 's' : ''}`].filter(Boolean).join(' et ') + ' importé' + (results.length > 1 ? 's' : '') + ' !', 'success');
+        // Un seul fichier carte : on l'ouvre directement (comportement existant)
+        if (results.length === 1 && last.tab === 'cards') openCard(last.id);
+    }
+
+    window.importDashboardMobiusFile = function(event) {
+        const files = [...event.target.files];
+        event.target.value = '';
+        if (files.length) importDashboardFiles(files);
+    };
+
+    // Glisser-déposer sur la page principale
+    (() => {
+        const mv = $('main-view');
+        const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+        const ring = ['ring-2', 'ring-[#5246EE]/40', 'rounded-2xl'];
+        mv.addEventListener('dragover', (e) => { if (!hasFiles(e)) return; e.preventDefault(); mv.classList.add(...ring); });
+        mv.addEventListener('dragleave', (e) => { if (!mv.contains(e.relatedTarget)) mv.classList.remove(...ring); });
+        mv.addEventListener('drop', (e) => {
+            if (!hasFiles(e)) return;
+            e.preventDefault();
+            mv.classList.remove(...ring);
+            importDashboardFiles([...e.dataTransfer.files]);
+        });
+    })();
 
     /* ---------- Prompt / Confirm (promesses) ---------- */
     let promptResolve = null, confirmResolve = null;
@@ -906,7 +956,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         saveTree(); renderTree();
     });
 
-    /* ---------- Export ZIP ---------- */
+    /* ---------- Export .mobpro (contenu de la colonne tree) ---------- */
     $('export-btn').addEventListener('click', async () => {
         const p = state.activeProject;
         if (p.pwd) {
@@ -914,21 +964,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (v === null) return;
             if (v !== p.pwd) return toast('Mot de passe incorrect.', 'error');
         }
-        const zip = new JSZip();
         const safe = (s) => String(s).replace(/[\\/:*?"<>|]/g, '_');
-        const walk = (items, folder) => items.forEach(it => {
-            if (it.type === 'folder') walk(it.children || [], folder.folder(safe(it.name)));
-            else if (it.type === 'txt') folder.file(safe(it.name), it.content || '');
-            else folder.file(safe(it.name) + '.card.json', JSON.stringify({ id: it.id, name: it.name }, null, 2));
-        });
-        walk(p.tree || [], zip);
-        zip.file('project_manifest.json', JSON.stringify({ id: p.id, name: p.name, owner_email: p.owner_email, exported_at: new Date().toISOString(), tree: p.tree }, null, 2));
-        const blob = await zip.generateAsync({ type: 'blob' });
+        const blob = new Blob([JSON.stringify(p.tree || [], null, 2)], { type: 'application/json' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `${safe(p.name).toLowerCase().replace(/\s+/g, '_')}_mobius.zip`;
+        a.download = `${safe(p.name).toLowerCase().replace(/\s+/g, '_')}.mobpro`;
         a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        toast('Projet exporté au format .mobpro !', 'success');
     });
 
     /* ---------- Démarrage ---------- */
