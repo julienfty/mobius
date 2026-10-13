@@ -94,6 +94,12 @@
                     <option value="alpha">Ordre alphabétique</option>
                     <option value="chrono">Plus récents</option>
                 </select>
+                <!-- Bouton d'importation global .mobius -->
+                <input type="file" id="import-mobius-input" accept=".mobius,.json" class="hidden" onchange="importDashboardMobiusFile(event)">
+                <button onclick="document.getElementById('import-mobius-input').click()" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all" title="Importer une carte .mobius">
+                    <i class="fa-solid fa-file-arrow-down text-[#5246EE]"></i>
+                    <span class="hidden sm:inline">Importer</span>
+                </button>
                 <button id="create-btn" class="bg-[#5246EE] hover:bg-[#4538d8] text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-md shadow-[#5246EE]/25 flex items-center gap-2 transition-all">
                     <i class="fa-solid fa-plus text-[10px]"></i><span id="create-btn-text">Nouveau Projet</span>
                 </button>
@@ -275,9 +281,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /* ---------- Chargement ---------- */
     async function fetchTable(table) {
-        // 3 requêtes : possédés, invité (objet JSON), ancien format (string)
-        // ⚠️ Pour une colonne jsonb, il faut passer une CHAÎNE JSON (JSON.stringify),
-        // sinon supabase-js envoie un tableau Postgres {a,b} => erreur 22P02.
         const queries = [
             sb.from(table).select('*').eq('owner_id', user.id),
             sb.from(table).select('*').contains('collaborators', JSON.stringify([{ email: myEmail }])),
@@ -387,6 +390,59 @@ document.addEventListener('DOMContentLoaded', async () => {
         else openCard(card.dataset.id);
     });
 
+    /* ---------- Importation fichier .mobius depuis le dashboard ---------- */
+    window.importDashboardMobiusFile = function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            try {
+                const cardData = JSON.parse(e.target.result);
+                
+                if (!cardData.nodes || !cardData.links) {
+                    alert("Ce fichier ne correspond pas à un format de carte Mobius valide.");
+                    return;
+                }
+
+                // Génération d'un ID unique textuel (compatible avec le format de la table cards)
+                const cardId = 'id_' + Date.now();
+
+                const newCardRecord = {
+                    id: cardId,
+                    name: cardData.name || file.name.replace(/\.[^/.]+$/, ""),
+                    owner_email: user.email,
+                    owner_id: user.id,
+                    nodes: cardData.nodes || [],
+                    links: cardData.links || [],
+                    relationTypes: cardData.relationTypes || [],
+                    collaborators: []
+                };
+
+                const { error } = await sb.from('cards').insert([newCardRecord]);
+                if (error) {
+                    console.error("Erreur d'insertion :", error);
+                    alert("Erreur lors de l'enregistrement de la carte : " + error.message);
+                    return;
+                }
+
+                toast("Carte .mobius importée avec succès !", "success");
+                
+                // Basculer automatiquement sur l'onglet "Cartes Libres" et recharger
+                state.tab = 'cards';
+                await loadAll();
+
+                // Ouvrir directement la carte importée
+                openCard(cardId);
+            } catch (err) {
+                console.error("Erreur de lecture JSON :", err);
+                alert("Impossible de lire le fichier .mobius.");
+            }
+        };
+        reader.readAsText(file);
+        event.target.value = '';
+    }
+
     /* ---------- Prompt / Confirm (promesses) ---------- */
     let promptResolve = null, confirmResolve = null;
     function askPrompt(title, placeholder = '', type = 'text') {
@@ -436,7 +492,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             toast('Élément supprimé.', 'success');
         } else {
             if (!await askConfirm(`Quitter ce ${TABLE_LABEL[table]} ? Il disparaîtra de votre dashboard.`)) return;
-            // On retire uniquement MON entrée du JSON, jamais la ligne.
             const { error } = await sb.rpc('leave_collab', { p_table: table, p_id: id });
             if (error) return toast('Impossible de quitter : ' + error.message, 'error');
             toast('Vous avez quitté la collaboration.', 'success');
@@ -494,7 +549,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const accept = btn.dataset.invite === 'accept';
         btn.closest('div.px-4').querySelectorAll('button').forEach(b => b.disabled = true);
 
-        // Mise à jour du JSON côté serveur : accepted => status mis à jour / refusé => entrée supprimée
         const { error } = await sb.rpc('respond_to_invitation', { p_table: inv.table, p_id: inv.item.id, p_accept: accept });
         if (error) {
             toast("Erreur : " + error.message, 'error');
@@ -505,12 +559,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadAll();
     });
 
-    $('notif-btn').addEventListener('click', (e) => { e.stopPropagation(); $('notif-panel').classList.toggle('hidden'); });
+    $('notif-btn').addEventListener('click', (e) => { e.stopPropagation();$('notif-panel').classList.toggle('hidden'); });
     document.addEventListener('click', (e) => {
         if (!e.target.closest('#notif-panel') && !e.target.closest('#notif-btn')) $('notif-panel').classList.add('hidden');
     });
 
-    // Rafraîchissement : toutes les 30 s + au retour sur l'onglet + temps réel si activé sur les tables
     setInterval(() => { if (!document.hidden && $('main-view').offsetParent !== null) loadAll(); }, 30000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden && $('main-view').offsetParent !== null) loadAll(); });
     try {
@@ -518,26 +571,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => { if (!state.activeProject) loadAll(); })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'cards' }, () => { if (!state.activeProject) loadAll(); })
             .subscribe();
-    } catch (_) { /* polling suffit */ }
+    } catch (_) {}
 
     /* ---------- Création ---------- */
     function openCreateModal() {
         state.tempCollabs = [];
         ['modal-item-name', 'modal-collab-email', 'modal-item-pwd'].forEach(id => $(id).value = '');
         $('modal-is-collab').checked = false; $('modal-has-pwd').checked = false;
-        $('collab-box').classList.add('hidden'); $('pwd-box').classList.add('hidden');
+        $('collab-box').classList.add('hidden');$('pwd-box').classList.add('hidden');
         renderCollabBadges();
         $('create-modal-title').textContent = state.tab === 'projects' ? 'Créer un nouveau projet' : 'Créer une nouvelle carte libre';
         showModal('create-modal');
-        setTimeout(() => $('modal-item-name').focus(), 40);
-    }
-    $('create-btn').addEventListener('click', openCreateModal);
-    $('modal-is-collab').addEventListener('change', (e) => $('collab-box').classList.toggle('hidden', !e.target.checked));
-    $('modal-has-pwd').addEventListener('change', (e) => $('pwd-box').classList.toggle('hidden', !e.target.checked));
+        setTimeout(() => $('modal-item-name').focus(), 40); }$('create-btn').addEventListener('click', openCreateModal);
+    $('modal-is-collab').addEventListener('change', (e) =>$('collab-box').classList.toggle('hidden', !e.target.checked));
+    $('modal-has-pwd').addEventListener('change', (e) =>$('pwd-box').classList.toggle('hidden', !e.target.checked));
     document.querySelector('[data-create-modal="cancel"]').addEventListener('click', () => hideModal('create-modal'));
     document.querySelector('[data-create-modal="ok"]').addEventListener('click', confirmCreate);
-    $('modal-collab-email').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addCollaborator(); } });
-    $('add-collab-btn').addEventListener('click', addCollaborator);
+    $('modal-collab-email').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addCollaborator(); } });$('add-collab-btn').addEventListener('click', addCollaborator);
 
     async function addCollaborator() {
         const input = $('modal-collab-email');
@@ -594,16 +644,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     /* ---------- Onglets / vue / recherche ---------- */
     document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => { state.tab = b.dataset.tab; renderDashboard(); }));
     document.querySelectorAll('.view-btn').forEach(b => b.addEventListener('click', () => { state.view = b.dataset.view; localStorage.setItem('viewMode', state.view); renderDashboard(); }));
-    $('sort-select').addEventListener('change', renderDashboard);
-    $('search-input').addEventListener('input', renderDashboard);
+    $('sort-select').addEventListener('change', renderDashboard);$('search-input').addEventListener('input', renderDashboard);
 
     /* ---------- Thème / profil ---------- */
     $('theme-btn').addEventListener('click', () => {
         const dark = document.documentElement.classList.toggle('dark');
         localStorage.setItem('theme', dark ? 'dark' : 'light');
     });
-    $('profile-btn').addEventListener('click', () => {
-        $('profile-name').textContent = fullName;
+    $('profile-btn').addEventListener('click', () => {$('profile-name').textContent = fullName;
         $('profile-email').textContent = user.email;
         $('profile-initial').textContent = fullName.charAt(0).toUpperCase();
         showModal('profile-modal');
@@ -641,7 +689,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         return null;
     }
-    function containsId(item, id) {            // `id` est-il dans le sous-arbre de `item` ?
+    function containsId(item, id) {
         return (item.children || []).some(c => c.id === id || containsId(c, id));
     }
 
@@ -662,15 +710,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (v === null) return;
             if (v !== p.pwd) return toast('Mot de passe incorrect.', 'error');
         }
-        // Relit la version la plus récente pour ne pas écraser le travail des collaborateurs
         const { data } = await sb.from('projects').select('*').eq('id', id).maybeSingle();
         state.activeProject = data || p;
         if (!Array.isArray(state.activeProject.tree)) state.activeProject.tree = [];
         state.selectedFolderId = null;
         state.expanded.clear();
 
-        $('main-view').classList.add('hidden');
-        $('project-workspace').classList.remove('hidden');
+        $('main-view').classList.add('hidden');$('project-workspace').classList.remove('hidden');
         const collab = hasCollab(state.activeProject) || !isOwner(state.activeProject);
         $('workspace-title').innerHTML = `${esc(state.activeProject.name)} ${collab ? '<i class="fa-solid fa-user-group text-emerald-500 text-xs" title="Collaboratif"></i>' : ''}`;
         const members = collabEntries(state.activeProject).filter(c => c.status === 'accepted').length;
@@ -681,12 +727,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function goHome() {
         state.activeProject = null;
-        $('project-workspace').classList.add('hidden');
-        $('main-view').classList.remove('hidden');
+        $('project-workspace').classList.add('hidden');$('main-view').classList.remove('hidden');
         loadAll();
     }
-    $('back-btn').addEventListener('click', goHome);
-    $('brand').addEventListener('click', goHome);
+    $('back-btn').addEventListener('click', goHome);$('brand').addEventListener('click', goHome);
 
     function updateFolderIndicator() {
         const f = state.selectedFolderId && findItem(tree(), state.selectedFolderId);
@@ -705,22 +749,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         const label = { folder: 'dossier', txt: 'fichier .txt', card: 'carte' }[type];
         const name = (await askPrompt(`Nom du ${label} :`, `Nom du ${label}`))?.trim();
         if (!name) return;
-        const item = { id: 'item_' + Date.now(), type, name, content: type === 'txt' ? '' : '' };
+        const item = { id: 'id_' + Date.now(), type, name, content: type === 'txt' ? '' : '' };
         if (type === 'folder') item.children = [];
         item.isNewDrop = true;
         insertInto(item, state.selectedFolderId);
         saveTree(); renderTree();
     }));
 
-    $('import-btn').addEventListener('click', () => $('tree-file-input').click());
-    $('tree-file-input').addEventListener('change', (e) => { importFiles([...e.target.files], state.selectedFolderId); e.target.value = ''; });
+    $('import-btn').addEventListener('click', () => $('tree-file-input').click());$('tree-file-input').addEventListener('change', (e) => { importFiles([...e.target.files], state.selectedFolderId); e.target.value = ''; });
 
     async function importFiles(files, folderId) {
         const accepted = files.filter(f => /\.(txt|json)$/i.test(f.name));
         if (accepted.length < files.length) toast('Seuls les fichiers .txt et .json sont acceptés.', 'info');
         for (const file of accepted) {
             const content = await file.text();
-            insertInto({ id: 'item_' + Date.now() + Math.random().toString(36).slice(2, 7), type: 'txt', name: file.name, content, isNewDrop: true }, folderId);
+            insertInto({ id: 'id_' + Date.now() + Math.random().toString(36).slice(2, 7), type: 'txt', name: file.name, content, isNewDrop: true }, folderId);
         }
         if (accepted.length) { saveTree(); renderTree(); }
     }
@@ -776,7 +819,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Délégation d'événements pour l'arborescence
     $('tree').addEventListener('click', async (e) => {
         const rm = e.target.closest('[data-remove]');
         if (rm) {
@@ -811,7 +853,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // Glisser-déposer (déplacement interne + import de fichiers)
     const dropOn = 'ring-2 ring-[#5246EE]/40 bg-[#5246EE]/5 dark:ring-green-400/40 dark:bg-green-500/10';
     const clearDrop = (el) => el?.classList.remove(...dropOn.split(' '));
     const tr = $('tree');
@@ -850,7 +891,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         saveTree(); renderTree();
     });
 
-    /* ---------- Export ZIP (vraie arborescence) ---------- */
+    /* ---------- Export ZIP ---------- */
     $('export-btn').addEventListener('click', async () => {
         const p = state.activeProject;
         if (p.pwd) {
@@ -888,4 +929,3 @@ document.addEventListener('DOMContentLoaded', async () => {
 </script>
 </body>
 </html>
-
