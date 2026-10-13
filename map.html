@@ -390,7 +390,7 @@
                 currentCard = findCardInTree(projectData.tree, cardId) || currentCard;
             } else {
                 const { data: cData } = await supabaseClient.from('cards').select('*').eq('id', cardId).single();
-                if (cData) currentCard = cData;
+                if (cData) currentCard = cardFromRow(cData);
             }
 
             if (!currentCard.relationTypes) {
@@ -439,7 +439,7 @@
                 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table, filter: `id=eq.${rowId}` }, payload => {
                     const row = payload.new;
                     if (!row || isDraggingNode || saveTimer) return;
-                    let fresh = row;
+                    let fresh = isProj ? row : cardFromRow(row);
                     if (isProj) {
                         if (!row.tree) return;
                         fresh = findCardInTree(row.tree, cardId);
@@ -448,7 +448,7 @@
                     const prevCollabs = JSON.stringify(getCollabs());
                     const mapChanged = ['nodes', 'links', 'relationTypes'].some(k => JSON.stringify(fresh[k] || []) !== JSON.stringify(currentCard[k] || []));
                     if (isProj) { projectData = { ...projectData, ...row }; currentCard = fresh; }
-                    else { currentCard = { ...currentCard, ...row }; }
+                    else { currentCard = { ...currentCard, ...fresh, collaborators: row.collaborators }; }
                     normalizeCollaborators();
                     const collabChanged = prevCollabs !== JSON.stringify(getCollabs());
                     selectedNodeIds = selectedNodeIds.filter(id => (currentCard.nodes || []).some(n => n.id === id));
@@ -883,23 +883,49 @@
             renderCollaboratorsList();
         }
 
+        // Format d'une carte (identique à un élément « card » de la colonne tree des projets
+        // et à la colonne info (jsonb) de la table cards)
+        function buildCardInfo() {
+            return {
+                id: currentCard.infoId || currentCard.id,
+                name: currentCard.name,
+                type: 'card',
+                links: currentCard.links || [],
+                nodes: currentCard.nodes || [],
+                content: currentCard.content || '',
+                relationTypes: currentCard.relationTypes || []
+            };
+        }
+
+        // Reconstruit une carte exploitable à partir d'une ligne de la table cards (colonne info jsonb)
+        function cardFromRow(row) {
+            let info = row.info;
+            if (typeof info === 'string') { try { info = JSON.parse(info); } catch (e) { info = null; } }
+            info = info || {};
+            const card = { ...row };
+            delete card.info;
+            card.id = row.id;                       // id de la ligne (sert aux UPDATE)
+            if (info.id) card.infoId = info.id;     // id « item_... » conservé pour l'export
+            card.name = info.name || row.name || '';
+            card.type = 'card';
+            card.nodes = Array.isArray(info.nodes) ? info.nodes : [];
+            card.links = Array.isArray(info.links) ? info.links : [];
+            card.content = info.content || '';
+            if (Array.isArray(info.relationTypes)) card.relationTypes = info.relationTypes;
+            else delete card.relationTypes;
+            return card;
+        }
+
         // --- EXPORTATION ET IMPORTATION AU FORMAT .mobius AUTONOME ---
         async function exportMap(format) {
             if (format === 'mobius') {
-                // On exporte l'intégralité du contenu visible sur le tableau blanc, l'inspecteur et la légende
-                const mobiusPayload = {
-                    name: currentCard.name,
-                    nodes: currentCard.nodes || [],
-                    links: currentCard.links || [],
-                    relationTypes: currentCard.relationTypes || [],
-                    exportedAt: new Date().toISOString()
-                };
-
-                const blob = new Blob([JSON.stringify(mobiusPayload, null, 2)], { type: 'application/json' });
+                // Même structure que l'élément carte du tree / de la colonne info
+                const blob = new Blob([JSON.stringify(buildCardInfo(), null, 2)], { type: 'application/json' });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
-                link.download = `${currentCard.name.toLowerCase().replace(/\s+/g, '_')}.mobius`;
+                link.download = `${(currentCard.name || 'carte').toLowerCase().replace(/\s+/g, '_')}.mobius`;
                 link.click();
+                setTimeout(() => URL.revokeObjectURL(link.href), 1000);
                 showToast("Carte exportée au format natif .mobius !");
             } else if (format === 'png') {
                 const canvasEl = document.getElementById('canvas-container');
@@ -914,31 +940,33 @@
         function importMapFromFile(event) {
             const file = event.target.files[0];
             if (!file) return;
+            if (!requireEdit()) { event.target.value = ''; return; }
 
             const reader = new FileReader();
             reader.onload = async function(e) {
                 try {
                     const importedData = JSON.parse(e.target.result);
-                    
-                    if (!importedData.nodes || !importedData.links) {
+
+                    if (!importedData || !Array.isArray(importedData.nodes) || !Array.isArray(importedData.links)) {
                         alert("Le fichier sélectionné ne correspond pas à un format de carte Mobius valide.");
                         return;
                     }
 
-                    // On charge toutes les données embarquées dans la carte active
-                    currentCard.nodes = importedData.nodes || [];
-                    currentCard.links = importedData.links || [];
-                    if (importedData.relationTypes) {
+                    // L'id de la carte courante est conservé (sinon l'arborescence / la ligne cards seraient cassées)
+                    currentCard.nodes = importedData.nodes;
+                    currentCard.links = importedData.links;
+                    currentCard.content = importedData.content || '';
+                    if (Array.isArray(importedData.relationTypes)) {
                         currentCard.relationTypes = importedData.relationTypes;
                     }
                     if (importedData.name) {
                         currentCard.name = importedData.name;
                     }
+                    currentCard.type = 'card';
+                    selectedNodeIds = [];
 
-                    // Sauvegarde dans Supabase (uniquement avec les colonnes existantes de la table cards)
-                    await saveCurrentMapState(true);
-                    
-                    // Rafraîchissement complet de l'interface
+                    await saveCurrentMapState();
+
                     renderCanvasNodes();
                     renderLegendList();
                     renderInspector();
@@ -2053,11 +2081,10 @@
                     if (!error && !warned) { warned = true; showToast("Colonne « collaborators » absente de la table projects."); }
                 }
             } else {
-                // IMPORTANT : La table cards de Supabase ne stocke que les colonnes standard existantes. 
-                // Pour que la carte fonctionne, les données du tableau blanc (.mobius) sont gérées localement ou stockées dans le nom / ou chargées par fichier.
-                // Ici on sauvegarde uniquement le nom et les collaborateurs dans Supabase pour éviter l'erreur de colonne manquante.
+                // Carte autonome : tout le contenu de la carte est stocké dans la colonne info (jsonb)
                 ({ error } = await supabaseClient.from('cards').update({
                     name: currentCard.name,
+                    info: buildCardInfo(),
                     collaborators: currentCard.collaborators
                 }).eq('id', currentCard.id));
             }
@@ -2069,6 +2096,7 @@
                 if (list[i].id === updatedCard.id) {
                     const cardCopy = { ...updatedCard };
                     delete cardCopy.collaborators;
+                    delete cardCopy.infoId;
                     list[i] = { ...list[i], ...cardCopy };
                     return true;
                 }
