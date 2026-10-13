@@ -350,7 +350,6 @@
                 }
             }
 
-            // --- VÉRIFICATION DES INVITATIONS EN ATTENTE ---
            // --- VÉRIFICATION DES INVITATIONS VIA LE JSON ---
             async function checkPendingInvitations() {
                 const section = document.getElementById('invitations-section');
@@ -377,15 +376,16 @@
                     section.classList.remove('hidden');
                     for (let proj of pendingInvites) {
                         const row = document.createElement('div');
-                        row.className = "flex items-center justify-between bg-white dark:bg-gray-900 p-3 rounded-xl border border-amber-200 dark:border-amber-900/50 text-xs";
+                        // Ajout de la classe animate-drop pour l'animation d'apparition fluide
+                        row.className = "flex items-center justify-between bg-white dark:bg-gray-900 p-3 rounded-xl border border-amber-200 dark:border-amber-900/50 text-xs animate-drop";
                         row.innerHTML = `
                             <div>
                                 <span class="font-bold text-gray-800 dark:text-gray-200">${proj.name}</span>
                                 <span class="text-[10px] text-gray-400 block">Invitation reçue</span>
                             </div>
                             <div class="flex items-center gap-2">
-                                <button onclick="acceptInvitationJson('${proj.id}')" class="px-3 py-1.5 bg-[#5246EE] hover:bg-[#4538d8] text-white font-semibold rounded-lg shadow-xs">Accepter</button>
-                                <button onclick="declineInvitationJson('${proj.id}')" class="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-gray-600 dark:text-gray-300 font-semibold rounded-lg">Refuser</button>
+                                <button onclick="acceptInvitationJson('${proj.id}')" class="px-3 py-1.5 bg-[#5246EE] hover:bg-[#4538d8] text-white font-semibold rounded-lg shadow-xs transition-all">Accepter</button>
+                                <button onclick="declineInvitationJson('${proj.id}')" class="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-gray-600 dark:text-gray-300 font-semibold rounded-lg transition-all">Refuser</button>
                             </div>
                         `;
                         container.appendChild(row);
@@ -404,19 +404,18 @@
                     me.status = 'accepted';
                     me.acceptedAt = new Date().toISOString();
                     await supabase.from('projects').update({ collaborators: collabs }).eq('id', projectId);
-                    alert("Invitation acceptée ! Le projet est désormais accessible.");
+                    // Disparition instantanée et rafraîchissement sans popup bloquante
                     loadDashboardData();
                 }
             }
 
             window.declineInvitationJson = async function(projectId) {
-                const confirmed = await showCustomConfirm("Voulez-vous refuser cette invitation ?");
-                if (!confirmed) return;
                 const { data: proj } = await supabase.from('projects').select('collaborators').eq('id', projectId).single();
                 if (!proj) return;
                 let collabs = proj.collaborators || [];
                 collabs = collabs.filter(c => (c.email || '').toLowerCase() !== currentUser.email.toLowerCase());
                 await supabase.from('projects').update({ collaborators: collabs }).eq('id', projectId);
+                // Disparition instantanée et rafraîchissement sans confirmation
                 loadDashboardData();
             }
 
