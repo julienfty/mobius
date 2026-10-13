@@ -732,7 +732,8 @@
             const h = collabHolder();
             h.collaborators = (h.collaborators || [])
                 .map(c => typeof c === 'string' ? { email: c, role: 'editor', status: 'pending' } : c)
-                .filter(c => c && c.email);
+                .filter(c => c && c.email)
+                .map(c => c.role ? c : { ...c, role: 'editor' });   // invité depuis le dashboard sans rôle : « Peut modifier »
         }
         function getOwnerId() { const h = collabHolder(); return h.user_id || h.owner_id || currentCard.user_id || currentCard.owner_id || null; }
         function myEmail() { return (currentUser.email || '').toLowerCase(); }
