@@ -271,18 +271,19 @@
     <script>
         let supabase = null;
         let currentUser = null;
+        let currentTab = 'projects';
+        let viewMode = 'grid';
+        let activeProject = null;
+        let selectedFolderId = null;
+        let collaboratorsListTemp = [];
+        let expandedFolders = new Set();
+        let projectsList = [];
+        let cardsList = [];
 
         document.addEventListener('DOMContentLoaded', async () => {
             const SUPABASE_URL = 'https://nfvnayuqrmlldtixzdpx.supabase.co';
             const SUPABASE_KEY = 'sb_publishable_EwONSAsqSfu8_SocZ7wZBA_rVODWqSF';
             supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-            let currentTab = 'projects';
-            let viewMode = 'grid';
-            let activeProject = null;
-            let selectedFolderId = null;
-            let collaboratorsListTemp = [];
-            let expandedFolders = new Set();
 
             const { data: { session } } = await supabase.auth.getSession();
             if (!session || !session.user) {
@@ -298,737 +299,732 @@
             document.getElementById('nav-user-initial').textContent = fullName.charAt(0).toUpperCase();
 
             loadPendingInvitations();
-
-            window.toggleDarkMode = function() {
-                const isDark = document.documentElement.classList.toggle('dark');
-                localStorage.setItem('theme', isDark ? 'dark' : 'light');
-            }
-
-            window.toggleNotificationsDropdown = function() {
-                document.getElementById('notif-dropdown').classList.toggle('hidden');
-            }
-
-            document.addEventListener('click', (e) => {
-                if (!e.target.closest('#notif-dropdown') && !e.target.closest('[onclick="toggleNotificationsDropdown()"]')) {
-                    document.getElementById('notif-dropdown').classList.add('hidden');
-                }
-            });
-
-            let promptResolve = null;
-            window.showCustomPrompt = function(title, placeholder = '') {
-                return new Promise((resolve) => {
-                    promptResolve = resolve;
-                    document.getElementById('custom-prompt-title').textContent = title;
-                    const input = document.getElementById('custom-prompt-input');
-                    input.value = '';
-                    input.placeholder = placeholder;
-                    document.getElementById('custom-prompt-modal').classList.remove('hidden');
-                    setTimeout(() => input.focus(), 50);
-                });
-            }
-            window.closeCustomPrompt = function(confirmed) {
-                document.getElementById('custom-prompt-modal').classList.add('hidden');
-                const val = document.getElementById('custom-prompt-input').value;
-                if (promptResolve) promptResolve(confirmed ? val : null);
-            }
-
-            let confirmResolve = null;
-            window.showCustomConfirm = function(message) {
-                return new Promise((resolve) => {
-                    confirmResolve = resolve;
-                    document.getElementById('custom-confirm-message').textContent = message;
-                    document.getElementById('custom-confirm-modal').classList.add('hidden');
-                });
-            }
-            window.closeCustomConfirm = function(confirmed) {
-                document.getElementById('custom-confirm-modal').classList.add('hidden');
-                if (confirmResolve) confirmResolve(confirmed);
-            }
-
-            window.switchDashboardTab = function(tab) {
-                currentTab = tab;
-                const btnP = document.getElementById('tab-projects');
-                const btnC = document.getElementById('tab-cards');
-                const createText = document.getElementById('create-btn-text');
-
-                if (tab === 'projects') {
-                    btnP.className = "flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-gray-900 shadow-sm transition-all";
-                    btnC.className = "flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold text-gray-500 dark:text-gray-400 transition-all";
-                    createText.textContent = "Nouveau Projet";
-                } else {
-                    btnC.className = "flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-gray-900 shadow-sm transition-all";
-                    btnP.className = "flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold text-gray-500 dark:text-gray-400 transition-all";
-                    createText.textContent = "Nouvelle Carte Libre";
-                }
-                loadDashboardData();
-            }
-
-            window.setViewMode = function(mode) {
-                viewMode = mode;
-                document.getElementById('btn-view-grid').className = mode === 'grid' ? "w-8 h-8 rounded-lg bg-white dark:bg-gray-900 text-xs shadow-sm flex items-center justify-center transition-all" : "w-8 h-8 rounded-lg text-gray-500 text-xs flex items-center justify-center";
-                document.getElementById('btn-view-list').className = mode === 'list' ? "w-8 h-8 rounded-lg bg-white dark:bg-gray-900 text-xs shadow-sm flex items-center justify-center transition-all" : "w-8 h-8 rounded-lg text-gray-500 text-xs flex items-center justify-center";
-                loadDashboardData();
-            }
-
-            let projectsList = [];
-            let cardsList = [];
-
-            window.loadPendingInvitations = async function() {
-                const userEmail = currentUser.email.toLowerCase();
-                // On interroge la table map_collaborators pour l'e-mail de l'utilisateur connecté
-                const { data: invites, error } = await supabase
-                    .from('map_collaborators')
-                    .select('id, map_id, role, status')
-                    .eq('email', userEmail);
-
-                if (error || !invites) return;
-
-                // Filtrer les invitations en attente (si la colonne status existe ou par défaut)
-                const pendingInvites = invites.filter(i => !i.status || i.status === 'pending');
-                const badge = document.getElementById('notif-badge');
-                const label = document.getElementById('notif-count-label');
-                const list = document.getElementById('notifications-list');
-
-                if (pendingInvites.length > 0) {
-                    badge.textContent = pendingInvites.length;
-                    badge.classList.remove('hidden');
-                    label.textContent = `${pendingInvites.length} en attente`;
-                    list.innerHTML = '';
-
-                    for (let inv of pendingInvites) {
-                        // Récupérer les infos du projet ou de la carte associée
-                        let targetName = 'Projet / Carte';
-                        let isProj = true;
-                        const { data: proj } = await supabase.from('projects').select('name').eq('id', inv.map_id).single();
-                        if (proj) {
-                            targetName = proj.name;
-                        } else {
-                            const { data: card } = await supabase.from('cards').select('name').eq('id', inv.map_id).single();
-                            if (card) { targetName = card.name; isProj = false; }
-                        }
-
-                        const item = document.createElement('div');
-                        item.className = "p-2.5 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 text-xs space-y-2";
-                        item.innerHTML = `
-                            <div class="font-bold text-gray-800 dark:text-gray-200 truncate">Invitation : ${targetName}</div>
-                            <div class="flex items-center justify-end gap-2">
-                                <button onclick="respondInvite('${inv.id}', false)" class="px-2.5 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-[10px] font-semibold">Refuser</button>
-                                <button onclick="respondInvite('${inv.id}', true, '${inv.map_id}', ${isProj})" class="px-2.5 py-1 bg-[#5246EE] text-white rounded-lg text-[10px] font-semibold">Accepter</button>
-                            </div>
-                        `;
-                        list.appendChild(item);
-                    }
-                } else {
-                    badge.classList.add('hidden');
-                    label.textContent = `0 en attente`;
-                    list.innerHTML = `<p class="text-xs text-gray-400 text-center py-4">Aucune invitation en attente.</p>`;
-                }
-            }
-
-            window.respondInvite = async function(inviteId, accept, mapId, isProj) {
-                if (accept) {
-                    // Mettre à jour le statut à 'accepted' dans map_collaborators
-                    await supabase.from('map_collaborators').update({ status: 'accepted', user_id: currentUser.id }).eq('id', inviteId);
-                    alert("Invitation acceptée avec succès !");
-                    document.getElementById('notif-dropdown').classList.add('hidden');
-                    loadPendingInvitations();
-                    loadDashboardData();
-                    if (isProj) {
-                        openProject(mapId);
-                    } else {
-                        window.location.href = `map.html?cardId=${mapId}`;
-                    }
-                } else {
-                    // Supprimer l'invitation si refusée
-                    await supabase.from('map_collaborators').delete().eq('id', inviteId);
-                    alert("Invitation refusée.");
-                    loadPendingInvitations();
-                }
-            }
-
-            window.loadDashboardData = async function() {
-                if (currentTab === 'projects') {
-                    const { data, error } = await supabase.from('projects').select('*');
-                    if (!error) projectsList = data || [];
-                } else {
-                    const { data, error } = await supabase.from('cards').select('*');
-                    if (!error) cardsList = data || [];
-                }
-                renderDashboard();
-
-                const urlParams = new URLSearchParams(window.location.search);
-                const openProjectId = urlParams.get('openProjectId');
-                if (openProjectId && currentTab === 'projects') {
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                    openProject(openProjectId);
-                }
-            }
-
-            window.renderDashboard = function() {
-                const container = document.getElementById('items-grid-container');
-                container.innerHTML = '';
-                const items = currentTab === 'projects' ? projectsList : cardsList;
-                const sortType = document.getElementById('sort-select').value;
-
-                items.sort((a, b) => {
-                    if (sortType === 'alpha') return a.name.localeCompare(b.name);
-                    return new Date(b.created_at) - new Date(a.created_at);
-                });
-
-                if (items.length === 0) {
-                    container.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400 text-xs">Aucun élément pour le moment. Cliquez sur le bouton en haut pour en créer un !</div>`;
-                    return;
-                }
-
-                container.className = viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" : "flex flex-col gap-2";
-
-                items.forEach(item => {
-                    const card = document.createElement('div');
-                    card.className = viewMode === 'grid' 
-                        ? "bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex flex-col justify-between hover:shadow-lg transition-all cursor-pointer relative group"
-                        : "bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 flex items-center justify-between hover:shadow-md transition-all cursor-pointer";
-                    
-                    const clickAction = currentTab === 'projects' ? `openProject('${item.id}')` : `window.location.href='map.html?cardId=${item.id}'`;
-
-                    card.innerHTML = `
-                        <div class="flex items-center gap-3 flex-1" onclick="${clickAction}">
-                            <div class="w-10 h-10 rounded-xl bg-[#5246EE]/10 text-[#5246EE] flex items-center justify-center font-bold">
-                                <i class="fa-solid ${currentTab === 'projects' ? 'fa-folder' : 'fa-note-sticky'}"></i>
-                            </div>
-                            <div>
-                                <h3 class="text-xs font-bold text-gray-900 dark:text-gray-100">${item.name}</h3>
-                                <p class="text-[10px] text-gray-400">Propriétaire: ${item.owner_email === currentUser.email ? 'Vous' : item.owner_email}</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-2 mt-3 sm:mt-0">
-                            ${item.pwd ? '<i class="fa-solid fa-lock text-xs text-amber-500" title="Protégé par mot de passe"></i>' : ''}
-                            <button onclick="deleteItem('${item.id}', '${currentTab}')" class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 flex items-center justify-center text-xs transition-all" title="Corbeille">
-                                <i class="fa-solid fa-trash"></i>
-                            </button>
-                        </div>
-                    `;
-                    container.appendChild(card);
-                });
-            }
-
-            window.deleteItem = async function(id, type) {
-                const list = type === 'projects' ? projectsList : cardsList;
-                const item = list.find(i => i.id === id);
-                if (!item) return;
-
-                if (item.pwd) {
-                    const pwdInput = await showCustomPrompt("Mot de passe requis :", "Entrez le mot de passe");
-                    if (pwdInput !== item.pwd) {
-                        alert("Mot de passe incorrect.");
-                        return;
-                    }
-                }
-
-                if (item.owner_email === currentUser.email) {
-                    const confirmed = await showCustomConfirm("Êtes-vous sûr de vouloir supprimer définitivement cet élément ?");
-                    if (confirmed) {
-                        await supabase.from(type).delete().eq('id', id);
-                        loadDashboardData();
-                    }
-                } else {
-                    const confirmed = await showCustomConfirm("Voulez-vous quitter ce projet/cette carte ?");
-                    if (confirmed) {
-                        await supabase.from(type).delete().eq('id', id);
-                        loadDashboardData();
-                    }
-                }
-            }
-
-            window.openCreateModal = function() {
-                document.getElementById('create-modal').classList.remove('hidden');
-                document.getElementById('create-modal-title').textContent = currentTab === 'projects' ? 'Créer un nouveau projet' : 'Créer une nouvelle carte libre';
-            }
-            window.closeCreateModal = function() {
-                document.getElementById('create-modal').classList.add('hidden');
-            }
-            window.toggleCollabFields = function() {
-                const isChecked = document.getElementById('modal-is-collab').checked;
-                document.getElementById('collab-email-container').classList.toggle('hidden', !isChecked);
-            }
-            window.togglePwdField = function() {
-                const isChecked = document.getElementById('modal-has-pwd').checked;
-                document.getElementById('pwd-field-container').classList.toggle('hidden', !isChecked);
-            }
-
-            window.addCollaborator = async function() {
-                const emailInput = document.getElementById('modal-collab-email');
-                const email = emailInput.value.trim();
-                if (!email) return;
-
-                collaboratorsListTemp.push(email);
-                emailInput.value = '';
-                renderCollabBadges();
-            }
-
-            function renderCollabBadges() {
-                const listContainer = document.getElementById('collaborators-list');
-                listContainer.innerHTML = '';
-                collaboratorsListTemp.forEach(email => {
-                    const badge = document.createElement('span');
-                    badge.className = "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#5246EE]/10 text-[#5246EE] text-[10px] font-semibold";
-                    badge.innerHTML = `${email} <i class="fa-solid fa-xmark cursor-pointer" onclick="removeCollab('${email}')"></i>`;
-                    listContainer.appendChild(badge);
-                });
-            }
-
-            window.removeCollab = function(email) {
-                collaboratorsListTemp = collaboratorsListTemp.filter(e => e !== email);
-                renderCollabBadges();
-            }
-
-            window.confirmCreateItem = async function() {
-                const name = document.getElementById('modal-item-name').value.trim();
-                if (!name) {
-                    alert("Veuillez entrer un nom.");
-                    return;
-                }
-                const hasPwd = document.getElementById('modal-has-pwd').checked;
-                const pwd = hasPwd ? document.getElementById('modal-item-pwd').value : '';
-                const newItemId = 'id_' + Date.now();
-
-                if (currentTab === 'projects') {
-                    const newProj = {
-                        id: newItemId,
-                        name,
-                        owner_email: currentUser.email,
-                        owner_id: currentUser.id,
-                        is_collab: document.getElementById('modal-is-collab').checked,
-                        pwd,
-                        tree: []
-                    };
-                    const { data: createdProj, error } = await supabase.from('projects').insert([newProj]).select().single();
-                    
-                    // Insérer également les collaborateurs dans la table relationnelle map_collaborators
-                    if (!error && createdProj && collaboratorsListTemp.length > 0) {
-                        const collabRows = collaboratorsListTemp.map(email => ({
-                            map_id: createdProj.id,
-                            email: email.toLowerCase(),
-                            role: 'editor',
-                            status: 'pending'
-                        }));
-                        await supabase.from('map_collaborators').insert(collabRows);
-                    }
-                } else {
-                    const newCard = {
-                        id: newItemId,
-                        name,
-                        owner_email: currentUser.email,
-                        owner_id: currentUser.id,
-                        pwd
-                    };
-                    const { data: createdCard, error } = await supabase.from('cards').insert([newCard]).select().single();
-                    if (!error && createdCard && collaboratorsListTemp.length > 0) {
-                        const collabRows = collaboratorsListTemp.map(email => ({
-                            map_id: createdCard.id,
-                            email: email.toLowerCase(),
-                            role: 'editor',
-                            status: 'pending'
-                        }));
-                        await supabase.from('map_collaborators').insert(collabRows);
-                    }
-                }
-
-                collaboratorsListTemp = [];
-                closeCreateModal();
-                loadDashboardData();
-            }
-
-            window.openProject = async function(id) {
-                activeProject = projectsList.find(p => p.id === id);
-                if (!activeProject) return;
-
-                if (activeProject.pwd && activeProject.owner_email !== currentUser.email) {
-                    const p = await showCustomPrompt("Ce projet est protégé. Entrez le mot de passe :", "Mot de passe");
-                    if (p !== activeProject.pwd) {
-                        alert("Mot de passe incorrect.");
-                        return;
-                    }
-                }
-
-                selectedFolderId = null;
-                expandedFolders.clear();
-                document.getElementById('main-view-container').classList.add('hidden');
-                document.getElementById('project-workspace').classList.remove('hidden');
-                document.getElementById('workspace-title').textContent = activeProject.name;
-                updateFolderIndicator();
-                renderArborescence();
-            }
-
-            window.goHome = function() {
-                document.getElementById('project-workspace').classList.add('hidden');
-                document.getElementById('main-view-container').classList.remove('hidden');
-                loadDashboardData();
-            }
-
-            async function saveProjectTreeToSupabase() {
-                await supabase.from('projects').update({ tree: activeProject.tree }).eq('id', activeProject.id);
-            }
-
-            window.selectFolder = function(id, event) {
-                event.stopPropagation();
-                if (selectedFolderId === id) {
-                    selectedFolderId = null;
-                    expandedFolders.delete(id);
-                } else {
-                    selectedFolderId = id;
-                    expandedFolders.add(id);
-                }
-                updateFolderIndicator();
-                renderArborescence();
-            }
-
-            function updateFolderIndicator() {
-                const ind = document.getElementById('selected-folder-indicator');
-                if (!selectedFolderId) {
-                    ind.textContent = "📁 Destination : Racine du projet";
-                } else {
-                    const folder = findItemRecursive(activeProject.tree, selectedFolderId);
-                    ind.textContent = `📁 Destination : Dossier [ ${folder ? folder.name : ''} ]`;
-                }
-            }
-
-            window.createInSelected = async function(type) {
-                const typeName = type === 'folder' ? 'dossier' : type === 'txt' ? 'fichier .txt' : 'carte';
-                const name = await showCustomPrompt(`Nom du ${typeName} :`, `Nom du ${typeName}`);
-                if (!name) return;
-
-                const newItem = {
-                    id: 'item_' + Date.now(),
-                    type,
-                    name,
-                    content: type === 'txt' ? 'Nouveau fichier texte...' : '',
-                    children: type === 'folder' ? [] : undefined
-                };
-
-                if (!selectedFolderId) {
-                    activeProject.tree.push(newItem);
-                } else {
-                    addItemRecursive(activeProject.tree, selectedFolderId, newItem);
-                    expandFolderRecursive(activeProject.tree, selectedFolderId);
-                }
-                saveProjectTreeToSupabase();
-                renderArborescence();
-            }
-
-            window.triggerFileImport = function() {
-                document.getElementById('tree-file-input').click();
-            }
-
-            window.handleFileImport = function(e) {
-                const files = e.target.files;
-                if (!files || files.length === 0) return;
-                processUploadedFiles(Array.from(files), selectedFolderId);
-                e.target.value = '';
-            }
-
-            function processUploadedFiles(files, targetFolderId) {
-                let pending = files.length;
-                files.forEach(file => {
-                    const reader = new FileReader();
-                    reader.onload = function(event) {
-                        const newItem = {
-                            id: 'item_' + Date.now() + Math.random().toString(36).substr(2, 5),
-                            type: 'txt',
-                            name: file.name,
-                            content: event.target.result,
-                            isNewDrop: true
-                        };
-
-                        if (!targetFolderId) {
-                            activeProject.tree.push(newItem);
-                        } else {
-                            addItemRecursive(activeProject.tree, targetFolderId, newItem);
-                            expandFolderRecursive(activeProject.tree, targetFolderId);
-                        }
-
-                        pending--;
-                        if (pending === 0) {
-                            saveProjectTreeToSupabase();
-                            renderArborescence();
-                        }
-                    };
-                    reader.readAsText(file);
-                });
-            }
-
-            function addItemRecursive(list, parentId, newItem) {
-                for (let item of list) {
-                    if (item.id === parentId && item.type === 'folder') {
-                        if (!item.children) item.children = [];
-                        item.children.push(newItem);
-                        return true;
-                    }
-                    if (item.children && item.children.length > 0) {
-                        if (addItemRecursive(item.children, parentId, newItem)) return true;
-                    }
-                }
-                return false;
-            }
-
-            function findItemRecursive(list, id) {
-                for (let item of list) {
-                    if (item.id === id) return item;
-                    if (item.children) {
-                        const found = findItemRecursive(item.children, id);
-                        if (found) return found;
-                    }
-                }
-                return null;
-            }
-
-            window.toggleFolder = function(id, event) {
-                event.stopPropagation();
-                if (expandedFolders.has(id)) {
-                    expandedFolders.delete(id);
-                } else {
-                    expandedFolders.add(id);
-                }
-                renderArborescence();
-            }
-
-            function expandFolderRecursive(list, id) {
-                for (let item of list) {
-                    if (item.id === id) {
-                        expandedFolders.add(id);
-                        return true;
-                    }
-                    if (item.children) {
-                        if (expandFolderRecursive(item.children, id)) return true;
-                    }
-                }
-                return false;
-            }
-
-            window.removeTreeItem = async function(id, event) {
-                event.stopPropagation();
-                const confirmed = await showCustomConfirm("Voulez-vous vraiment supprimer cet élément de l'arborescence ?");
-                if (!confirmed) return;
-
-                if (selectedFolderId === id) selectedFolderId = null;
-                activeProject.tree = removeTreeRecursive(activeProject.tree, id);
-                saveProjectTreeToSupabase();
-                updateFolderIndicator();
-                renderArborescence();
-            }
-
-            function removeTreeRecursive(list, id) {
-                return list.filter(item => {
-                    if (item.id === id) return false;
-                    if (item.children) {
-                        item.children = removeTreeRecursive(item.children, id);
-                    }
-                    return true;
-                });
-            }
-
-            let draggedItemId = null;
-
-            window.dragStart = function(e, id) {
-                e.stopPropagation();
-                draggedItemId = id;
-                e.dataTransfer.effectAllowed = 'move';
-            }
-
-            window.allowDrop = function(e) {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-                const isDark = document.documentElement.classList.contains('dark');
-                if (isDark) {
-                    e.currentTarget.classList.add('bg-green-500/20', 'border-green-400', 'ring-2', 'ring-green-400/30');
-                } else {
-                    e.currentTarget.classList.add('bg-[#5246EE]/10', 'border-[#5246EE]', 'ring-2', 'ring-[#5246EE]/20');
-                }
-            }
-
-            window.dragLeaveRoot = function(e) {
-                e.currentTarget.classList.remove('bg-[#5246EE]/10', 'border-[#5246EE]', 'ring-2', 'ring-[#5246EE]/20', 'bg-emerald-500/15', 'border-emerald-500', 'ring-emerald-500/20');
-            }
-
-            window.dragLeaveFolder = function(e) {
-                e.currentTarget.classList.remove('bg-[#5246EE]/15', 'border-[#5246EE]', 'bg-emerald-500/15', 'border-emerald-500');
-            }
-
-            window.dropToFolder = function(e, targetFolderId) {
-                e.preventDefault();
-                e.stopPropagation();
-                e.currentTarget.classList.remove('bg-[#5246EE]/15', 'border-[#5246EE]', 'bg-emerald-500/15', 'border-emerald-500');
-
-                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                    processUploadedFiles(Array.from(e.dataTransfer.files), targetFolderId);
-                    return;
-                }
-
-                if (!draggedItemId || draggedItemId === targetFolderId) return;
-
-                if (isDescendant(activeProject.tree, draggedItemId, targetFolderId)) {
-                    alert("Impossible de déplacer un dossier à l'intérieur de lui-même !");
-                    return;
-                }
-
-                const itemToMove = extractTreeItem(activeProject.tree, draggedItemId);
-                if (itemToMove) {
-                    const targetFolder = findItemRecursive(activeProject.tree, targetFolderId);
-                    if (targetFolder) {
-                        if (!targetFolder.children) targetFolder.children = [];
-                        targetFolder.children.push(itemToMove);
-                        expandedFolders.add(targetFolderId);
-                    }
-                }
-                draggedItemId = null;
-                saveProjectTreeToSupabase();
-                renderArborescence();
-            }
-
-            window.dropToRoot = function(e) {
-                e.preventDefault();
-                e.currentTarget.classList.remove('bg-[#5246EE]/10', 'border-[#5246EE]', 'ring-2', 'ring-[#5246EE]/20', 'bg-emerald-500/15', 'border-emerald-500', 'ring-emerald-500/20');
-
-                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                    processUploadedFiles(Array.from(e.dataTransfer.files), null);
-                    return;
-                }
-
-                if (!draggedItemId) return;
-
-                const itemToMove = extractTreeItem(activeProject.tree, draggedItemId);
-                if (itemToMove) {
-                    activeProject.tree.push(itemToMove);
-                }
-                draggedItemId = null;
-                saveProjectTreeToSupabase();
-                renderArborescence();
-            }
-
-            function extractTreeItem(list, id) {
-                for (let i = 0; i < list.length; i++) {
-                    if (list[i].id === id) {
-                        return list.splice(i, 1)[0];
-                    }
-                    if (list[i].children) {
-                        const found = extractTreeItem(list[i].children, id);
-                        if (found) return found;
-                    }
-                }
-                return null;
-            }
-
-            function isDescendant(list, parentId, targetId) {
-                const parent = findItemRecursive(list, parentId);
-                if (!parent || !parent.children) return false;
-                for (let child of parent.children) {
-                    if (child.id === targetId) return true;
-                    if (child.children && isDescendant(child.children, child.id, targetId)) return true;
-                }
-                return false;
-            }
-
-            function renderArborescence() {
-                const treeContainer = document.getElementById('arborescence-tree');
-                treeContainer.innerHTML = '';
-                if (!activeProject.tree || activeProject.tree.length === 0) {
-                    treeContainer.innerHTML = `<div class="text-center py-12 text-gray-400 text-xs">Arborescence vide. Sélectionnez la racine ou un dossier puis utilisez les boutons ci-dessus (ou glissez-déposez un fichier .txt depuis votre Finder ici).</div>`;
-                    return;
-                }
-                renderTreeLevel(activeProject.tree, treeContainer);
-            }
-
-            function renderTreeLevel(items, container) {
-                items.forEach(item => {
-                    const el = document.createElement('div');
-                    el.className = `space-y-1 ${item.isNewDrop ? 'animate-drop' : ''}`;
-                    if (item.isNewDrop) delete item.isNewDrop;
-
-                    el.setAttribute('draggable', 'true');
-                    el.addEventListener('dragstart', (e) => dragStart(e, item.id));
-
-                    if (item.type === 'folder') {
-                        const isSelected = selectedFolderId === item.id;
-                        const isExpanded = expandedFolders.has(item.id);
-
-                        el.innerHTML = `
-                            <div draggable="true" ondragover="allowDrop(event)" ondragleave="dragLeaveFolder(event)" ondrop="dropToFolder(event, '${item.id}')" 
-                                class="flex items-center justify-between p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${isSelected ? 'bg-[#5246EE]/10 border-[#5246EE] text-[#5246EE] font-semibold' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'}"
-                                onclick="selectFolder('${item.id}', event)">
-                                <div class="flex items-center gap-2.5 flex-1">
-                                    <i class="fa-solid fa-chevron-right text-[10px] text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}" onclick="toggleFolder('${item.id}', event)"></i>
-                                    <i class="fa-solid fa-folder text-[#5246EE]"></i>
-                                    <span>${item.name}</span>
-                                </div>
-                                <button onclick="removeTreeItem('${item.id}', event)" class="text-red-500 hover:text-red-700 px-2" title="Supprimer"><i class="fa-solid fa-xmark"></i></button>
-                            </div>
-                            <div id="folder-content-${item.id}" class="pl-6 space-y-1 ${isExpanded ? '' : 'hidden'} mt-1 border-l-2 border-gray-100 dark:border-gray-800"></div>
-                        `;
-                        container.appendChild(el);
-                        if (item.children && item.children.length > 0) {
-                            renderTreeLevel(item.children, document.getElementById(`folder-content-${item.id}`));
-                        }
-                    } else {
-                        const icon = item.type === 'txt' ? 'fa-file-lines text-emerald-500' : 'fa-note-sticky text-indigo-500';
-                        const clickAction = item.type === 'card' 
-                            ? `window.location.href='map.html?cardId=${item.id}'` 
-                            : `window.location.href='editor.html?projectId=${activeProject.id}&fileId=${item.id}'`;
-                        
-                        el.innerHTML = `
-                            <div draggable="true" class="flex items-center justify-between p-2.5 bg-gray-50/60 dark:bg-gray-800/60 rounded-xl border border-gray-200/60 dark:border-gray-700/60 text-xs hover:bg-gray-100 dark:hover:bg-gray-800 transition-all cursor-pointer" onclick="${clickAction}">
-                                <div class="flex items-center gap-2.5 flex-1">
-                                    <i class="fa-solid ${icon}"></i>
-                                    <span class="font-medium">${item.name}</span>
-                                    ${item.type === 'card' ? '<span class="text-[9px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-semibold">Carte</span>' : ''}
-                                </div>
-                                <button onclick="removeTreeItem('${item.id}', event)" class="text-red-500 hover:text-red-700 px-2"><i class="fa-solid fa-xmark"></i></button>
-                            </div>
-                        `;
-                        container.appendChild(el);
-                    }
-                });
-            }
-
-            window.openExportModal = async function() {
-                if (activeProject.pwd) {
-                    const p = await showCustomPrompt("Entrez le mot de passe pour télécharger ce projet sécurisé :", "Mot de passe");
-                    if (p !== activeProject.pwd) {
-                        alert("Mot de passe incorrect.");
-                        return;
-                    }
-                }
-
-                const zip = new JSZip();
-                const projectData = {
-                    ...activeProject,
-                    host_approval_required: true,
-                    exported_at: new Date().toISOString()
-                };
-
-                zip.file("project_manifest.json", JSON.stringify(projectData, null, 2));
-                const contentBlob = await zip.generateAsync({ type: "blob" });
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(contentBlob);
-                link.download = `${activeProject.name.toLowerCase().replace(/\s+/g, '_')}_mobius.zip`;
-                link.click();
-            }
-
-            window.openProfileModal = function() {
-                document.getElementById('profile-modal').classList.remove('hidden');
-                document.getElementById('profile-modal-name').textContent = fullName;
-                document.getElementById('profile-modal-email').textContent = currentUser.email;
-                document.getElementById('profile-modal-initial').textContent = fullName.charAt(0).toUpperCase();
-            }
-            window.closeProfileModal = function() {
-                document.getElementById('profile-modal').classList.add('hidden');
-            }
-
-            window.logout = async function() {
-                await supabase.auth.signOut();
-                window.location.href = 'index.html';
-            }
-
             loadDashboardData();
         });
+
+        window.toggleDarkMode = function() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        }
+
+        window.toggleNotificationsDropdown = function() {
+            document.getElementById('notif-dropdown').classList.toggle('hidden');
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#notif-dropdown') && !e.target.closest('[onclick="toggleNotificationsDropdown()"]')) {
+                document.getElementById('notif-dropdown').classList.add('hidden');
+            }
+        });
+
+        let promptResolve = null;
+        window.showCustomPrompt = function(title, placeholder = '') {
+            return new Promise((resolve) => {
+                promptResolve = resolve;
+                document.getElementById('custom-prompt-title').textContent = title;
+                const input = document.getElementById('custom-prompt-input');
+                input.value = '';
+                input.placeholder = placeholder;
+                document.getElementById('custom-prompt-modal').classList.remove('hidden');
+                setTimeout(() => input.focus(), 50);
+            });
+        }
+        window.closeCustomPrompt = function(confirmed) {
+            document.getElementById('custom-prompt-modal').classList.add('hidden');
+            const val = document.getElementById('custom-prompt-input').value;
+            if (promptResolve) promptResolve(confirmed ? val : null);
+        }
+
+        let confirmResolve = null;
+        window.showCustomConfirm = function(message) {
+            return new Promise((resolve) => {
+                confirmResolve = resolve;
+                document.getElementById('custom-confirm-message').textContent = message;
+                document.getElementById('custom-confirm-modal').classList.remove('hidden');
+            });
+        }
+        window.closeCustomConfirm = function(confirmed) {
+            document.getElementById('custom-confirm-modal').classList.add('hidden');
+            if (confirmResolve) confirmResolve(confirmed);
+        }
+
+        window.switchDashboardTab = function(tab) {
+            currentTab = tab;
+            const btnP = document.getElementById('tab-projects');
+            const btnC = document.getElementById('tab-cards');
+            const createText = document.getElementById('create-btn-text');
+
+            if (tab === 'projects') {
+                btnP.className = "flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-gray-900 shadow-sm transition-all";
+                btnC.className = "flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold text-gray-500 dark:text-gray-400 transition-all";
+                createText.textContent = "Nouveau Projet";
+            } else {
+                btnC.className = "flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-gray-900 shadow-sm transition-all";
+                btnP.className = "flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold text-gray-500 dark:text-gray-400 transition-all";
+                createText.textContent = "Nouvelle Carte Libre";
+            }
+            loadDashboardData();
+        }
+
+        window.setViewMode = function(mode) {
+            viewMode = mode;
+            document.getElementById('btn-view-grid').className = mode === 'grid' ? "w-8 h-8 rounded-lg bg-white dark:bg-gray-900 text-xs shadow-sm flex items-center justify-center transition-all" : "w-8 h-8 rounded-lg text-gray-500 text-xs flex items-center justify-center";
+            document.getElementById('btn-view-list').className = mode === 'list' ? "w-8 h-8 rounded-lg bg-white dark:bg-gray-900 text-xs shadow-sm flex items-center justify-center transition-all" : "w-8 h-8 rounded-lg text-gray-500 text-xs flex items-center justify-center";
+            loadDashboardData();
+        }
+
+        window.loadPendingInvitations = async function() {
+            if (!currentUser) return;
+            const userEmail = currentUser.email.toLowerCase();
+            const { data: invites, error } = await supabase
+                .from('map_collaborators')
+                .select('id, map_id, role, status')
+                .eq('email', userEmail);
+
+            if (error || !invites) return;
+
+            const pendingInvites = invites.filter(i => !i.status || i.status === 'pending');
+            const badge = document.getElementById('notif-badge');
+            const label = document.getElementById('notif-count-label');
+            const list = document.getElementById('notifications-list');
+
+            if (pendingInvites.length > 0) {
+                badge.textContent = pendingInvites.length;
+                badge.classList.remove('hidden');
+                label.textContent = `${pendingInvites.length} en attente`;
+                list.innerHTML = '';
+
+                for (let inv of pendingInvites) {
+                    let targetName = 'Projet / Carte';
+                    let isProj = true;
+                    const { data: proj } = await supabase.from('projects').select('name').eq('id', inv.map_id).single();
+                    if (proj) {
+                        targetName = proj.name;
+                    } else {
+                        const { data: card } = await supabase.from('cards').select('name').eq('id', inv.map_id).single();
+                        if (card) { targetName = card.name; isProj = false; }
+                    }
+
+                    const item = document.createElement('div');
+                    item.className = "p-2.5 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 text-xs space-y-2";
+                    item.innerHTML = `
+                        <div class="font-bold text-gray-800 dark:text-gray-200 truncate">Invitation : ${targetName}</div>
+                        <div class="flex items-center justify-end gap-2">
+                            <button onclick="respondInvite('${inv.id}', false)" class="px-2.5 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-[10px] font-semibold">Refuser</button>
+                            <button onclick="respondInvite('${inv.id}', true, '${inv.map_id}', ${isProj})" class="px-2.5 py-1 bg-[#5246EE] text-white rounded-lg text-[10px] font-semibold">Accepter</button>
+                        </div>
+                    `;
+                    list.appendChild(item);
+                }
+            } else {
+                badge.classList.add('hidden');
+                label.textContent = `0 en attente`;
+                list.innerHTML = `<p class="text-xs text-gray-400 text-center py-4">Aucune invitation en attente.</p>`;
+            }
+        }
+
+        window.respondInvite = async function(inviteId, accept, mapId, isProj) {
+            if (accept) {
+                await supabase.from('map_collaborators').update({ status: 'accepted', user_id: currentUser.id }).eq('id', inviteId);
+                alert("Invitation acceptée avec succès !");
+                document.getElementById('notif-dropdown').classList.add('hidden');
+                loadPendingInvitations();
+                loadDashboardData();
+                if (isProj) {
+                    openProject(mapId);
+                } else {
+                    window.location.href = `map.html?cardId=${mapId}`;
+                }
+            } else {
+                await supabase.from('map_collaborators').delete().eq('id', inviteId);
+                alert("Invitation refusée.");
+                loadPendingInvitations();
+            }
+        }
+
+        window.loadDashboardData = async function() {
+            if (!currentUser) return;
+            if (currentTab === 'projects') {
+                const { data, error } = await supabase.from('projects').select('*');
+                if (!error) projectsList = data || [];
+            } else {
+                const { data, error } = await supabase.from('cards').select('*');
+                if (!error) cardsList = data || [];
+            }
+            renderDashboard();
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const openProjectId = urlParams.get('openProjectId');
+            if (openProjectId && currentTab === 'projects') {
+                window.history.replaceState({}, document.title, window.location.pathname);
+                openProject(openProjectId);
+            }
+        }
+
+        window.renderDashboard = function() {
+            const container = document.getElementById('items-grid-container');
+            container.innerHTML = '';
+            const items = currentTab === 'projects' ? projectsList : cardsList;
+            const sortType = document.getElementById('sort-select').value;
+
+            items.sort((a, b) => {
+                if (sortType === 'alpha') return a.name.localeCompare(b.name);
+                return new Date(b.created_at) - new Date(a.created_at);
+            });
+
+            if (items.length === 0) {
+                container.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400 text-xs">Aucun élément pour le moment. Cliquez sur le bouton en haut pour en créer un !</div>`;
+                return;
+            }
+
+            container.className = viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" : "flex flex-col gap-2";
+
+            items.forEach(item => {
+                const card = document.createElement('div');
+                card.className = viewMode === 'grid' 
+                    ? "bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex flex-col justify-between hover:shadow-lg transition-all cursor-pointer relative group"
+                    : "bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 flex items-center justify-between hover:shadow-md transition-all cursor-pointer";
+                
+                const clickAction = currentTab === 'projects' ? `openProject('${item.id}')` : `window.location.href='map.html?cardId=${item.id}'`;
+
+                card.innerHTML = `
+                    <div class="flex items-center gap-3 flex-1" onclick="${clickAction}">
+                        <div class="w-10 h-10 rounded-xl bg-[#5246EE]/10 text-[#5246EE] flex items-center justify-center font-bold">
+                            <i class="fa-solid ${currentTab === 'projects' ? 'fa-folder' : 'fa-note-sticky'}"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xs font-bold text-gray-900 dark:text-gray-100">${item.name}</h3>
+                            <p class="text-[10px] text-gray-400">Propriétaire: ${item.owner_email === currentUser.email ? 'Vous' : item.owner_email}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 mt-3 sm:mt-0">
+                        ${item.pwd ? '<i class="fa-solid fa-lock text-xs text-amber-500" title="Protégé par mot de passe"></i>' : ''}
+                        <button onclick="deleteItem('${item.id}', '${currentTab}')" class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 flex items-center justify-center text-xs transition-all" title="Corbeille">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        window.deleteItem = async function(id, type) {
+            const list = type === 'projects' ? projectsList : cardsList;
+            const item = list.find(i => i.id === id);
+            if (!item) return;
+
+            if (item.pwd) {
+                const pwdInput = await showCustomPrompt("Mot de passe requis :", "Entrez le mot de passe");
+                if (pwdInput !== item.pwd) {
+                    alert("Mot de passe incorrect.");
+                    return;
+                }
+            }
+
+            if (item.owner_email === currentUser.email) {
+                const confirmed = await showCustomConfirm("Êtes-vous sûr de vouloir supprimer définitivement cet élément ?");
+                if (confirmed) {
+                    await supabase.from(type).delete().eq('id', id);
+                    loadDashboardData();
+                }
+            } else {
+                const confirmed = await showCustomConfirm("Voulez-vous quitter ce projet/cette carte ?");
+                if (confirmed) {
+                    await supabase.from(type).delete().eq('id', id);
+                    loadDashboardData();
+                }
+            }
+        }
+
+        window.openCreateModal = function() {
+            document.getElementById('create-modal').classList.remove('hidden');
+            document.getElementById('create-modal-title').textContent = currentTab === 'projects' ? 'Créer un nouveau projet' : 'Créer une nouvelle carte libre';
+        }
+        window.closeCreateModal = function() {
+            document.getElementById('create-modal').classList.add('hidden');
+        }
+        window.toggleCollabFields = function() {
+            const isChecked = document.getElementById('modal-is-collab').checked;
+            document.getElementById('collab-email-container').classList.toggle('hidden', !isChecked);
+        }
+        window.togglePwdField = function() {
+            const isChecked = document.getElementById('modal-has-pwd').checked;
+            document.getElementById('pwd-field-container').classList.toggle('hidden', !isChecked);
+        }
+
+        window.addCollaborator = async function() {
+            const emailInput = document.getElementById('modal-collab-email');
+            const email = emailInput.value.trim();
+            if (!email) return;
+
+            collaboratorsListTemp.push(email);
+            emailInput.value = '';
+            renderCollabBadges();
+        }
+
+        function renderCollabBadges() {
+            const listContainer = document.getElementById('collaborators-list');
+            listContainer.innerHTML = '';
+            collaboratorsListTemp.forEach(email => {
+                const badge = document.createElement('span');
+                badge.className = "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#5246EE]/10 text-[#5246EE] text-[10px] font-semibold";
+                badge.innerHTML = `${email} <i class="fa-solid fa-xmark cursor-pointer" onclick="removeCollab('${email}')"></i>`;
+                listContainer.appendChild(badge);
+            });
+        }
+
+        window.removeCollab = function(email) {
+            collaboratorsListTemp = collaboratorsListTemp.filter(e => e !== email);
+            renderCollabBadges();
+        }
+
+        window.confirmCreateItem = async function() {
+            const name = document.getElementById('modal-item-name').value.trim();
+            if (!name) {
+                alert("Veuillez entrer un nom.");
+                return;
+            }
+            const hasPwd = document.getElementById('modal-has-pwd').checked;
+            const pwd = hasPwd ? document.getElementById('modal-item-pwd').value : '';
+            const newItemId = 'id_' + Date.now();
+
+            if (currentTab === 'projects') {
+                const newProj = {
+                    id: newItemId,
+                    name,
+                    owner_email: currentUser.email,
+                    owner_id: currentUser.id,
+                    is_collab: document.getElementById('modal-is-collab').checked,
+                    pwd,
+                    tree: []
+                };
+                const { data: createdProj, error } = await supabase.from('projects').insert([newProj]).select().single();
+                
+                if (!error && createdProj && collaboratorsListTemp.length > 0) {
+                    const collabRows = collaboratorsListTemp.map(email => ({
+                        map_id: createdProj.id,
+                        email: email.toLowerCase(),
+                        role: 'editor',
+                        status: 'pending'
+                    }));
+                    await supabase.from('map_collaborators').insert(collabRows);
+                }
+            } else {
+                const newCard = {
+                    id: newItemId,
+                    name,
+                    owner_email: currentUser.email,
+                    owner_id: currentUser.id,
+                    pwd
+                };
+                const { data: createdCard, error } = await supabase.from('cards').insert([newCard]).select().single();
+                if (!error && createdCard && collaboratorsListTemp.length > 0) {
+                    const collabRows = collaboratorsListTemp.map(email => ({
+                        map_id: createdCard.id,
+                        email: email.toLowerCase(),
+                        role: 'editor',
+                        status: 'pending'
+                    }));
+                    await supabase.from('map_collaborators').insert(collabRows);
+                }
+            }
+
+            collaboratorsListTemp = [];
+            closeCreateModal();
+            loadDashboardData();
+        }
+
+        window.openProject = async function(id) {
+            activeProject = projectsList.find(p => p.id === id);
+            if (!activeProject) return;
+
+            if (activeProject.pwd && activeProject.owner_email !== currentUser.email) {
+                const p = await showCustomPrompt("Ce projet est protégé. Entrez le mot de passe :", "Mot de passe");
+                if (p !== activeProject.pwd) {
+                    alert("Mot de passe incorrect.");
+                    return;
+                }
+            }
+
+            selectedFolderId = null;
+            expandedFolders.clear();
+            document.getElementById('main-view-container').classList.add('hidden');
+            document.getElementById('project-workspace').classList.remove('hidden');
+            document.getElementById('workspace-title').textContent = activeProject.name;
+            updateFolderIndicator();
+            renderArborescence();
+        }
+
+        window.goHome = function() {
+            document.getElementById('project-workspace').classList.add('hidden');
+            document.getElementById('main-view-container').classList.remove('hidden');
+            loadDashboardData();
+        }
+
+        async function saveProjectTreeToSupabase() {
+            await supabase.from('projects').update({ tree: activeProject.tree }).eq('id', activeProject.id);
+        }
+
+        window.selectFolder = function(id, event) {
+            event.stopPropagation();
+            if (selectedFolderId === id) {
+                selectedFolderId = null;
+                expandedFolders.delete(id);
+            } else {
+                selectedFolderId = id;
+                expandedFolders.add(id);
+            }
+            updateFolderIndicator();
+            renderArborescence();
+        }
+
+        function updateFolderIndicator() {
+            const ind = document.getElementById('selected-folder-indicator');
+            if (!selectedFolderId) {
+                ind.textContent = "📁 Destination : Racine du projet";
+            } else {
+                const folder = findItemRecursive(activeProject.tree, selectedFolderId);
+                ind.textContent = `📁 Destination : Dossier [ ${folder ? folder.name : ''} ]`;
+            }
+        }
+
+        window.createInSelected = async function(type) {
+            const typeName = type === 'folder' ? 'dossier' : type === 'txt' ? 'fichier .txt' : 'carte';
+            const name = await showCustomPrompt(`Nom du ${typeName} :`, `Nom du ${typeName}`);
+            if (!name) return;
+
+            const newItem = {
+                id: 'item_' + Date.now(),
+                type,
+                name,
+                content: type === 'txt' ? 'Nouveau fichier texte...' : '',
+                children: type === 'folder' ? [] : undefined
+            };
+
+            if (!selectedFolderId) {
+                activeProject.tree.push(newItem);
+            } else {
+                addItemRecursive(activeProject.tree, selectedFolderId, newItem);
+                expandFolderRecursive(activeProject.tree, selectedFolderId);
+            }
+            saveProjectTreeToSupabase();
+            renderArborescence();
+        }
+
+        window.triggerFileImport = function() {
+            document.getElementById('tree-file-input').click();
+        }
+
+        window.handleFileImport = function(e) {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+            processUploadedFiles(Array.from(files), selectedFolderId);
+            e.target.value = '';
+        }
+
+        function processUploadedFiles(files, targetFolderId) {
+            let pending = files.length;
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const newItem = {
+                        id: 'item_' + Date.now() + Math.random().toString(36).substr(2, 5),
+                        type: 'txt',
+                        name: file.name,
+                        content: event.target.result,
+                        isNewDrop: true
+                    };
+
+                    if (!targetFolderId) {
+                        activeProject.tree.push(newItem);
+                    } else {
+                        addItemRecursive(activeProject.tree, targetFolderId, newItem);
+                        expandFolderRecursive(activeProject.tree, targetFolderId);
+                    }
+
+                    pending--;
+                    if (pending === 0) {
+                        saveProjectTreeToSupabase();
+                        renderArborescence();
+                    }
+                };
+                reader.readAsText(file);
+            });
+        }
+
+        function addItemRecursive(list, parentId, newItem) {
+            for (let item of list) {
+                if (item.id === parentId && item.type === 'folder') {
+                    if (!item.children) item.children = [];
+                    item.children.push(newItem);
+                    return true;
+                }
+                if (item.children && item.children.length > 0) {
+                    if (addItemRecursive(item.children, parentId, newItem)) return true;
+                }
+            }
+            return false;
+        }
+
+        function findItemRecursive(list, id) {
+            for (let item of list) {
+                if (item.id === id) return item;
+                if (item.children) {
+                    const found = findItemRecursive(item.children, id);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
+        window.toggleFolder = function(id, event) {
+            event.stopPropagation();
+            if (expandedFolders.has(id)) {
+                expandedFolders.delete(id);
+            } else {
+                expandedFolders.add(id);
+            }
+            renderArborescence();
+        }
+
+        function expandFolderRecursive(list, id) {
+            for (let item of list) {
+                if (item.id === id) {
+                    expandedFolders.add(id);
+                    return true;
+                }
+                if (item.children) {
+                    if (expandFolderRecursive(item.children, id)) return true;
+                }
+            }
+            return false;
+        }
+
+        window.removeTreeItem = async function(id, event) {
+            event.stopPropagation();
+            const confirmed = await showCustomConfirm("Voulez-vous vraiment supprimer cet élément de l'arborescence ?");
+            if (!confirmed) return;
+
+            if (selectedFolderId === id) selectedFolderId = null;
+            activeProject.tree = removeTreeRecursive(activeProject.tree, id);
+            saveProjectTreeToSupabase();
+            updateFolderIndicator();
+            renderArborescence();
+        }
+
+        function removeTreeRecursive(list, id) {
+            return list.filter(item => {
+                if (item.id === id) return false;
+                if (item.children) {
+                    item.children = removeTreeRecursive(item.children, id);
+                }
+                return true;
+            });
+        }
+
+        let draggedItemId = null;
+
+        window.dragStart = function(e, id) {
+            e.stopPropagation();
+            draggedItemId = id;
+            e.dataTransfer.effectAllowed = 'move';
+        }
+
+        window.allowDrop = function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const isDark = document.documentElement.classList.contains('dark');
+            if (isDark) {
+                e.currentTarget.classList.add('bg-green-500/20', 'border-green-400', 'ring-2', 'ring-green-400/30');
+            } else {
+                e.currentTarget.classList.add('bg-[#5246EE]/10', 'border-[#5246EE]', 'ring-2', 'ring-[#5246EE]/20');
+            }
+        }
+
+        window.dragLeaveRoot = function(e) {
+            e.currentTarget.classList.remove('bg-[#5246EE]/10', 'border-[#5246EE]', 'ring-2', 'ring-[#5246EE]/20', 'bg-emerald-500/15', 'border-emerald-500', 'ring-emerald-500/20');
+        }
+
+        window.dragLeaveFolder = function(e) {
+            e.currentTarget.classList.remove('bg-[#5246EE]/15', 'border-[#5246EE]', 'bg-emerald-500/15', 'border-emerald-500');
+        }
+
+        window.dropToFolder = function(e, targetFolderId) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.currentTarget.classList.remove('bg-[#5246EE]/15', 'border-[#5246EE]', 'bg-emerald-500/15', 'border-emerald-500');
+
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                processUploadedFiles(Array.from(e.dataTransfer.files), targetFolderId);
+                return;
+            }
+
+            if (!draggedItemId || draggedItemId === targetFolderId) return;
+
+            if (isDescendant(activeProject.tree, draggedItemId, targetFolderId)) {
+                alert("Impossible de déplacer un dossier à l'intérieur de lui-même !");
+                return;
+            }
+
+            const itemToMove = extractTreeItem(activeProject.tree, draggedItemId);
+            if (itemToMove) {
+                const targetFolder = findItemRecursive(activeProject.tree, targetFolderId);
+                if (targetFolder) {
+                    if (!targetFolder.children) targetFolder.children = [];
+                    targetFolder.children.push(itemToMove);
+                    expandedFolders.add(targetFolderId);
+                }
+            }
+            draggedItemId = null;
+            saveProjectTreeToSupabase();
+            renderArborescence();
+        }
+
+        window.dropToRoot = function(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('bg-[#5246EE]/10', 'border-[#5246EE]', 'ring-2', 'ring-[#5246EE]/20', 'bg-emerald-500/15', 'border-emerald-500', 'ring-emerald-500/20');
+
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                processUploadedFiles(Array.from(e.dataTransfer.files), null);
+                return;
+            }
+
+            if (!draggedItemId) return;
+
+            const itemToMove = extractTreeItem(activeProject.tree, draggedItemId);
+            if (itemToMove) {
+                activeProject.tree.push(itemToMove);
+            }
+            draggedItemId = null;
+            saveProjectTreeToSupabase();
+            renderArborescence();
+        }
+
+        function extractTreeItem(list, id) {
+            for (let i = 0; i < list.length; i++) {
+                if (list[i].id === id) {
+                    return list.splice(i, 1)[0];
+                }
+                if (list[i].children) {
+                    const found = extractTreeItem(list[i].children, id);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
+        function isDescendant(list, parentId, targetId) {
+            const parent = findItemRecursive(list, parentId);
+            if (!parent || !parent.children) return false;
+            for (let child of parent.children) {
+                if (child.id === targetId) return true;
+                if (child.children && isDescendant(child.children, child.id, targetId)) return true;
+            }
+            return false;
+        }
+
+        function renderArborescence() {
+            const treeContainer = document.getElementById('arborescence-tree');
+            treeContainer.innerHTML = '';
+            if (!activeProject.tree || activeProject.tree.length === 0) {
+                treeContainer.innerHTML = `<div class="text-center py-12 text-gray-400 text-xs">Arborescence vide. Sélectionnez la racine ou un dossier puis utilisez les boutons ci-dessus (ou glissez-déposez un fichier .txt depuis votre Finder ici).</div>`;
+                return;
+            }
+            renderTreeLevel(activeProject.tree, treeContainer);
+        }
+
+        function renderTreeLevel(items, container) {
+            items.forEach(item => {
+                const el = document.createElement('div');
+                el.className = `space-y-1 ${item.isNewDrop ? 'animate-drop' : ''}`;
+                if (item.isNewDrop) delete item.isNewDrop;
+
+                el.setAttribute('draggable', 'true');
+                el.addEventListener('dragstart', (e) => dragStart(e, item.id));
+
+                if (item.type === 'folder') {
+                    const isSelected = selectedFolderId === item.id;
+                    const isExpanded = expandedFolders.has(item.id);
+
+                    el.innerHTML = `
+                        <div draggable="true" ondragover="allowDrop(event)" ondragleave="dragLeaveFolder(event)" ondrop="dropToFolder(event, '${item.id}')" 
+                            class="flex items-center justify-between p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${isSelected ? 'bg-[#5246EE]/10 border-[#5246EE] text-[#5246EE] font-semibold' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'}"
+                            onclick="selectFolder('${item.id}', event)">
+                            <div class="flex items-center gap-2.5 flex-1">
+                                <i class="fa-solid fa-chevron-right text-[10px] text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}" onclick="toggleFolder('${item.id}', event)"></i>
+                                <i class="fa-solid fa-folder text-[#5246EE]"></i>
+                                <span>${item.name}</span>
+                            </div>
+                            <button onclick="removeTreeItem('${item.id}', event)" class="text-red-500 hover:text-red-700 px-2" title="Supprimer"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div id="folder-content-${item.id}" class="pl-6 space-y-1 ${isExpanded ? '' : 'hidden'} mt-1 border-l-2 border-gray-100 dark:border-gray-800"></div>
+                    `;
+                    container.appendChild(el);
+                    if (item.children && item.children.length > 0) {
+                        renderTreeLevel(item.children, document.getElementById(`folder-content-${item.id}`));
+                    }
+                } else {
+                    const icon = item.type === 'txt' ? 'fa-file-lines text-emerald-500' : 'fa-note-sticky text-indigo-500';
+                    const clickAction = item.type === 'card' 
+                        ? `window.location.href='map.html?cardId=${item.id}'` 
+                        : `window.location.href='editor.html?projectId=${activeProject.id}&fileId=${item.id}'`;
+                    
+                    el.innerHTML = `
+                        <div draggable="true" class="flex items-center justify-between p-2.5 bg-gray-50/60 dark:bg-gray-800/60 rounded-xl border border-gray-200/60 dark:border-gray-700/60 text-xs hover:bg-gray-100 dark:hover:bg-gray-800 transition-all cursor-pointer" onclick="${clickAction}">
+                            <div class="flex items-center gap-2.5 flex-1">
+                                <i class="fa-solid ${icon}"></i>
+                                <span class="font-medium">${item.name}</span>
+                                ${item.type === 'card' ? '<span class="text-[9px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-semibold">Carte</span>' : ''}
+                            </div>
+                            <button onclick="removeTreeItem('${item.id}', event)" class="text-red-500 hover:text-red-700 px-2"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                    `;
+                    container.appendChild(el);
+                }
+            });
+        }
+
+        window.openExportModal = async function() {
+            if (activeProject.pwd) {
+                const p = await showCustomPrompt("Entrez le mot de passe pour télécharger ce projet sécurisé :", "Mot de passe");
+                if (p !== activeProject.pwd) {
+                    alert("Mot de passe incorrect.");
+                    return;
+                }
+            }
+
+            const zip = new JSZip();
+            const projectData = {
+                ...activeProject,
+                host_approval_required: true,
+                exported_at: new Date().toISOString()
+            };
+
+            zip.file("project_manifest.json", JSON.stringify(projectData, null, 2));
+            const contentBlob = await zip.generateAsync({ type: "blob" });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(contentBlob);
+            link.download = `${activeProject.name.toLowerCase().replace(/\s+/g, '_')}_mobius.zip`;
+            link.click();
+        }
+
+        window.openProfileModal = function() {
+            if (!currentUser) return;
+            const meta = currentUser.user_metadata || {};
+            const fullName = (meta.first_name || meta.last_name) ? `${meta.first_name || ''} ${meta.last_name || ''}`.trim() : currentUser.email;
+            document.getElementById('profile-modal').classList.remove('hidden');
+            document.getElementById('profile-modal-name').textContent = fullName;
+            document.getElementById('profile-modal-email').textContent = currentUser.email;
+            document.getElementById('profile-modal-initial').textContent = fullName.charAt(0).toUpperCase();
+        }
+        window.closeProfileModal = function() {
+            document.getElementById('profile-modal').classList.add('hidden');
+        }
+
+        window.logout = async function() {
+            await supabase.auth.signOut();
+            window.location.href = 'index.html';
+        }
     </script>
 </body>
 </html>
