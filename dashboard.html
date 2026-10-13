@@ -852,15 +852,31 @@ document.addEventListener('DOMContentLoaded', async () => {
             const content = await (await pdf.getPage(n)).getTextContent();
             let out = '', lastY = null;
             for (const it of content.items) {
+                if (it.str === '') { if (it.hasEOL && out && !out.endsWith('\n')) out += '\n'; continue; }
                 const y = it.transform ? it.transform[5] : null;
                 if (lastY !== null && y !== null && Math.abs(y - lastY) > 2 && out && !out.endsWith('\n')) out += '\n';
                 out += it.str;
-                if (it.hasEOL) out += '\n';
+                if (it.hasEOL && !out.endsWith('\n')) out += '\n';
                 if (y !== null) lastY = y;
             }
             pages.push(out.trim());
         }
-        return pages.filter(Boolean).join('\n\n');
+        return fixPdfLigatures(pages.filter(Boolean).join('\n\n'));
+    }
+
+    // Beaucoup de PDF (Keynote, Pages, certaines polices) encodent les ligatures « ti » / « tt »
+    // avec un mauvais caractère : « aberra%ons », « len5lle », « vigne.e », « vigne=age ».
+    // On les répare quand le caractère est coincé entre des lettres (donc jamais dans « 50% » ou « x=2 »).
+    const KEEP_DOT = /^(com|fr|org|net|io|html?|js|css|txt|pdf|docx?|json|md|png|jpe?g|gif|svg|mobius|mobpro|fountain|pages?|xml|csv|zip|be|de|uk|eu|us|ca|ch)$/;
+    function fixPdfLigatures(text) {
+        let n = 0;
+        const bump = (r) => (...a) => { n++; return r(...a); };
+        text = text.replace(/⦁/g, '•');
+        text = text.replace(/(?<=\p{L})%(?=\p{L})/gu, bump(() => 'ti'));
+        text = text.replace(/(?<=\p{Ll})5(?=\p{Ll})/gu, bump(() => 'ti'));
+        text = text.replace(/(?<=\p{Ll}{2})=(?=\p{Ll}{2})/gu, bump(() => 'tt'));
+        text = text.replace(/(\p{Ll}{2,})\.(\p{Ll}+)/gu, (m, a, b) => KEEP_DOT.test(b) ? m : (n++, a + 'tt' + b));
+        return { text, fixes: n };
     }
 
     async function docxToText(buf) {
@@ -888,10 +904,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (file.size > MAX_INPUT_BYTES) throw new Error('fichier trop volumineux (max 20 Mo)');
         const buf = await file.arrayBuffer();
         const bytes = new Uint8Array(buf);
-        let text;
+        let text, fixes = 0;
         if (/\.pdf$/i.test(file.name)) {
             if (!(bytes[0] === 0x25 && bytes[1] === 0x50)) throw new Error("ce n'est pas un vrai PDF");
-            text = await pdfToText(buf);
+            ({ text, fixes } = await pdfToText(buf));
         } else if (/\.docx$/i.test(file.name)) {
             if (!(bytes[0] === 0x50 && bytes[1] === 0x4B)) throw new Error("ce n'est pas un vrai .docx");
             text = await docxToText(buf);
@@ -902,7 +918,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (!text.trim()) throw new Error('aucun texte trouvé (document scanné ou composé uniquement d\'images ?)');
         if (text.length > MAX_TEXT_CHARS) throw new Error('texte trop long (max 2 millions de caractères)');
-        return text;
+        return { text, fixes };
     }
 
     async function importFiles(files, folderId) {
@@ -919,7 +935,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             } else {
                 // tous les autres formats sont retranscrits en texte brut (type txt)
                 try {
-                    const content = await fileToText(file);
+                    const { text: content, fixes } = await fileToText(file);
+                    if (fixes) toast(`« ${file.name} » : ${fixes} ligature${fixes > 1 ? 's' : ''} (ti / tt) corrigée${fixes > 1 ? 's' : ''}.`, 'info');
                     const name = /\.(pdf|docx)$/i.test(file.name) ? file.name.replace(/\.[^.]+$/, '') + '.txt' : file.name;
                     insertInto({ id: newItemId(), type: 'txt', name, content, isNewDrop: true }, folderId);
                 } catch (err) {
