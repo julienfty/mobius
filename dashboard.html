@@ -44,18 +44,18 @@
         </div>
 
         <div class="flex items-center gap-2.5 sm:gap-3">
-            <!-- NOTIFICATIONS -->
-            <div class="relative">
+            <!-- NOTIFICATIONS (mobile : panneau calé sur la largeur de l'écran ; ≥ sm : sous la cloche) -->
+            <div class="sm:relative">
                 <button id="notif-btn" class="relative w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all" aria-label="Notifications">
                     <i class="fa-solid fa-bell"></i>
                     <span id="notif-badge" class="hidden absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white dark:ring-gray-900">0</span>
                 </button>
-                <div id="notif-panel" class="hidden absolute right-0 mt-2 w-[min(92vw,22rem)] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-menu">
+                <div id="notif-panel" class="hidden absolute left-3 right-3 top-full mt-2 sm:left-auto sm:right-0 sm:top-auto sm:w-[22rem] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-menu">
                     <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
                         <span class="text-xs font-bold">Notifications</span>
                         <span class="text-[10px] text-gray-400" id="notif-count-label"></span>
                     </div>
-                    <div id="notif-list" class="max-h-96 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800"></div>
+                    <div id="notif-list" class="max-h-[60vh] sm:max-h-96 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800"></div>
                 </div>
             </div>
 
