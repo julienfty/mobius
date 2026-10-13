@@ -818,8 +818,8 @@
             });
             lucide.createIcons();
         }
-
-        async function addCollaborator() {
+// collaboration
+       async function addCollaborator() {
             if (!requireAdmin()) return;
             const input = document.getElementById('new-collab-email');
             const email = input.value.trim().toLowerCase();
