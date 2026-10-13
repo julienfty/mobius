@@ -79,6 +79,14 @@
 
         <div class="flex items-center gap-2 shrink-0">
             <span id="role-badge" class="hidden sm:inline-flex px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500"></span>
+            
+            <!-- Bouton d'importation de fichier .mobius -->
+            <input type="file" id="import-mobius-input" accept=".mobius,.json" class="hidden" onchange="importMapFromFile(event)">
+            <button onclick="document.getElementById('import-mobius-input').click()" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition" title="Importer un fichier .mobius">
+                <i data-lucide="upload" class="w-3.5 h-3.5 text-[#5246EE]"></i>
+                <span class="hidden sm:inline">Importer</span>
+            </button>
+
             <div class="relative">
                 <button onclick="toggleCollaboratorsDropdown()" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition">
                     <i data-lucide="users" class="w-3.5 h-3.5 text-[#5246EE]"></i>
@@ -107,9 +115,9 @@
                     <i data-lucide="download" class="w-3.5 h-3.5 text-emerald-500"></i>
                     <span class="hidden sm:inline">Exporter</span>
                 </button>
-                <div id="download-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 space-y-1">
+                <div id="download-dropdown" class="hidden absolute right-0 mt-2 w-56 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 space-y-1">
+                    <button onclick="exportMap('mobius')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-code" class="w-4 h-4 text-purple-500"></i> Exporter en .mobius <span class="text-[9px] bg-purple-100 dark:bg-purple-950 text-purple-600 px-1.5 py-0.5 rounded font-bold ml-auto">Natif</span></button>
                     <button onclick="exportMap('png')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="image" class="w-4 h-4 text-blue-500"></i> Exporter en PNG</button>
-                    <button onclick="exportMap('json')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-code" class="w-4 h-4 text-purple-500"></i> Exporter en JSON</button>
                 </div>
             </div>
 
@@ -199,7 +207,6 @@
             <i data-lucide="folder-tree" class="w-5 h-5"></i>
             <span class="text-[10px] font-medium mt-1">Projet</span>
         </button>
-        <!-- Icône MAP centrale -->
         <button onclick="switchMobilePage('map', false)" id="nav-btn-map" class="flex flex-col items-center justify-center text-[#5246EE] py-1 px-3 transition-all scale-105 font-bold">
             <i data-lucide="map" class="w-6 h-6"></i>
             <span class="text-[10px] font-bold mt-1">Map</span>
@@ -877,13 +884,15 @@
             renderCollaboratorsList();
         }
 
+        // --- EXPORTATION ET IMPORTATION AU FORMAT .mobius ---
         async function exportMap(format) {
-            if (format === 'json') {
+            if (format === 'mobius') {
                 const blob = new Blob([JSON.stringify(currentCard, null, 2)], { type: 'application/json' });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
-                link.download = `${currentCard.name.toLowerCase().replace(/\s+/g, '_')}_mobius.json`;
+                link.download = `${currentCard.name.toLowerCase().replace(/\s+/g, '_')}_mobius.mobius`;
                 link.click();
+                showToast("Carte exportée au format natif .mobius !");
             } else if (format === 'png') {
                 const canvasEl = document.getElementById('canvas-container');
                 const canvas = await html2canvas(canvasEl, { backgroundColor: null });
@@ -892,6 +901,46 @@
                 link.href = canvas.toDataURL('image/png');
                 link.click();
             }
+        }
+
+        function importMapFromFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    
+                    if (!importedData.nodes || !importedData.links) {
+                        alert("Le fichier sélectionné ne correspond pas à un format de carte Mobius valide.");
+                        return;
+                    }
+
+                    // Charger les données dans la carte active
+                    currentCard.nodes = importedData.nodes || [];
+                    currentCard.links = importedData.links || [];
+                    if (importedData.relationTypes) {
+                        currentCard.relationTypes = importedData.relationTypes;
+                    }
+                    if (importedData.name) {
+                        currentCard.name = importedData.name;
+                    }
+
+                    await saveCurrentMapState(true);
+                    renderCanvasNodes();
+                    renderLegendList();
+                    renderInspector();
+                    renderBreadcrumb();
+
+                    showToast("Carte .mobius importée avec succès !");
+                } catch (err) {
+                    console.error("Erreur de lecture du fichier :", err);
+                    alert("Impossible de lire ce fichier .mobius.");
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
         }
 
         function checkCollision(x, y, ignoreNodeId, width = 160, height = 90) {
@@ -2008,7 +2057,7 @@
             for (let i = 0; i < list.length; i++) {
                 if (list[i].id === updatedCard.id) {
                     const cardCopy = { ...updatedCard };
-                    delete cardCopy.collaborators; // Nettoie pour ne pas polluer l'arborescence
+                    delete cardCopy.collaborators;
                     list[i] = { ...list[i], ...cardCopy };
                     return true;
                 }
