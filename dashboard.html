@@ -276,15 +276,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     /* ---------- Chargement ---------- */
     async function fetchTable(table) {
         // 3 requêtes : possédés, invité (objet JSON), ancien format (string)
+        // ⚠️ Pour une colonne jsonb, il faut passer une CHAÎNE JSON (JSON.stringify),
+        // sinon supabase-js envoie un tableau Postgres {a,b} => erreur 22P02.
         const queries = [
             sb.from(table).select('*').eq('owner_id', user.id),
-            sb.from(table).select('*').contains('collaborators', [{ email: myEmail }]),
-            sb.from(table).select('*').contains('collaborators', [myEmail])
+            sb.from(table).select('*').contains('collaborators', JSON.stringify([{ email: myEmail }])),
+            sb.from(table).select('*').contains('collaborators', JSON.stringify([myEmail]))
         ];
         const results = await Promise.all(queries);
         const map = new Map();
         results.forEach((r, i) => {
-            if (r.error) { if (i === 0) console.warn(`[${table}]`, r.error.message); return; }
+            if (r.error) { console.warn(`[${table}] requête ${i}`, r.error.message); return; }
             (r.data || []).forEach(row => map.set(row.id, row));
         });
         return [...map.values()];
