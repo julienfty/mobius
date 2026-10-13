@@ -356,7 +356,6 @@
                 const container = document.getElementById('invitations-container');
                 container.innerHTML = '';
 
-                // Récupérer tous les projets accessibles ou filtrer ceux contenant l'email en pending
                 const { data: projects, error } = await supabase
                     .from('projects')
                     .select('id, name, collaborators');
@@ -376,7 +375,6 @@
                     section.classList.remove('hidden');
                     for (let proj of pendingInvites) {
                         const row = document.createElement('div');
-                        // Ajout de la classe animate-drop pour l'animation d'apparition fluide
                         row.className = "flex items-center justify-between bg-white dark:bg-gray-900 p-3 rounded-xl border border-amber-200 dark:border-amber-900/50 text-xs animate-drop";
                         row.innerHTML = `
                             <div>
@@ -406,14 +404,12 @@
                     me.status = 'accepted';
                     me.acceptedAt = new Date().toISOString();
                     
-                    // Mise à jour explicite dans Supabase
                     const { error: updateError } = await supabase
                         .from('projects')
                         .update({ collaborators: collabs })
                         .eq('id', projectId);
                         
                     if (!updateError) {
-                        // Recharge immédiatement le dashboard pour actualiser l'affichage
                         loadDashboardData();
                     }
                 }
@@ -424,7 +420,6 @@
                 if (error || !proj) return;
                 
                 let collabs = proj.collaborators || [];
-                // Filtrer pour retirer l'utilisateur connecté du tableau des collaborateurs
                 collabs = collabs.filter(c => (c.email || '').toLowerCase() !== currentUser.email.toLowerCase());
                 
                 const { error: updateError } = await supabase
@@ -532,11 +527,9 @@
                 }
                 const hasPwd = document.getElementById('modal-has-pwd').checked;
                 const pwd = hasPwd ? document.getElementById('modal-item-pwd').value : '';
-                const newItemId = 'id_' + Date.now();
 
                 if (currentTab === 'projects') {
                     const newProj = {
-                        id: newItemId,
                         name,
                         owner_email: currentUser.email,
                         owner_id: currentUser.id,
@@ -552,7 +545,6 @@
                     }
                 } else {
                     const newCard = {
-                        id: newItemId,
                         name,
                         owner_email: currentUser.email,
                         owner_id: currentUser.id,
@@ -561,7 +553,7 @@
                     const { error } = await supabase.from('cards').insert([newCard]);
                     if (error) {
                         console.error("Erreur création carte:", error);
-                        alert("Erreur lors de la création de la carte libre.");
+                        alert("Erreur lors de la création de la carte libre : " + error.message);
                         return;
                     }
                 }
@@ -630,7 +622,7 @@
                 if (!name) return;
 
                 const newItem = {
-                    id: 'item_' + Date.now(),
+                    id: 'item_' + Math.random().toString(36).substr(2, 9),
                     type,
                     name,
                     content: type === 'txt' ? 'Nouveau fichier texte...' : '',
@@ -664,7 +656,7 @@
                     const reader = new FileReader();
                     reader.onload = function(event) {
                         const newItem = {
-                            id: 'item_' + Date.now() + Math.random().toString(36).substr(2, 5),
+                            id: 'item_' + Math.random().toString(36).substr(2, 9),
                             type: 'txt',
                             name: file.name,
                             content: event.target.result,
