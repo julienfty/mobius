@@ -78,18 +78,24 @@
         </div>
 
         <div class="flex items-center gap-2 shrink-0">
+            <span id="role-badge" class="hidden sm:inline-flex px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500"></span>
             <div class="relative">
                 <button onclick="toggleCollaboratorsDropdown()" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition">
                     <i data-lucide="users" class="w-3.5 h-3.5 text-[#5246EE]"></i>
                     <span id="collab-count-label" class="hidden sm:inline">Collaborateurs (1)</span>
                     <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
                 </button>
-                <div id="collab-dropdown" class="hidden absolute right-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-50">
+                <div id="collab-dropdown" class="hidden absolute right-0 mt-2 w-[24rem] max-w-[92vw] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-50">
                     <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Gestion des collaborateurs</h4>
-                    <div id="collaborators-list" class="space-y-2 max-h-40 overflow-y-auto mb-3"></div>
+                    <div id="collaborators-list" class="space-y-2 max-h-56 overflow-y-auto mb-3"></div>
                     <div id="collab-add-section" class="pt-2 border-t border-slate-100 dark:border-slate-800">
                         <div class="flex space-x-2">
-                            <input type="email" id="new-collab-email" placeholder="email@membre.com" class="flex-1 px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#5246EE]">
+                            <input type="email" id="new-collab-email" placeholder="email@membre.com" class="flex-1 min-w-0 px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#5246EE]">
+                            <select id="new-collab-role" class="px-2 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none">
+                                <option value="viewer">Observateur</option>
+                                <option value="editor" selected>Peut modifier</option>
+                                <option value="admin">Admin</option>
+                            </select>
                             <button onclick="addCollaborator()" class="px-3 py-1.5 bg-[#5246EE] hover:bg-[#4538d8] text-white text-xs font-medium rounded-lg">Ajouter</button>
                         </div>
                     </div>
@@ -121,7 +127,7 @@
         <aside id="tree-sidebar" class="hidden md:flex flex-col w-full md:w-72 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20 shadow-md">
             <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <h3 class="font-bold text-xs uppercase tracking-wider text-slate-500">Arborescence du Projet</h3>
-                <button onclick="switchMobilePage('map')" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-600 md:hidden"><i data-lucide="x" class="w-4 h-4"></i></button>
+                <button onclick="closeTreeSidebar()" title="Replier l'arborescence" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
             </div>
             <div id="tree-sidebar-content" class="flex-1 p-3 overflow-y-auto space-y-1 text-xs"></div>
         </aside>
@@ -272,6 +278,17 @@
         </div>
     </div>
 
+    <div id="modal-invitation" class="hidden fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4">
+            <h3 class="font-bold text-base">Invitation à collaborer</h3>
+            <p class="text-xs text-slate-500">Vous êtes invité(e) à rejoindre « <span id="inv-name" class="font-semibold text-slate-800 dark:text-slate-200"></span> » en tant que <span id="inv-role" class="font-semibold text-[#5246EE]"></span>.</p>
+            <div class="flex justify-end space-x-2">
+                <button onclick="respondInvitation(false)" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl">Refuser</button>
+                <button onclick="respondInvitation(true)" class="px-3 py-1.5 bg-[#5246EE] text-white text-xs font-medium rounded-xl">Accepter</button>
+            </div>
+        </div>
+    </div>
+
     <div id="toast-notification" class="hidden fixed bottom-6 right-6 bg-slate-900 text-white text-xs px-4 py-3 rounded-xl shadow-2xl z-50 flex items-center space-x-3 transition transform translate-y-2 opacity-0 pointer-events-none">
         <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
         <span id="toast-message">Notification</span>
@@ -379,7 +396,8 @@
             }
             if (!currentCard.nodes) currentCard.nodes = [];
             if (!currentCard.links) currentCard.links = [];
-            if (!currentCard.collaborators) currentCard.collaborators = [];
+            normalizeCollaborators();
+            myRole = computeMyRole();
 
             setupMobilePagesOrder();
             renderBreadcrumb();
@@ -393,61 +411,54 @@
             setupMobileSwipeGestures();
             centerCameraOnSandboxCenter();
             setupRealtimeSubscription();
-            
+            updateRoleBadge();
+            handleInvitation();
+
             if (window.innerWidth < 768) {
                 switchMobilePage('map', false);
             }
 
             window.addEventListener('resize', () => {
-                if (window.innerWidth >= 768) {
-                    const legend = document.getElementById('sidebar-legend-left');
-                    const tree = document.getElementById('tree-sidebar');
-                    const canvas = document.getElementById('canvas-container');
-                    const inspector = document.getElementById('sidebar-inspector-right');
-
-                    if (legend) { legend.classList.remove('hidden', 'absolute', 'inset-0', 'z-30'); legend.classList.add('flex'); }
-                    if (tree && projectId && projectData) { tree.classList.remove('hidden', 'absolute', 'inset-0', 'z-30'); tree.classList.add('flex'); }
-                    if (canvas) { canvas.classList.remove('hidden'); canvas.classList.add('flex-1'); }
-                    if (inspector) { inspector.classList.remove('hidden', 'absolute', 'inset-0', 'z-30'); inspector.classList.add('flex'); }
-                } else {
-                    switchMobilePage(mobilePagesOrder[currentMobilePageIndex], false);
-                }
+                applyTreeSidebarState();
+                renderBreadcrumb();
             });
         });
 
         // --- MISE À JOUR EN DIRECT (REALTIME SUPABASE) ---
         function setupRealtimeSubscription() {
-            if (projectId) {
-                supabaseClient
-                    .channel('public:projects:' + projectId)
-                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'projects', filter: `id=eq.${projectId}` }, payload => {
-                        const updatedProj = payload.new;
-                        if (updatedProj && updatedProj.tree) {
-                            projectData = updatedProj;
-                            const freshCard = findCardInTree(projectData.tree, cardId);
-                            if (freshCard) {
-                                currentCard = freshCard;
-                                renderCanvasNodes();
-                                renderLegendList();
-                                if (selectedNodeIds.length === 1) renderInspector();
-                            }
-                        }
-                    })
-                    .subscribe();
-            } else {
-                supabaseClient
-                    .channel('public:cards:' + cardId)
-                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'cards', filter: `id=eq.${cardId}` }, payload => {
-                        const updatedCard = payload.new;
-                        if (updatedCard) {
-                            currentCard = updatedCard;
-                            renderCanvasNodes();
-                            renderLegendList();
-                            if (selectedNodeIds.length === 1) renderInspector();
-                        }
-                    })
-                    .subscribe();
-            }
+            const isProj = !!(projectId && projectData);
+            const table = isProj ? 'projects' : 'cards';
+            const rowId = isProj ? projectId : cardId;
+            supabaseClient
+                .channel(`public:${table}:${rowId}`)
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table, filter: `id=eq.${rowId}` }, payload => {
+                    const row = payload.new;
+                    if (!row || isDraggingNode || saveTimer) return;
+                    let fresh = row;
+                    if (isProj) {
+                        if (!row.tree) return;
+                        fresh = findCardInTree(row.tree, cardId);
+                        if (!fresh) return;
+                    }
+                    const prevCollabs = JSON.stringify(getCollabs());
+                    const mapChanged = ['nodes', 'links', 'relationTypes'].some(k => JSON.stringify(fresh[k] || []) !== JSON.stringify(currentCard[k] || []));
+                    if (isProj) { projectData = { ...projectData, ...row }; currentCard = fresh; }
+                    else { currentCard = { ...currentCard, ...row }; }
+                    normalizeCollaborators();
+                    const collabChanged = prevCollabs !== JSON.stringify(getCollabs());
+                    selectedNodeIds = selectedNodeIds.filter(id => (currentCard.nodes || []).some(n => n.id === id));
+                    if (collabChanged) {
+                        applyPermissions();
+                    } else if (mapChanged) {
+                        renderCanvasNodes();
+                        renderLegendList();
+                        const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('#inspector-content');
+                        if (selectedNodeIds.length === 1 && !typing) renderInspector();
+                        else if (selectedNodeIds.length === 1) renderNodeLinksInInspector(selectedNodeIds[0]);
+                        else renderInspector();
+                    }
+                })
+                .subscribe();
         }
 
         function centerCameraOnSandboxCenter() {
@@ -594,6 +605,7 @@
         }
 
         function deleteSelectedNodes() {
+            if (!requireEdit()) return;
             if (!selectedNodeIds || selectedNodeIds.length === 0) return;
             currentCard.links = (currentCard.links || []).filter(l => !selectedNodeIds.includes(l.sourceId) && !selectedNodeIds.includes(l.targetId));
             currentCard.nodes = (currentCard.nodes || []).filter(n => !selectedNodeIds.includes(n.id));
@@ -607,13 +619,18 @@
 
         function renderBreadcrumb() {
             const bc = document.getElementById('breadcrumb-container');
-            if (projectId && projectData) {
+            const isProject = projectId && projectData;
+            if (isProject && window.innerWidth >= 768) {
                 const path = getTreePath(projectData.tree, cardId);
-                const formattedPath = formatTruncatedPath([projectData.name, ...(path || [currentCard.name])]);
+                const formattedPath = escapeHtml(formatTruncatedPath([projectData.name, ...(path || [currentCard.name])]));
+                bc.title = treeOpen ? "Replier l'arborescence" : "Ouvrir l'arborescence";
+                bc.style.cursor = 'pointer';
                 bc.innerHTML = `
                     <span class="text-slate-900 dark:text-slate-100 font-bold"><i data-lucide="folder-tree" class="w-3.5 h-3.5 inline mr-1.5 text-[#5246EE]"></i> ${formattedPath}</span>
-                `;
+                    <i data-lucide="${treeOpen ? 'panel-left-close' : 'panel-left-open'}" class="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1"></i>`;
             } else {
+                bc.title = '';
+                bc.style.cursor = 'default';
                 bc.innerHTML = `<span class="text-slate-900 dark:text-slate-100 font-bold"><i data-lucide="file-text" class="w-3.5 h-3.5 inline mr-1 text-[#5246EE]"></i> ${escapeHtml(currentCard.name)}</span>`;
             }
             lucide.createIcons();
@@ -647,33 +664,31 @@
             return null;
         }
 
-        function setupTreeSidebarVisibility() {
+        let treeOpen = localStorage.getItem('treeOpen') !== '0';
+
+        function applyTreeSidebarState() {
             const sidebar = document.getElementById('tree-sidebar');
-            if (!projectId || !projectData) {
-                sidebar.classList.add('hidden');
-            } else {
-                if (window.innerWidth >= 768) {
-                    sidebar.classList.remove('hidden');
-                    sidebar.classList.add('flex');
-                }
-                renderTreeSidebarContent();
-            }
+            if (!projectId || !projectData) { sidebar.style.display = 'none'; return; }
+            sidebar.style.display = window.innerWidth >= 768 ? (treeOpen ? 'flex' : 'none') : '';
+        }
+
+        function setupTreeSidebarVisibility() {
+            applyTreeSidebarState();
+            if (projectId && projectData) renderTreeSidebarContent();
         }
 
         window.toggleTreeSidebar = function() {
             if (!projectId || !projectData) return;
-            if (window.innerWidth < 768) {
-                switchMobilePage('tree', false);
-            } else {
-                const sidebar = document.getElementById('tree-sidebar');
-                if (sidebar.classList.contains('hidden')) {
-                    sidebar.classList.remove('hidden');
-                    sidebar.classList.add('flex');
-                } else {
-                    sidebar.classList.remove('flex');
-                    sidebar.classList.add('hidden');
-                }
-            }
+            if (window.innerWidth < 768) { switchMobilePage('tree', false); return; }
+            treeOpen = !treeOpen;
+            localStorage.setItem('treeOpen', treeOpen ? '1' : '0');
+            applyTreeSidebarState();
+            renderBreadcrumb();
+        }
+
+        window.closeTreeSidebar = function() {
+            if (window.innerWidth < 768) switchMobilePage('map', false);
+            else if (treeOpen) toggleTreeSidebar();
         }
 
         function renderTreeSidebarContent() {
@@ -701,45 +716,135 @@
             lucide.createIcons();
         }
 
-        function toggleCollaboratorsDropdown() {
-            document.getElementById('collab-dropdown').classList.toggle('hidden');
+        const ROLE_LABELS = { viewer: 'Observateur', editor: 'Peut modifier', admin: 'Admin' };
+        let myRole = 'admin';
+        let saveTimer = null;
+        let warned = false;
+
+        function collabHolder() { return (projectId && projectData) ? projectData : currentCard; }
+        function getCollabs() { const h = collabHolder(); if (!Array.isArray(h.collaborators)) h.collaborators = []; return h.collaborators; }
+        function normalizeCollaborators() {
+            const h = collabHolder();
+            h.collaborators = (h.collaborators || [])
+                .map(c => typeof c === 'string' ? { email: c, role: 'editor', status: 'pending' } : c)
+                .filter(c => c && c.email);
         }
+        function getOwnerId() { const h = collabHolder(); return h.user_id || h.owner_id || currentCard.user_id || currentCard.owner_id || null; }
+        function myEmail() { return (currentUser.email || '').toLowerCase(); }
+        
+        function computeMyRole() {
+            const ownerId = getOwnerId();
+            if (ownerId && ownerId === currentUser.id) return 'admin';
+            const me = getCollabs().find(c => c.email.toLowerCase() === myEmail());
+            if (me) return me.status === 'accepted' ? me.role : 'viewer';
+            return ownerId ? 'viewer' : 'admin';
+        }
+
+        function canEdit() { return myRole === 'admin' || myRole === 'editor'; }
+        function requireEdit() { if (canEdit()) return true; showToast("Lecture seule : vous n'avez pas les droits de modification."); return false; }
+        function requireAdmin() { if (myRole === 'admin') return true; showToast("Seul un admin peut gérer les collaborateurs."); return false; }
+
+        function updateRoleBadge() {
+            const b = document.getElementById('role-badge');
+            b.textContent = ROLE_LABELS[myRole] || '';
+            b.classList.toggle('text-[#5246EE]', myRole === 'admin');
+        }
+
+        function applyPermissions() {
+            myRole = computeMyRole();
+            updateRoleBadge();
+            const addBtn = document.querySelector('[onclick="openAddRelationModal()"]');
+            if (addBtn) addBtn.classList.toggle('hidden', !canEdit());
+            renderCanvasNodes();
+            renderLegendList();
+            renderInspector();
+            renderCollaboratorsList();
+        }
+
+        function handleInvitation() {
+            const me = getCollabs().find(c => c.email.toLowerCase() === myEmail());
+            if (!me || me.status === 'accepted') return;
+            document.getElementById('inv-name').textContent = (projectId && projectData) ? projectData.name : currentCard.name;
+            document.getElementById('inv-role').textContent = ROLE_LABELS[me.role] || me.role;
+            document.getElementById('modal-invitation').classList.remove('hidden');
+        }
+
+        window.respondInvitation = async function(accept) {
+            const collabs = getCollabs();
+            const idx = collabs.findIndex(c => c.email.toLowerCase() === myEmail());
+            document.getElementById('modal-invitation').classList.add('hidden');
+            if (idx < 0) return;
+            if (accept) { collabs[idx].status = 'accepted'; collabs[idx].acceptedAt = new Date().toISOString(); }
+            else collabs.splice(idx, 1);
+            await saveCurrentMapState(true);
+            if (!accept) { goBack(); return; }
+            applyPermissions();
+            showToast("Invitation acceptée !");
+        }
+
+        window.toggleCollaboratorsDropdown = function() { document.getElementById('collab-dropdown').classList.toggle('hidden'); }
+        window.toggleDownloadDropdown = window.toggleDownloadDropdown || function() { document.getElementById('download-dropdown').classList.toggle('hidden'); }
+        
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#collab-dropdown') && !e.target.closest('[onclick="toggleCollaboratorsDropdown()"]')) document.getElementById('collab-dropdown').classList.add('hidden');
+            if (!e.target.closest('#download-dropdown') && !e.target.closest('[onclick="toggleDownloadDropdown()"]')) document.getElementById('download-dropdown').classList.add('hidden');
+        });
 
         function renderCollaboratorsList() {
             const listEl = document.getElementById('collaborators-list');
-            document.getElementById('collab-count-label').textContent = `Collaborateurs (${(currentCard.collaborators || []).length + 1})`;
+            const collabs = getCollabs();
+            const admin = myRole === 'admin';
+            document.getElementById('collab-count-label').textContent = `Collaborateurs (${collabs.length + 1})`;
+            document.getElementById('collab-add-section').classList.toggle('hidden', !admin);
             listEl.innerHTML = `
-                <div class="flex items-center justify-between text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                    <span class="font-medium text-slate-700 dark:text-slate-300">${currentUser.email} (Propriétaire)</span>
-                </div>
-            `;
-            (currentCard.collaborators || []).forEach((email, idx) => {
-                const item = document.createElement('div');
-                item.className = "flex items-center justify-between text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded-lg";
-                item.innerHTML = `
-                    <span class="text-slate-600 dark:text-slate-400 truncate max-w-[170px]">${escapeHtml(email)}</span>
-                    <button onclick="removeCollaborator(${idx})" class="text-rose-500 hover:text-rose-700 p-1"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
-                `;
-                listEl.appendChild(item);
+                <div class="flex items-center justify-between gap-2 text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                    <span class="font-medium text-slate-700 dark:text-slate-300 truncate">${escapeHtml(currentUser.email)} (vous)</span>
+                    <span class="text-[10px] font-semibold text-[#5246EE] shrink-0">${ROLE_LABELS[myRole]}</span>
+                </div>`;
+            collabs.forEach((c, idx) => {
+                const accepted = c.status === 'accepted';
+                const roleCtl = admin
+                    ? `<select onchange="setCollaboratorRole(${idx}, this.value)" class="px-1.5 py-1 text-[10px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none">${Object.entries(ROLE_LABELS).map(([k, v]) => `<option value="${k}" ${k === c.role ? 'selected' : ''}>${v}</option>`).join('')}</select>`
+                    : `<span class="text-[10px] font-semibold text-slate-500">${ROLE_LABELS[c.role] || c.role}</span>`;
+                const row = document.createElement('div');
+                row.className = "flex items-center justify-between gap-2 text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded-lg";
+                row.innerHTML = `
+                    <div class="min-w-0">
+                        <div class="truncate text-slate-700 dark:text-slate-300">${escapeHtml(c.email)}</div>
+                        <div class="text-[10px] ${accepted ? 'text-emerald-500' : 'text-amber-500'}">${accepted ? 'Accepté' : 'Invitation envoyée'}</div>
+                    </div>
+                    <div class="flex items-center gap-1 shrink-0">${roleCtl}${admin ? `<button onclick="removeCollaborator(${idx})" class="text-rose-500 hover:text-rose-700 p-1" title="Retirer"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>` : ''}</div>`;
+                listEl.appendChild(row);
             });
             lucide.createIcons();
         }
 
         async function addCollaborator() {
-            const email = document.getElementById('new-collab-email').value.trim();
-            if (!email) return;
-            if (!currentCard.collaborators) currentCard.collaborators = [];
-            if (!currentCard.collaborators.includes(email) && email !== currentUser.email) {
-                currentCard.collaborators.push(email);
-                await saveCurrentMapState();
-                renderCollaboratorsList();
-                document.getElementById('new-collab-email').value = '';
-                showToast("Collaborateur ajouté !");
-            }
+            if (!requireAdmin()) return;
+            const input = document.getElementById('new-collab-email');
+            const email = input.value.trim().toLowerCase();
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showToast("Adresse e-mail invalide."); return; }
+            if (email === myEmail() || getCollabs().some(c => c.email.toLowerCase() === email)) { showToast("Cette personne fait déjà partie de la carte."); return; }
+            getCollabs().push({ email, role: document.getElementById('new-collab-role').value, status: 'pending', invitedBy: currentUser.email, invitedAt: new Date().toISOString() });
+            await saveCurrentMapState();
+            renderCollaboratorsList();
+            input.value = '';
+            showToast("Invitation envoyée !");
+        }
+
+        window.setCollaboratorRole = async function(idx, role) {
+            if (!requireAdmin()) return;
+            getCollabs()[idx].role = role;
+            await saveCurrentMapState();
+            renderCollaboratorsList();
+            showToast("Rôle mis à jour.");
         }
 
         async function removeCollaborator(idx) {
-            currentCard.collaborators.splice(idx, 1);
+            if (!requireAdmin()) return;
+            const c = getCollabs()[idx];
+            if (!c || !confirm(`Retirer ${c.email} ?`)) return;
+            getCollabs().splice(idx, 1);
             await saveCurrentMapState();
             renderCollaboratorsList();
         }
@@ -948,7 +1053,7 @@
 
                         contextMenu.style.left = `${touchStartClientX}px`;
                         contextMenu.style.top = `${touchStartClientY}px`;
-                        contextMenu.classList.remove('hidden');
+                        if (canEdit()) contextMenu.classList.remove('hidden');
                     }, 500);
                 }
             }, { passive: true });
@@ -988,7 +1093,7 @@
 
                 contextMenu.style.left = `${e.clientX}px`;
                 contextMenu.style.top = `${e.clientY}px`;
-                contextMenu.classList.remove('hidden');
+                if (canEdit()) contextMenu.classList.remove('hidden');
             });
 
             contextMenu.addEventListener('mousedown', (e) => {
@@ -1069,9 +1174,13 @@
                         const clampedX = Math.max(10, newX);
                         const clampedY = Math.max(10, newY);
 
-                        if (!checkCollision(clampedX, clampedY, draggedNodeId)) {
-                            node.x = clampedX;
-                            node.y = clampedY;
+                        let nx = node.x, ny = node.y, moved = false;
+                        if (!checkCollision(clampedX, clampedY, draggedNodeId)) { nx = clampedX; ny = clampedY; moved = true; }
+                        else if (!checkCollision(clampedX, node.y, draggedNodeId)) { nx = clampedX; moved = true; }
+                        else if (!checkCollision(node.x, clampedY, draggedNodeId)) { ny = clampedY; moved = true; }
+                        if (moved) {
+                            node.x = nx;
+                            node.y = ny;
 
                             const card = document.getElementById(`card-${node.id}`);
                             if (card) {
@@ -1143,6 +1252,7 @@
         }
 
         window.executeContextMenuAction = function(action) {
+            if (!requireEdit()) return;
             document.getElementById('context-menu').classList.add('hidden');
             if (action === 'add-person') {
                 const x = currentContextMenuCanvasX;
@@ -1198,6 +1308,7 @@
                     <div class="anchor-handle absolute top-1/2 -left-2.5 -translate-y-1/2 w-5 h-5 bg-[#5246EE] rounded-full border-2 border-white dark:border-slate-900 shadow-sm cursor-crosshair" data-node-id="${node.id}"></div>
                     <div class="anchor-handle absolute top-1/2 -right-2.5 -translate-y-1/2 w-5 h-5 bg-[#5246EE] rounded-full border-2 border-white dark:border-slate-900 shadow-sm cursor-crosshair" data-node-id="${node.id}"></div>
                 `;
+                if (!canEdit()) card.querySelectorAll('.anchor-handle').forEach(h => h.remove());
 
                 let touchStartX = 0;
                 let touchStartY = 0;
@@ -1212,6 +1323,7 @@
                     renderCanvasNodes();
                     renderInspector();
 
+                    if (!canEdit()) return;
                     isDraggingNode = true;
                     draggedNodeId = node.id;
 
@@ -1252,6 +1364,7 @@
 
                         if (Math.hypot(currentX - touchStartX, currentY - touchStartY) > 4) {
                             isMoving = true;
+                            if (!canEdit()) return;
                             if (!selectedNodeIds.includes(node.id)) {
                                 selectedNodeIds = [node.id];
                                 renderCanvasNodes();
@@ -1389,7 +1502,7 @@
                     (n.location && n.location.toLowerCase().includes(searchQuery))
                 );
 
-                if (selectedNodeIds.length > 1) {
+                if (selectedNodeIds.length > 1 && canEdit()) {
                     const multiInfo = document.createElement('div');
                     multiInfo.className = "mb-3 p-2.5 bg-[#5246EE]/10 rounded-xl text-xs font-semibold text-[#5246EE] flex items-center justify-between";
                     multiInfo.innerHTML = `<span>${selectedNodeIds.length} personnes sélectionnées</span> <button onclick="deleteSelectedNodes()" class="text-rose-600 hover:underline">Tout supprimer</button>`;
@@ -1443,9 +1556,7 @@
                         <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Fiche Personne</span>
                         <div class="flex items-center space-x-1">
                             <button onclick="selectedNodeIds = []; renderInspector(); renderCanvasNodes();" class="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-medium" title="Retour à la liste">Liste</button>
-                            <button onclick="deleteSelectedNodes()" class="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition" title="Supprimer">
-                                <i data-lucide="trash-2" class="w-4 h-4"></i>
-                            </button>
+                            ${canEdit() ? `<button onclick="deleteSelectedNodes()" class="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition" title="Supprimer"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
                         </div>
                     </div>
 
@@ -1466,8 +1577,9 @@
                                 <input type="text" id="node-nickname" oninput="updateActiveNodeData()" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none">
                             </div>
                             <div>
-                                <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Âge</label>
-                                <input type="number" id="node-age" oninput="updateActiveNodeData()" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none">
+                                <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Date de naissance</label>
+                                <input type="date" id="node-birthdate" oninput="updateActiveNodeData()" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none">
+                                <div id="node-age-display" class="text-[10px] text-slate-400 mt-1"></div>
                             </div>
                         </div>
                         <div>
@@ -1479,10 +1591,7 @@
                     <div class="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
                         <div class="flex items-center justify-between">
                             <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Connexions</h4>
-                            <button onclick="toggleAddLinkMenu()" class="text-xs font-medium text-[#5246EE] hover:underline flex items-center space-x-1">
-                                <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
-                                <span>Créer un lien</span>
-                            </button>
+                            ${canEdit() ? `<button onclick="toggleAddLinkMenu()" class="text-xs font-medium text-[#5246EE] hover:underline flex items-center space-x-1"><i data-lucide="plus-circle" class="w-3.5 h-3.5"></i><span>Créer un lien</span></button>` : ''}
                         </div>
 
                         <div id="add-link-form" class="hidden p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
@@ -1505,15 +1614,21 @@
             document.getElementById('node-firstname').value = node.firstname || '';
             document.getElementById('node-lastname').value = node.lastname || '';
             document.getElementById('node-nickname').value = node.nickname || '';
-            document.getElementById('node-age').value = node.age || '';
+            document.getElementById('node-birthdate').value = node.birthdate || '';
+            document.getElementById('node-age-display').textContent = node.age !== '' && node.age != null ? `${node.age} ans` : '';
             document.getElementById('node-location').value = node.location || '';
 
             renderNodeLinksInInspector(node.id);
             populateInspectorSelects(node.id);
+
+            if (!canEdit()) {
+                container.querySelectorAll('input, select').forEach(el => el.disabled = true);
+            }
             lucide.createIcons();
         }
 
         function updateActiveNodeData() {
+            if (!requireEdit()) return;
             if (selectedNodeIds.length !== 1) return;
             const node = (currentCard.nodes || []).find(n => n.id === selectedNodeIds[0]);
             if (!node) return;
@@ -1521,11 +1636,22 @@
             node.firstname = document.getElementById('node-firstname').value;
             node.lastname = document.getElementById('node-lastname').value;
             node.nickname = document.getElementById('node-nickname').value;
-            node.age = document.getElementById('node-age').value;
+            node.birthdate = document.getElementById('node-birthdate').value;
+            node.age = computeAge(node.birthdate);
+            document.getElementById('node-age-display').textContent = node.age !== '' ? `${node.age} ans` : '';
             node.location = document.getElementById('node-location').value;
 
-            saveCurrentMapState();
+            scheduleSave();
             renderCanvasNodes();
+        }
+
+        function computeAge(birthdate) {
+            if (!birthdate) return '';
+            const b = new Date(birthdate), t = new Date();
+            if (isNaN(b)) return '';
+            let age = t.getFullYear() - b.getFullYear();
+            if (t.getMonth() < b.getMonth() || (t.getMonth() === b.getMonth() && t.getDate() < b.getDate())) age--;
+            return age >= 0 ? age : '';
         }
 
         function toggleAddLinkMenu() {
@@ -1578,7 +1704,7 @@
                         <span class="font-medium text-slate-800 dark:text-slate-200 truncate">${otherNode ? otherNode.firstname + ' ' + otherNode.lastname : 'Inconnu'}</span>
                         <span class="text-slate-400">(${relType.name})</span>
                     </div>
-                    <button onclick="deleteLink('${link.id}')" class="text-rose-500 hover:text-rose-700 p-1"><i data-lucide="trash" class="w-3.5 h-3.5"></i></button>
+                    ${canEdit() ? `<button onclick="deleteLink('${link.id}')" class="text-rose-500 hover:text-rose-700 p-1"><i data-lucide="trash" class="w-3.5 h-3.5"></i></button>` : ''}
                 `;
                 listEl.appendChild(item);
             });
@@ -1586,6 +1712,7 @@
         }
 
         async function createLinkFromInspector() {
+            if (!requireEdit()) return;
             if (selectedNodeIds.length !== 1) return;
             const targetId = document.getElementById('link-target-select').value;
             const relationTypeId = document.getElementById('link-type-select').value;
@@ -1615,6 +1742,7 @@
         }
 
         async function deleteLink(linkId) {
+            if (!requireEdit()) return;
             currentCard.links = (currentCard.links || []).filter(l => l.id !== linkId);
             await saveCurrentMapState();
             if (selectedNodeIds.length === 1) renderNodeLinksInInspector(selectedNodeIds[0]);
@@ -1635,8 +1763,7 @@
                         <span class="font-semibold text-slate-800 dark:text-slate-200 truncate">${escapeHtml(rel.name)}</span>
                     </div>
                     <div class="flex items-center space-x-1 shrink-0">
-                        <button onclick="openEditRelationModal('${rel.id}')" class="p-1 text-slate-400 hover:text-[#5246EE] rounded" title="Modifier"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
-                        <button onclick="deleteRelationType('${rel.id}')" class="p-1 text-slate-400 hover:text-rose-600 rounded" title="Supprimer"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                        ${canEdit() ? `<button onclick="openEditRelationModal('${rel.id}')" class="p-1 text-slate-400 hover:text-[#5246EE] rounded" title="Modifier"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button><button onclick="deleteRelationType('${rel.id}')" class="p-1 text-slate-400 hover:text-rose-600 rounded" title="Supprimer"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>` : ''}
                     </div>
                 `;
                 listEl.appendChild(item);
@@ -1645,6 +1772,7 @@
         }
 
         function openAddRelationModal() {
+            if (!requireEdit()) return;
             editingRelationTypeId = null;
             document.getElementById('relation-modal-title').textContent = "Nouveau type de relation";
             document.getElementById('rel-modal-name').value = '';
@@ -1653,6 +1781,7 @@
         }
 
         function openEditRelationModal(relId) {
+            if (!requireEdit()) return;
             const rel = (currentCard.relationTypes || []).find(r => r.id === relId);
             if (!rel) return;
             editingRelationTypeId = relId;
@@ -1668,6 +1797,7 @@
         }
 
         async function submitRelationTypeModal() {
+            if (!requireEdit()) return;
             const name = document.getElementById('rel-modal-name').value.trim();
             const color = document.getElementById('rel-modal-color').value;
 
@@ -1698,6 +1828,7 @@
         }
 
         async function deleteRelationType(relId) {
+            if (!requireEdit()) return;
             if (currentCard.relationTypes.length <= 1) {
                 showToast("Vous devez conserver au moins un type de relation.");
                 return;
@@ -1716,6 +1847,7 @@
         }
 
         function openQuickLinkModal(sourceId, targetId) {
+            if (!requireEdit()) return;
             pendingQuickLink = { sourceId, targetId };
             const s = (currentCard.nodes || []).find(n => n.id === sourceId);
             const t = (currentCard.nodes || []).find(n => n.id === targetId);
@@ -1741,6 +1873,7 @@
         }
 
         async function confirmQuickLink() {
+            if (!requireEdit()) return;
             if (!pendingQuickLink) return;
             const relationTypeId = document.getElementById('ql-type-select').value;
 
@@ -1791,6 +1924,7 @@
         }
 
         async function saveEditLinkModal() {
+            if (!requireEdit()) return;
             if (!activeEditLinkId) return;
             const link = (currentCard.links || []).find(l => l.id === activeEditLinkId);
             if (link) {
@@ -1804,6 +1938,7 @@
         }
 
         async function deleteLinkFromModal() {
+            if (!requireEdit()) return;
             if (!activeEditLinkId) return;
             currentCard.links = (currentCard.links || []).filter(l => l.id !== activeEditLinkId);
             await saveCurrentMapState();
@@ -1813,19 +1948,32 @@
             showToast("Lien supprimé.");
         }
 
-        async function saveCurrentMapState() {
+        function scheduleSave() {
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(() => { saveTimer = null; saveCurrentMapState(); }, 500);
+        }
+
+        async function saveCurrentMapState(force = false) {
+            if (!force && !canEdit()) return;
+            clearTimeout(saveTimer); saveTimer = null;
+            let error = null;
             if (projectId && projectData) {
                 updateCardInTree(projectData.tree, currentCard);
-                await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId);
+                ({ error } = await supabaseClient.from('projects').update({ tree: projectData.tree, collaborators: projectData.collaborators || [] }).eq('id', projectId));
+                if (error) {
+                    ({ error } = await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId));
+                    if (!error && !warned) { warned = true; showToast("Colonne « collaborators » absente de la table projects (voir collaboration.sql)."); }
+                }
             } else {
-                await supabaseClient.from('cards').update({
+                ({ error } = await supabaseClient.from('cards').update({
                     name: currentCard.name,
                     nodes: currentCard.nodes,
                     links: currentCard.links,
                     relationTypes: currentCard.relationTypes,
                     collaborators: currentCard.collaborators
-                }).eq('id', currentCard.id);
+                }).eq('id', currentCard.id));
             }
+            if (error) { console.error(error); showToast("Erreur d'enregistrement."); }
         }
 
         function updateCardInTree(list, updatedCard) {
