@@ -890,7 +890,7 @@
                 const blob = new Blob([JSON.stringify(currentCard, null, 2)], { type: 'application/json' });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
-                link.download = `${currentCard.name.toLowerCase().replace(/\s+/g, '_')}_mobius.mobius`;
+                link.download = `${currentCard.name.toLowerCase().replace(/\s+/g, '_')}.mobius`;
                 link.click();
                 showToast("Carte exportée au format natif .mobius !");
             } else if (format === 'png') {
