@@ -7,78 +7,63 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- JSZip pour l'exportation en ZIP -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>
         if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
         }
-
         tailwind.config = {
             darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            DEFAULT: '#5246EE',
-                            hover: '#4538d8',
-                            light: '#766df2',
-                            subtle: '#f4f3ff'
-                        }
-                    },
-                    fontFamily: {
-                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif']
-                    }
-                }
-            }
+            theme: { extend: {
+                colors: { brand: { DEFAULT: '#5246EE', hover: '#4538d8', light: '#766df2', subtle: '#f4f3ff' } },
+                fontFamily: { sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'] }
+            } }
         }
     </script>
     <style>
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            transition: background-color 0.3s, color 0.3s;
-        }
-        .glass-card {
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(0, 0, 0, 0.06);
-        }
-        .dark .glass-card {
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-        @keyframes fadeInScale {
-            from { opacity: 0; transform: scale(0.97); }
-            to { opacity: 1; transform: scale(1); }
-        }
-        .animate-drop {
-            animation: fadeInScale 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-        @media (max-width: 768px) {
-            input, select, textarea {
-                font-size: 16px !important;
-            }
-        }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; transition: background-color .3s, color .3s; }
+        .glass-card { backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+        @keyframes fadeInScale { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: scale(1); } }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-drop { animation: fadeInScale .25s cubic-bezier(.16,1,.3,1) forwards; }
+        .animate-menu { animation: slideDown .18s ease-out forwards; }
+        .animate-toast { animation: toastIn .25s ease-out forwards; }
+        @media (max-width: 768px) { input, select, textarea { font-size: 16px !important; } }
     </style>
 </head>
 <body class="h-full bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col selection:bg-[#5246EE] selection:text-white">
 
-    <!-- TOP NAVIGATION BAR -->
+    <!-- NAVBAR -->
     <header class="w-full border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 glass-card sticky top-0 z-30 px-4 sm:px-8 py-3.5 flex items-center justify-between">
-        <div class="flex items-center gap-3 cursor-pointer" onclick="goHome()">
-            <span class="font-bold tracking-tight text-base sm:text-lg">MOBIUS <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#5246EE]/10 text-[#5246EE] font-semibold uppercase tracking-wider" id="user-version-badge">Standard</span></span>
+        <div class="flex items-center gap-3 cursor-pointer" id="brand">
+            <img src="logo_mobius_nobg.png" alt="MOBIUS" class="w-8 h-8 object-contain rounded-xl">
+            <span class="font-bold tracking-tight text-base sm:text-lg">MOBIUS <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#5246EE]/10 text-[#5246EE] font-semibold uppercase tracking-wider">Standard</span></span>
         </div>
 
-        <div class="flex items-center gap-3 sm:gap-4">
-            <button onclick="toggleDarkMode()" class="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all">
+        <div class="flex items-center gap-2.5 sm:gap-3">
+            <!-- NOTIFICATIONS -->
+            <div class="relative">
+                <button id="notif-btn" class="relative w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all" aria-label="Notifications">
+                    <i class="fa-solid fa-bell"></i>
+                    <span id="notif-badge" class="hidden absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white dark:ring-gray-900">0</span>
+                </button>
+                <div id="notif-panel" class="hidden absolute right-0 mt-2 w-[min(92vw,22rem)] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl overflow-hidden animate-menu">
+                    <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                        <span class="text-xs font-bold">Notifications</span>
+                        <span class="text-[10px] text-gray-400" id="notif-count-label"></span>
+                    </div>
+                    <div id="notif-list" class="max-h-96 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800"></div>
+                </div>
+            </div>
+
+            <button id="theme-btn" class="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all">
                 <i class="fa-solid fa-moon dark:hidden"></i>
                 <i class="fa-solid fa-sun hidden dark:block text-amber-400"></i>
             </button>
 
-            <div onclick="openProfileModal()" class="flex items-center gap-2.5 bg-gray-100 dark:bg-gray-800/80 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-1.5 rounded-2xl cursor-pointer transition-all">
+            <div id="profile-btn" class="flex items-center gap-2.5 bg-gray-100 dark:bg-gray-800/80 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-1.5 rounded-2xl cursor-pointer transition-all">
                 <div class="w-7 h-7 rounded-full bg-[#5246EE] text-white flex items-center justify-center text-xs font-bold" id="nav-user-initial">U</div>
                 <div class="hidden sm:block text-left leading-tight">
                     <div class="text-xs font-semibold" id="nav-user-name">Chargement...</div>
@@ -88,871 +73,817 @@
         </div>
     </header>
 
-    <!-- MAIN DASHBOARD CONTENT CONTAINER -->
-    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 flex flex-col" id="main-view-container">
-        
-        <!-- SECTION INVITATIONS EN ATTENTE -->
-        <div id="invitations-section" class="hidden mb-6 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-2xl p-4 sm:p-5">
-            <div class="flex items-center gap-2 mb-3 text-amber-800 dark:text-amber-400 font-bold text-xs uppercase tracking-wider">
-                <i class="fa-solid fa-envelope-open-text"></i>
-                <span>Invitations à collaborer en attente</span>
-            </div>
-            <div id="invitations-container" class="space-y-2"></div>
-        </div>
-
+    <!-- DASHBOARD -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 flex flex-col" id="main-view">
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
             <div class="bg-gray-200/70 dark:bg-gray-800 p-1 rounded-2xl flex w-full sm:w-auto">
-                <button onclick="switchDashboardTab('projects')" id="tab-projects" class="flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-gray-900 shadow-sm transition-all">Projets & Dossiers</button>
-                <button onclick="switchDashboardTab('cards')" id="tab-cards" class="flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold text-gray-500 dark:text-gray-400 transition-all">Cartes Libres</button>
+                <button data-tab="projects" class="tab-btn flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold transition-all">Projets & Dossiers</button>
+                <button data-tab="cards" class="tab-btn flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold transition-all">Cartes Libres</button>
             </div>
 
             <div class="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
-                <div class="bg-gray-200/70 dark:bg-gray-800 p-1 rounded-xl flex items-center">
-                    <button onclick="setViewMode('grid')" id="btn-view-grid" class="w-8 h-8 rounded-lg bg-white dark:bg-gray-900 text-xs shadow-sm flex items-center justify-center transition-all"><i class="fa-solid fa-border-all"></i></button>
-                    <button onclick="setViewMode('list')" id="btn-view-list" class="w-8 h-8 rounded-lg text-gray-500 dark:text-gray-400 text-xs flex items-center justify-center transition-all"><i class="fa-solid fa-list"></i></button>
+                <div class="relative flex-1 sm:flex-none">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400"></i>
+                    <input id="search-input" type="search" placeholder="Rechercher..." class="w-full sm:w-44 pl-8 pr-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none focus:border-[#5246EE]">
                 </div>
-
-                <select id="sort-select" onchange="renderDashboard()" class="bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none">
+                <div class="bg-gray-200/70 dark:bg-gray-800 p-1 rounded-xl flex items-center">
+                    <button data-view="grid" class="view-btn w-8 h-8 rounded-lg text-xs flex items-center justify-center transition-all"><i class="fa-solid fa-border-all"></i></button>
+                    <button data-view="list" class="view-btn w-8 h-8 rounded-lg text-xs flex items-center justify-center transition-all"><i class="fa-solid fa-list"></i></button>
+                </div>
+                <select id="sort-select" class="bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none">
                     <option value="alpha">Ordre alphabétique</option>
-                    <option value="chrono">Ordre chronologique</option>
+                    <option value="chrono">Plus récents</option>
                 </select>
-
-                <button onclick="openCreateModal()" class="bg-[#5246EE] hover:bg-[#4538d8] text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-md shadow-[#5246EE]/25 flex items-center gap-2 transition-all">
-                    <i class="fa-solid fa-plus text-[10px]"></i>
-                    <span id="create-btn-text">Nouveau Projet</span>
+                <button id="create-btn" class="bg-[#5246EE] hover:bg-[#4538d8] text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-md shadow-[#5246EE]/25 flex items-center gap-2 transition-all">
+                    <i class="fa-solid fa-plus text-[10px]"></i><span id="create-btn-text">Nouveau Projet</span>
                 </button>
             </div>
         </div>
 
-        <div id="drop-zone" class="border-2 border-dashed border-gray-300 dark:border-gray-800 rounded-2xl p-6 text-center mb-6 hover:border-[#5246EE] transition-all bg-white/50 dark:bg-gray-900/50 cursor-pointer">
-            <i class="fa-solid fa-cloud-arrow-up text-2xl text-[#5246EE] mb-2"></i>
-            <p class="text-xs font-medium text-gray-700 dark:text-gray-300">Glissez-déposez vos fichiers ou dossiers ici</p>
-            <input type="file" id="file-input-hidden" class="hidden" multiple accept=".json,.txt">
-        </div>
-
-        <div id="items-grid-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+        <div id="items-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
     </main>
 
-    <!-- PROJECT ARBORESCENCE VIEW -->
+    <!-- WORKSPACE PROJET -->
     <div id="project-workspace" class="hidden flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 flex flex-col">
-        <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-800">
-            <div class="flex items-center gap-3">
-                <button onclick="goHome()" class="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 transition-all">
-                    <i class="fa-solid fa-arrow-left"></i>
-                </button>
-                <div>
-                    <h1 class="text-lg font-bold" id="workspace-title">Nom du Projet</h1>
-                    <p class="text-xs text-gray-500" id="workspace-subtitle">Sélectionnez un dossier pour y ajouter des éléments</p>
+        <div class="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-800 gap-3 flex-wrap">
+            <div class="flex items-center gap-3 min-w-0">
+                <button id="back-btn" class="w-9 h-9 shrink-0 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"><i class="fa-solid fa-arrow-left"></i></button>
+                <div class="min-w-0">
+                    <h1 class="text-lg font-bold truncate flex items-center gap-2" id="workspace-title">Projet</h1>
+                    <p class="text-xs text-gray-500" id="workspace-subtitle"></p>
                 </div>
             </div>
-            <div class="flex items-center gap-2">
-                <button onclick="openExportModal()" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all">
-                    <i class="fa-solid fa-download text-[#5246EE]"></i>
-                    <span>Télécharger le projet (ZIP)</span>
-                </button>
-            </div>
+            <button id="export-btn" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all">
+                <i class="fa-solid fa-download text-[#5246EE]"></i><span>Télécharger (ZIP)</span>
+            </button>
         </div>
 
         <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div class="flex items-center gap-2 flex-wrap">
-                <button onclick="createInSelected('folder')" class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-folder-plus text-[#5246EE]"></i> Dossier</button>
-                <button onclick="createInSelected('txt')" class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-lines text-emerald-500"></i> Fichier .txt</button>
-                <button onclick="createInSelected('card')" class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-note-sticky text-indigo-500"></i> Nouvelle Carte</button>
-                <button onclick="triggerFileImport()" class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-arrow-down text-[#5246EE]"></i> Importer</button>
-                <input type="file" id="tree-file-input" class="hidden" accept=".txt" multiple onchange="handleFileImport(event)">
+                <button data-create="folder" class="tree-create px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-folder-plus text-[#5246EE]"></i> Dossier</button>
+                <button data-create="txt" class="tree-create px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-lines text-emerald-500"></i> Fichier .txt</button>
+                <button data-create="card" class="tree-create px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-note-sticky text-indigo-500"></i> Nouvelle Carte</button>
+                <button id="import-btn" class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-arrow-down text-[#5246EE]"></i> Importer</button>
+                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json" multiple>
             </div>
             <div class="text-[11px] text-gray-400 font-medium" id="selected-folder-indicator">📁 Destination : Racine du projet</div>
         </div>
 
-        <div id="arborescence-tree" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex-1 space-y-2 overflow-y-auto transition-all" 
-             ondragover="allowDrop(event)" ondragleave="dragLeaveRoot(event)" ondrop="dropToRoot(event)"></div>
+        <div id="tree" class="bg-white dark:bg-gray-900 border-2 border-transparent ring-1 ring-gray-200 dark:ring-gray-800 rounded-2xl p-4 flex-1 space-y-2 overflow-y-auto transition-all"></div>
     </div>
 
-    <!-- POPUPS PERSONNALISÉS -->
-    <div id="custom-prompt-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-[28px] max-w-sm w-full p-6 shadow-2xl border border-gray-100 dark:border-gray-800 space-y-4">
-            <h3 class="font-bold text-sm" id="custom-prompt-title">Titre</h3>
-            <input type="text" id="custom-prompt-input" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none focus:border-[#5246EE]" placeholder="...">
+    <!-- MODALES -->
+    <div id="prompt-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <form id="prompt-form" class="bg-white dark:bg-gray-900 rounded-[28px] max-w-sm w-full p-6 shadow-2xl border border-gray-100 dark:border-gray-800 space-y-4">
+            <h3 class="font-bold text-sm" id="prompt-title"></h3>
+            <input type="text" id="prompt-input" autocomplete="off" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none focus:border-[#5246EE]">
             <div class="flex gap-2 pt-2">
-                <button onclick="closeCustomPrompt(false)" class="flex-1 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs font-semibold">Annuler</button>
-                <button onclick="closeCustomPrompt(true)" class="flex-1 py-2.5 rounded-xl bg-[#5246EE] text-white text-xs font-semibold shadow-md">Valider</button>
+                <button type="button" data-prompt="cancel" class="flex-1 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs font-semibold">Annuler</button>
+                <button type="submit" class="flex-1 py-2.5 rounded-xl bg-[#5246EE] text-white text-xs font-semibold shadow-md">Valider</button>
             </div>
-        </div>
+        </form>
     </div>
 
-    <div id="custom-confirm-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-[28px] max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-gray-100 dark:border-gray-800">
+    <div id="confirm-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-900 rounded-[28px] max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-gray-100 dark:border-gray-800">
             <div class="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-500 flex items-center justify-center mx-auto text-lg"><i class="fa-solid fa-triangle-exclamation"></i></div>
-            <p class="text-xs font-medium" id="custom-confirm-message">Message de confirmation ?</p>
+            <p class="text-xs font-medium" id="confirm-message"></p>
             <div class="flex gap-2 pt-2">
-                <button onclick="closeCustomConfirm(false)" class="flex-1 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs font-semibold">Annuler</button>
-                <button onclick="closeCustomConfirm(true)" class="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-xs font-semibold shadow-md">Confirmer</button>
+                <button data-confirm="no" class="flex-1 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs font-semibold">Annuler</button>
+                <button data-confirm="yes" class="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-xs font-semibold shadow-md">Confirmer</button>
             </div>
         </div>
     </div>
 
-    <!-- POPUP DE CRÉATION DE PROJET / CARTE -->
-    <div id="create-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-[28px] max-w-md w-full p-6 sm:p-8 shadow-2xl border border-gray-100 dark:border-gray-800 space-y-5">
-            <h2 class="text-base font-bold" id="create-modal-title">Créer un nouveau projet</h2>
-            
+    <div id="create-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-900 rounded-[28px] max-w-md w-full p-6 sm:p-8 shadow-2xl border border-gray-100 dark:border-gray-800 space-y-5 max-h-[92vh] overflow-y-auto">
+            <h2 class="text-base font-bold" id="create-modal-title"></h2>
             <div class="space-y-4">
                 <div>
                     <label class="block text-[11px] font-semibold text-gray-500 mb-1 uppercase tracking-wider">Nom</label>
-                    <input type="text" id="modal-item-name" placeholder="Ex: Mon Super Projet" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none focus:border-[#5246EE]">
+                    <input type="text" id="modal-item-name" maxlength="80" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none focus:border-[#5246EE]">
                 </div>
 
-                <div class="flex items-center justify-between bg-gray-50 dark:bg-gray-800/60 p-3.5 rounded-xl border border-gray-200 dark:border-gray-700">
+                <label class="flex items-center justify-between bg-gray-50 dark:bg-gray-800/60 p-3.5 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer">
+                    <div>
+                        <div class="text-xs font-semibold">Collaboratif</div>
+                        <div class="text-[10px] text-gray-500">Les invités doivent accepter l'invitation</div>
+                    </div>
+                    <input type="checkbox" id="modal-is-collab" class="w-4 h-4 accent-[#5246EE]">
+                </label>
+
+                <div id="collab-box" class="hidden space-y-2">
+                    <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Inviter par e-mail</label>
+                    <div class="flex gap-2">
+                        <input type="email" id="modal-collab-email" placeholder="collab@exemple.com" class="flex-1 px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none focus:border-[#5246EE]">
+                        <button type="button" id="add-collab-btn" class="bg-gray-200 dark:bg-gray-700 px-4 rounded-xl text-xs font-semibold hover:bg-gray-300 dark:hover:bg-gray-600">Ajouter</button>
+                    </div>
+                    <div id="collab-badges" class="flex flex-wrap gap-1.5 mt-2"></div>
+                </div>
+
+                <label class="flex items-center justify-between bg-gray-50 dark:bg-gray-800/60 p-3.5 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer">
                     <div>
                         <div class="text-xs font-semibold">Protéger par mot de passe</div>
-                        <div class="text-[10px] text-gray-500">Requis pour participer et supprimer</div>
+                        <div class="text-[10px] text-gray-500">Requis pour ouvrir et supprimer</div>
                     </div>
-                    <input type="checkbox" id="modal-has-pwd" onchange="togglePwdField()" class="w-4 h-4 accent-[#5246EE] rounded">
-                </div>
-
-                <div id="pwd-field-container" class="hidden">
-                    <label class="block text-[11px] font-semibold text-gray-500 mb-1 uppercase tracking-wider">Mot de passe</label>
-                    <input type="password" id="modal-item-pwd" placeholder="••••••••" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none">
+                    <input type="checkbox" id="modal-has-pwd" class="w-4 h-4 accent-[#5246EE]">
+                </label>
+                <div id="pwd-box" class="hidden">
+                    <input type="password" id="modal-item-pwd" placeholder="••••••••" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none focus:border-[#5246EE]">
                 </div>
             </div>
-
             <div class="flex gap-3 pt-2">
-                <button onclick="closeCreateModal()" class="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs font-semibold hover:bg-gray-200 transition-all">Annuler</button>
-                <button onclick="confirmCreateItem()" class="flex-1 py-3 rounded-xl bg-[#5246EE] text-white text-xs font-semibold hover:bg-[#4538d8] transition-all shadow-md shadow-[#5246EE]/25">Créer</button>
+                <button data-create-modal="cancel" class="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs font-semibold hover:bg-gray-200 dark:hover:bg-gray-700 transition-all">Annuler</button>
+                <button data-create-modal="ok" class="flex-1 py-3 rounded-xl bg-[#5246EE] text-white text-xs font-semibold hover:bg-[#4538d8] transition-all shadow-md shadow-[#5246EE]/25">Créer</button>
             </div>
         </div>
     </div>
 
-    <!-- POPUP DE PROFIL -->
-    <div id="profile-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-[28px] max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-gray-100 dark:border-gray-800">
-            <div class="w-16 h-16 rounded-full bg-[#5246EE] text-white text-xl font-bold flex items-center justify-center mx-auto" id="profile-modal-initial">U</div>
+    <div id="profile-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-900 rounded-[28px] max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-gray-100 dark:border-gray-800">
+            <div class="w-16 h-16 rounded-full bg-[#5246EE] text-white text-xl font-bold flex items-center justify-center mx-auto" id="profile-initial">U</div>
             <div>
-                <h3 class="font-bold text-base" id="profile-modal-name">Nom Prénom</h3>
-                <p class="text-xs text-gray-500" id="profile-modal-email">email@example.com</p>
-                <span class="inline-block px-3 py-1 bg-[#5246EE]/10 text-[#5246EE] text-[10px] font-bold rounded-full uppercase mt-2" id="profile-modal-version">Standard</span>
+                <h3 class="font-bold text-base" id="profile-name"></h3>
+                <p class="text-xs text-gray-500" id="profile-email"></p>
             </div>
-            <button onclick="logout()" class="w-full py-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold transition-all border border-red-200/60 flex items-center justify-center gap-2">
+            <button id="logout-btn" class="w-full py-3 rounded-xl bg-red-50 dark:bg-red-950/30 hover:bg-red-100 text-red-600 text-xs font-semibold transition-all border border-red-200/60 dark:border-red-900/40 flex items-center justify-center gap-2">
                 <i class="fa-solid fa-arrow-right-from-bracket"></i> Se déconnecter
             </button>
-            <button onclick="closeProfileModal()" class="text-xs text-gray-400 hover:underline">Fermer</button>
+            <button data-close="profile-modal" class="text-xs text-gray-400 hover:underline">Fermer</button>
         </div>
     </div>
 
-    <!-- SCRIPT APPLICATION -->
-    <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            const SUPABASE_URL = 'https://nfvnayuqrmlldtixzdpx.supabase.co';
-            const SUPABASE_KEY = 'sb_publishable_EwONSAsqSfu8_SocZ7wZBA_rVODWqSF';
-            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-            let currentUser = null;
-            let currentTab = 'projects';
-            let viewMode = 'grid';
-            let activeProject = null;
-            let selectedFolderId = null;
-            let expandedFolders = new Set();
-
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session || !session.user) {
-                window.location.href = 'index.html';
-                return;
-            }
-            currentUser = session.user;
-            const meta = currentUser.user_metadata || {};
-            const fullName = (meta.first_name || meta.last_name) ? `${meta.first_name || ''} ${meta.last_name || ''}`.trim() : currentUser.email;
-
-            document.getElementById('nav-user-name').textContent = fullName;
-            document.getElementById('nav-user-email').textContent = currentUser.email;
-            document.getElementById('nav-user-initial').textContent = fullName.charAt(0).toUpperCase();
-
-            window.toggleDarkMode = function() {
-                const isDark = document.documentElement.classList.toggle('dark');
-                localStorage.setItem('theme', isDark ? 'dark' : 'light');
-            }
-
-            let promptResolve = null;
-            window.showCustomPrompt = function(title, placeholder = '') {
-                return new Promise((resolve) => {
-                    promptResolve = resolve;
-                    document.getElementById('custom-prompt-title').textContent = title;
-                    const input = document.getElementById('custom-prompt-input');
-                    input.value = '';
-                    input.placeholder = placeholder;
-                    document.getElementById('custom-prompt-modal').classList.remove('hidden');
-                    setTimeout(() => input.focus(), 50);
-                });
-            }
-            window.closeCustomPrompt = function(confirmed) {
-                document.getElementById('custom-prompt-modal').classList.add('hidden');
-                const val = document.getElementById('custom-prompt-input').value;
-                if (promptResolve) promptResolve(confirmed ? val : null);
-            }
-
-            let confirmResolve = null;
-            window.showCustomConfirm = function(message) {
-                return new Promise((resolve) => {
-                    confirmResolve = resolve;
-                    document.getElementById('custom-confirm-message').textContent = message;
-                    document.getElementById('custom-confirm-modal').classList.remove('hidden');
-                });
-            }
-            window.closeCustomConfirm = function(confirmed) {
-                document.getElementById('custom-confirm-modal').classList.add('hidden');
-                if (confirmResolve) confirmResolve(confirmed);
-            }
-
-            window.switchDashboardTab = function(tab) {
-                currentTab = tab;
-                const btnP = document.getElementById('tab-projects');
-                const btnC = document.getElementById('tab-cards');
-                const createText = document.getElementById('create-btn-text');
-
-                if (tab === 'projects') {
-                    btnP.className = "flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-gray-900 shadow-sm transition-all";
-                    btnC.className = "flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold text-gray-500 dark:text-gray-400 transition-all";
-                    createText.textContent = "Nouveau Projet";
-                } else {
-                    btnC.className = "flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-gray-900 shadow-sm transition-all";
-                    btnP.className = "flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold text-gray-500 dark:text-gray-400 transition-all";
-                    createText.textContent = "Nouvelle Carte Libre";
-                }
-                loadDashboardData();
-            }
-
-            window.setViewMode = function(mode) {
-                viewMode = mode;
-                document.getElementById('btn-view-grid').className = mode === 'grid' ? "w-8 h-8 rounded-lg bg-white dark:bg-gray-900 text-xs shadow-sm flex items-center justify-center transition-all" : "w-8 h-8 rounded-lg text-gray-500 text-xs flex items-center justify-center";
-                document.getElementById('btn-view-list').className = mode === 'list' ? "w-8 h-8 rounded-lg bg-white dark:bg-gray-900 text-xs shadow-sm flex items-center justify-center transition-all" : "w-8 h-8 rounded-lg text-gray-500 text-xs flex items-center justify-center";
-                loadDashboardData();
-            }
-
-            let projectsList = [];
-            let cardsList = [];
-
-            window.loadDashboardData = async function() {
-                checkPendingInvitations();
-
-                if (currentTab === 'projects') {
-                    const { data, error } = await supabase.from('projects').select('*');
-                    if (!error) projectsList = data || [];
-                } else {
-                    const { data, error } = await supabase.from('cards').select('*');
-                    if (!error) cardsList = data || [];
-                }
-                renderDashboard();
-
-                const urlParams = new URLSearchParams(window.location.search);
-                const openProjectId = urlParams.get('openProjectId');
-                if (openProjectId && currentTab === 'projects') {
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                    openProject(openProjectId);
-                }
-            }
-
-           // --- VÉRIFICATION DES INVITATIONS VIA LE JSON ---
-            async function checkPendingInvitations() {
-                const section = document.getElementById('invitations-section');
-                const container = document.getElementById('invitations-container');
-                container.innerHTML = '';
-
-                const { data: projects, error } = await supabase
-                    .from('projects')
-                    .select('id, name, collaborators');
-
-                if (error || !projects) {
-                    section.classList.add('hidden');
-                    return;
-                }
-
-                const email = currentUser.email.toLowerCase();
-                const pendingInvites = projects.filter(proj => {
-                    const collabs = proj.collaborators || [];
-                    return collabs.some(c => (c.email || '').toLowerCase() === email && c.status === 'pending');
-                });
-
-                if (pendingInvites.length > 0) {
-                    section.classList.remove('hidden');
-                    for (let proj of pendingInvites) {
-                        const row = document.createElement('div');
-                        row.className = "flex items-center justify-between bg-white dark:bg-gray-900 p-3 rounded-xl border border-amber-200 dark:border-amber-900/50 text-xs animate-drop";
-                        row.innerHTML = `
-                            <div>
-                                <span class="font-bold text-gray-800 dark:text-gray-200">${proj.name}</span>
-                                <span class="text-[10px] text-gray-400 block">Invitation reçue</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <button onclick="acceptInvitationJson('${proj.id}')" class="px-3 py-1.5 bg-[#5246EE] hover:bg-[#4538d8] text-white font-semibold rounded-lg shadow-xs transition-all">Accepter</button>
-                                <button onclick="declineInvitationJson('${proj.id}')" class="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-gray-600 dark:text-gray-300 font-semibold rounded-lg transition-all">Refuser</button>
-                            </div>
-                        `;
-                        container.appendChild(row);
-                    }
-                } else {
-                    section.classList.add('hidden');
-                }
-            }
-
-            window.acceptInvitationJson = async function(projectId) {
-                const { data: proj, error } = await supabase.from('projects').select('collaborators').eq('id', projectId).single();
-                if (error || !proj) return;
-                
-                let collabs = proj.collaborators || [];
-                const me = collabs.find(c => (c.email || '').toLowerCase() === currentUser.email.toLowerCase());
-                
-                if (me) {
-                    me.status = 'accepted';
-                    me.acceptedAt = new Date().toISOString();
-                    
-                    const { error: updateError } = await supabase
-                        .from('projects')
-                        .update({ collaborators: collabs })
-                        .eq('id', projectId);
-                        
-                    if (!updateError) {
-                        loadDashboardData();
-                    }
-                }
-            }
-
-            window.declineInvitationJson = async function(projectId) {
-                const { data: proj, error } = await supabase.from('projects').select('collaborators').eq('id', projectId).single();
-                if (error || !proj) return;
-                
-                let collabs = proj.collaborators || [];
-                collabs = collabs.filter(c => (c.email || '').toLowerCase() !== currentUser.email.toLowerCase());
-                
-                const { error: updateError } = await supabase
-                    .from('projects')
-                    .update({ collaborators: collabs })
-                    .eq('id', projectId);
-                    
-                if (!updateError) {
-                    loadDashboardData();
-                }
-            }
-
-            window.renderDashboard = function() {
-                const container = document.getElementById('items-grid-container');
-                container.innerHTML = '';
-                const items = currentTab === 'projects' ? projectsList : cardsList;
-                const sortType = document.getElementById('sort-select').value;
-
-                items.sort((a, b) => {
-                    if (sortType === 'alpha') return a.name.localeCompare(b.name);
-                    return new Date(b.created_at) - new Date(a.created_at);
-                });
-
-                if (items.length === 0) {
-                    container.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400 text-xs">Aucun élément pour le moment. Cliquez sur le bouton en haut pour en créer un !</div>`;
-                    return;
-                }
-
-                container.className = viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" : "flex flex-col gap-2";
-
-                items.forEach(item => {
-                    const card = document.createElement('div');
-                    card.className = viewMode === 'grid' 
-                        ? "bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex flex-col justify-between hover:shadow-lg transition-all cursor-pointer relative group"
-                        : "bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 flex items-center justify-between hover:shadow-md transition-all cursor-pointer";
-                    
-                    const clickAction = currentTab === 'projects' ? `openProject('${item.id}')` : `window.location.href='map.html?cardId=${item.id}'`;
-
-                    card.innerHTML = `
-                        <div class="flex items-center gap-3 flex-1" onclick="${clickAction}">
-                            <div class="w-10 h-10 rounded-xl bg-[#5246EE]/10 text-[#5246EE] flex items-center justify-center font-bold">
-                                <i class="fa-solid ${currentTab === 'projects' ? 'fa-folder' : 'fa-note-sticky'}"></i>
-                            </div>
-                            <div>
-                                <h3 class="text-xs font-bold text-gray-900 dark:text-gray-100">${item.name}</h3>
-                                <p class="text-[10px] text-gray-400">Propriétaire: ${item.owner_email === currentUser.email ? 'Vous' : item.owner_email}</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-2 mt-3 sm:mt-0">
-                            ${item.pwd ? '<i class="fa-solid fa-lock text-xs text-amber-500" title="Protégé par mot de passe"></i>' : ''}
-                            <button onclick="deleteItem('${item.id}', '${currentTab}')" class="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 flex items-center justify-center text-xs transition-all" title="Corbeille">
-                                <i class="fa-solid fa-trash"></i>
-                            </button>
-                        </div>
-                    `;
-                    container.appendChild(card);
-                });
-            }
-
-            window.deleteItem = async function(id, type) {
-                const list = type === 'projects' ? projectsList : cardsList;
-                const item = list.find(i => i.id === id);
-                if (!item) return;
-
-                if (item.pwd) {
-                    const pwdInput = await showCustomPrompt("Mot de passe requis :", "Entrez le mot de passe");
-                    if (pwdInput !== item.pwd) {
-                        alert("Mot de passe incorrect.");
-                        return;
-                    }
-                }
-
-                if (item.owner_email === currentUser.email) {
-                    const confirmed = await showCustomConfirm("Êtes-vous sûr de vouloir supprimer définitivement cet élément ?");
-                    if (confirmed) {
-                        await supabase.from(type).delete().eq('id', id);
-                        loadDashboardData();
-                    }
-                } else {
-                    const confirmed = await showCustomConfirm("Voulez-vous quitter ce projet/cette carte ?");
-                    if (confirmed) {
-                        await supabase.from(type).delete().eq('id', id);
-                        loadDashboardData();
-                    }
-                }
-            }
-
-            window.openCreateModal = function() {
-                document.getElementById('create-modal').classList.remove('hidden');
-                document.getElementById('create-modal-title').textContent = currentTab === 'projects' ? 'Créer un nouveau projet' : 'Créer une nouvelle carte libre';
-            }
-            window.closeCreateModal = function() {
-                document.getElementById('create-modal').classList.add('hidden');
-            }
-            window.togglePwdField = function() {
-                const isChecked = document.getElementById('modal-has-pwd').checked;
-                document.getElementById('pwd-field-container').classList.toggle('hidden', !isChecked);
-            }
-
-            window.confirmCreateItem = async function() {
-                const name = document.getElementById('modal-item-name').value.trim();
-                if (!name) {
-                    alert("Veuillez entrer un nom.");
-                    return;
-                }
-                const hasPwd = document.getElementById('modal-has-pwd').checked;
-                const pwd = hasPwd ? document.getElementById('modal-item-pwd').value : '';
-
-                if (currentTab === 'projects') {
-                    const newProj = {
-                        name,
-                        owner_email: currentUser.email,
-                        owner_id: currentUser.id,
-                        is_collab: true,
-                        pwd,
-                        tree: []
-                    };
-                    const { error } = await supabase.from('projects').insert([newProj]);
-                    if (error) {
-                        console.error("Erreur création projet:", error);
-                        alert("Erreur lors de la création du projet.");
-                        return;
-                    }
-                } else {
-                    const newCard = {
-                        name,
-                        owner_email: currentUser.email,
-                        owner_id: currentUser.id,
-                        pwd
-                    };
-                    const { error } = await supabase.from('cards').insert([newCard]);
-                    if (error) {
-                        console.error("Erreur création carte:", error);
-                        alert("Erreur lors de la création de la carte libre : " + error.message);
-                        return;
-                    }
-                }
-
-                closeCreateModal();
-                loadDashboardData();
-            }
-
-            window.openProject = async function(id) {
-                activeProject = projectsList.find(p => p.id === id);
-                if (!activeProject) return;
-
-                if (activeProject.pwd && activeProject.owner_email !== currentUser.email) {
-                    const p = await showCustomPrompt("Ce projet est protégé. Entrez le mot de passe :", "Mot de passe");
-                    if (p !== activeProject.pwd) {
-                        alert("Mot de passe incorrect.");
-                        return;
-                    }
-                }
-
-                selectedFolderId = null;
-                expandedFolders.clear();
-                document.getElementById('main-view-container').classList.add('hidden');
-                document.getElementById('project-workspace').classList.remove('hidden');
-                document.getElementById('workspace-title').textContent = activeProject.name;
-                updateFolderIndicator();
-                renderArborescence();
-            }
-
-            window.goHome = function() {
-                document.getElementById('project-workspace').classList.add('hidden');
-                document.getElementById('main-view-container').classList.remove('hidden');
-                loadDashboardData();
-            }
-
-            async function saveProjectTreeToSupabase() {
-                await supabase.from('projects').update({ tree: activeProject.tree }).eq('id', activeProject.id);
-            }
-
-            window.selectFolder = function(id, event) {
-                event.stopPropagation();
-                if (selectedFolderId === id) {
-                    selectedFolderId = null;
-                    expandedFolders.delete(id);
-                } else {
-                    selectedFolderId = id;
-                    expandedFolders.add(id);
-                }
-                updateFolderIndicator();
-                renderArborescence();
-            }
-
-            function updateFolderIndicator() {
-                const ind = document.getElementById('selected-folder-indicator');
-                if (!selectedFolderId) {
-                    ind.textContent = "📁 Destination : Racine du projet";
-                } else {
-                    const folder = findItemRecursive(activeProject.tree, selectedFolderId);
-                    ind.textContent = `📁 Destination : Dossier [ ${folder ? folder.name : ''} ]`;
-                }
-            }
-
-            window.createInSelected = async function(type) {
-                const typeName = type === 'folder' ? 'dossier' : type === 'txt' ? 'fichier .txt' : 'carte';
-                const name = await showCustomPrompt(`Nom du ${typeName} :`, `Nom du ${typeName}`);
-                if (!name) return;
-
-                const newItem = {
-                    id: 'item_' + Math.random().toString(36).substr(2, 9),
-                    type,
-                    name,
-                    content: type === 'txt' ? 'Nouveau fichier texte...' : '',
-                    children: type === 'folder' ? [] : undefined
-                };
-
-                if (!selectedFolderId) {
-                    activeProject.tree.push(newItem);
-                } else {
-                    addItemRecursive(activeProject.tree, selectedFolderId, newItem);
-                    expandFolderRecursive(activeProject.tree, selectedFolderId);
-                }
-                saveProjectTreeToSupabase();
-                renderArborescence();
-            }
-
-            window.triggerFileImport = function() {
-                document.getElementById('tree-file-input').click();
-            }
-
-            window.handleFileImport = function(e) {
-                const files = e.target.files;
-                if (!files || files.length === 0) return;
-                processUploadedFiles(Array.from(files), selectedFolderId);
-                e.target.value = '';
-            }
-
-            function processUploadedFiles(files, targetFolderId) {
-                let pending = files.length;
-                files.forEach(file => {
-                    const reader = new FileReader();
-                    reader.onload = function(event) {
-                        const newItem = {
-                            id: 'item_' + Math.random().toString(36).substr(2, 9),
-                            type: 'txt',
-                            name: file.name,
-                            content: event.target.result,
-                            isNewDrop: true
-                        };
-
-                        if (!targetFolderId) {
-                            activeProject.tree.push(newItem);
-                        } else {
-                            addItemRecursive(activeProject.tree, targetFolderId, newItem);
-                            expandFolderRecursive(activeProject.tree, targetFolderId);
-                        }
-
-                        pending--;
-                        if (pending === 0) {
-                            saveProjectTreeToSupabase();
-                            renderArborescence();
-                        }
-                    };
-                    reader.readAsText(file);
-                });
-            }
-
-            function addItemRecursive(list, parentId, newItem) {
-                for (let item of list) {
-                    if (item.id === parentId && item.type === 'folder') {
-                        if (!item.children) item.children = [];
-                        item.children.push(newItem);
-                        return true;
-                    }
-                    if (item.children && item.children.length > 0) {
-                        if (addItemRecursive(item.children, parentId, newItem)) return true;
-                    }
-                }
-                return false;
-            }
-
-            function findItemRecursive(list, id) {
-                for (let item of list) {
-                    if (item.id === id) return item;
-                    if (item.children) {
-                        const found = findItemRecursive(item.children, id);
-                        if (found) return found;
-                    }
-                }
-                return null;
-            }
-
-            window.toggleFolder = function(id, event) {
-                event.stopPropagation();
-                if (expandedFolders.has(id)) {
-                    expandedFolders.delete(id);
-                } else {
-                    expandedFolders.add(id);
-                }
-                renderArborescence();
-            }
-
-            function expandFolderRecursive(list, id) {
-                for (let item of list) {
-                    if (item.id === id) {
-                        expandedFolders.add(id);
-                        return true;
-                    }
-                    if (item.children) {
-                        if (expandFolderRecursive(item.children, id)) return true;
-                    }
-                }
-                return false;
-            }
-
-            window.removeTreeItem = async function(id, event) {
-                event.stopPropagation();
-                const confirmed = await showCustomConfirm("Voulez-vous vraiment supprimer cet élément de l'arborescence ?");
-                if (!confirmed) return;
-
-                if (selectedFolderId === id) selectedFolderId = null;
-                activeProject.tree = removeTreeRecursive(activeProject.tree, id);
-                saveProjectTreeToSupabase();
-                updateFolderIndicator();
-                renderArborescence();
-            }
-
-            function removeTreeRecursive(list, id) {
-                return list.filter(item => {
-                    if (item.id === id) return false;
-                    if (item.children) {
-                        item.children = removeTreeRecursive(item.children, id);
-                    }
-                    return true;
-                });
-            }
-
-            let draggedItemId = null;
-
-            window.dragStart = function(e, id) {
-                e.stopPropagation();
-                draggedItemId = id;
-                e.dataTransfer.effectAllowed = 'move';
-            }
-
-            window.allowDrop = function(e) {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-                const isDark = document.documentElement.classList.contains('dark');
-                if (isDark) {
-                    e.currentTarget.classList.add('bg-green-500/20', 'border-green-400', 'ring-2', 'ring-green-400/30');
-                } else {
-                    e.currentTarget.classList.add('bg-[#5246EE]/10', 'border-[#5246EE]', 'ring-2', 'ring-[#5246EE]/20');
-                }
-            }
-
-            window.dragLeaveRoot = function(e) {
-                e.currentTarget.classList.remove('bg-[#5246EE]/10', 'border-[#5246EE]', 'ring-2', 'ring-[#5246EE]/20', 'bg-emerald-500/15', 'border-emerald-500', 'ring-emerald-500/20');
-            }
-
-            window.dragLeaveFolder = function(e) {
-                e.currentTarget.classList.remove('bg-[#5246EE]/15', 'border-[#5246EE]', 'bg-emerald-500/15', 'border-emerald-500');
-            }
-
-            window.dropToFolder = function(e, targetFolderId) {
-                e.preventDefault();
-                e.stopPropagation();
-                e.currentTarget.classList.remove('bg-[#5246EE]/15', 'border-[#5246EE]', 'bg-emerald-500/15', 'border-emerald-500');
-
-                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                    processUploadedFiles(Array.from(e.dataTransfer.files), targetFolderId);
-                    return;
-                }
-
-                if (!draggedItemId || draggedItemId === targetFolderId) return;
-
-                if (isDescendant(activeProject.tree, draggedItemId, targetFolderId)) {
-                    alert("Impossible de déplacer un dossier à l'intérieur de lui-même !");
-                    return;
-                }
-
-                const itemToMove = extractTreeItem(activeProject.tree, draggedItemId);
-                if (itemToMove) {
-                    const targetFolder = findItemRecursive(activeProject.tree, targetFolderId);
-                    if (targetFolder) {
-                        if (!targetFolder.children) targetFolder.children = [];
-                        targetFolder.children.push(itemToMove);
-                        expandedFolders.add(targetFolderId);
-                    }
-                }
-                draggedItemId = null;
-                saveProjectTreeToSupabase();
-                renderArborescence();
-            }
-
-            window.dropToRoot = function(e) {
-                e.preventDefault();
-                e.currentTarget.classList.remove('bg-[#5246EE]/10', 'border-[#5246EE]', 'ring-2', 'ring-[#5246EE]/20', 'bg-emerald-500/15', 'border-emerald-500', 'ring-emerald-500/20');
-
-                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                    processUploadedFiles(Array.from(e.dataTransfer.files), null);
-                    return;
-                }
-
-                if (!draggedItemId) return;
-
-                const itemToMove = extractTreeItem(activeProject.tree, draggedItemId);
-                if (itemToMove) {
-                    activeProject.tree.push(itemToMove);
-                }
-                draggedItemId = null;
-                saveProjectTreeToSupabase();
-                renderArborescence();
-            }
-
-            function extractTreeItem(list, id) {
-                for (let i = 0; i < list.length; i++) {
-                    if (list[i].id === id) {
-                        return list.splice(i, 1)[0];
-                    }
-                    if (list[i].children) {
-                        const found = extractTreeItem(list[i].children, id);
-                        if (found) return found;
-                    }
-                }
-                return null;
-            }
-
-            function isDescendant(list, parentId, targetId) {
-                const parent = findItemRecursive(list, parentId);
-                if (!parent || !parent.children) return false;
-                for (let child of parent.children) {
-                    if (child.id === targetId) return true;
-                    if (child.children && isDescendant(child.children, child.id, targetId)) return true;
-                }
-                return false;
-            }
-
-            function renderArborescence() {
-                const treeContainer = document.getElementById('arborescence-tree');
-                treeContainer.innerHTML = '';
-                if (!activeProject.tree || activeProject.tree.length === 0) {
-                    treeContainer.innerHTML = `<div class="text-center py-12 text-gray-400 text-xs">Arborescence vide. Sélectionnez la racine ou un dossier puis utilisez les boutons ci-dessus (ou glissez-déposez un fichier .txt depuis votre Finder ici).</div>`;
-                    return;
-                }
-                renderTreeLevel(activeProject.tree, treeContainer);
-            }
-
-            function renderTreeLevel(items, container) {
-                items.forEach(item => {
-                    const el = document.createElement('div');
-                    el.className = `space-y-1 ${item.isNewDrop ? 'animate-drop' : ''}`;
-                    if (item.isNewDrop) delete item.isNewDrop;
-
-                    el.setAttribute('draggable', 'true');
-                    el.addEventListener('dragstart', (e) => dragStart(e, item.id));
-
-                    if (item.type === 'folder') {
-                        const isSelected = selectedFolderId === item.id;
-                        const isExpanded = expandedFolders.has(item.id);
-
-                        el.innerHTML = `
-                            <div draggable="true" ondragover="allowDrop(event)" ondragleave="dragLeaveFolder(event)" ondrop="dropToFolder(event, '${item.id}')" 
-                                class="flex items-center justify-between p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${isSelected ? 'bg-[#5246EE]/10 border-[#5246EE] text-[#5246EE] font-semibold' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800'}"
-                                onclick="selectFolder('${item.id}', event)">
-                                <div class="flex items-center gap-2.5 flex-1">
-                                    <i class="fa-solid fa-chevron-right text-[10px] text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}" onclick="toggleFolder('${item.id}', event)"></i>
-                                    <i class="fa-solid fa-folder text-[#5246EE]"></i>
-                                    <span>${item.name}</span>
-                                </div>
-                                <button onclick="removeTreeItem('${item.id}', event)" class="text-red-500 hover:text-red-700 px-2" title="Supprimer"><i class="fa-solid fa-xmark"></i></button>
-                            </div>
-                            <div id="folder-content-${item.id}" class="pl-6 space-y-1 ${isExpanded ? '' : 'hidden'} mt-1 border-l-2 border-gray-100 dark:border-gray-800"></div>
-                        `;
-                        container.appendChild(el);
-                        if (item.children && item.children.length > 0) {
-                            renderTreeLevel(item.children, document.getElementById(`folder-content-${item.id}`));
-                        }
-                    } else {
-                        const icon = item.type === 'txt' ? 'fa-file-lines text-emerald-500' : 'fa-note-sticky text-indigo-500';
-                        const clickAction = item.type === 'card' 
-                            ? `window.location.href='map.html?cardId=${item.id}'` 
-                            : `window.location.href='editor.html?projectId=${activeProject.id}&fileId=${item.id}'`;
-                        
-                        el.innerHTML = `
-                            <div draggable="true" class="flex items-center justify-between p-2.5 bg-gray-50/60 dark:bg-gray-800/60 rounded-xl border border-gray-200/60 dark:border-gray-700/60 text-xs hover:bg-gray-100 dark:hover:bg-gray-800 transition-all cursor-pointer" onclick="${clickAction}">
-                                <div class="flex items-center gap-2.5 flex-1">
-                                    <i class="fa-solid ${icon}"></i>
-                                    <span class="font-medium">${item.name}</span>
-                                    ${item.type === 'card' ? '<span class="text-[9px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-semibold">Carte</span>' : ''}
-                                </div>
-                                <button onclick="removeTreeItem('${item.id}', event)" class="text-red-500 hover:text-red-700 px-2"><i class="fa-solid fa-xmark"></i></button>
-                            </div>
-                        `;
-                        container.appendChild(el);
-                    }
-                });
-            }
-
-            window.openExportModal = async function() {
-                if (activeProject.pwd) {
-                    const p = await showCustomPrompt("Entrez le mot de passe pour télécharger ce projet sécurisé :", "Mot de passe");
-                    if (p !== activeProject.pwd) {
-                        alert("Mot de passe incorrect.");
-                        return;
-                    }
-                }
-
-                const zip = new JSZip();
-                const projectData = {
-                    ...activeProject,
-                    host_approval_required: true,
-                    exported_at: new Date().toISOString()
-                };
-
-                zip.file("project_manifest.json", JSON.stringify(projectData, null, 2));
-                const contentBlob = await zip.generateAsync({ type: "blob" });
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(contentBlob);
-                link.download = `${activeProject.name.toLowerCase().replace(/\s+/g, '_')}_mobius.zip`;
-                link.click();
-            }
-
-            window.openProfileModal = function() {
-                document.getElementById('profile-modal').classList.remove('hidden');
-                document.getElementById('profile-modal-name').textContent = fullName;
-                document.getElementById('profile-modal-email').textContent = currentUser.email;
-                document.getElementById('profile-modal-initial').textContent = fullName.charAt(0).toUpperCase();
-            }
-            window.closeProfileModal = function() {
-                document.getElementById('profile-modal').classList.add('hidden');
-            }
-
-            window.logout = async function() {
-                await supabase.auth.signOut();
-                window.location.href = 'index.html';
-            }
-
-            loadDashboardData();
+    <div id="toasts" class="fixed bottom-4 right-4 z-[60] flex flex-col gap-2"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    const SUPABASE_URL = 'https://nfvnayuqrmlldtixzdpx.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_EwONSAsqSfu8_SocZ7wZBA_rVODWqSF';
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const $ = (id) => document.getElementById(id);
+
+    /* ---------- Helpers ---------- */
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const norm = (e) => String(e || '').trim().toLowerCase();
+    const isEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+    const TABLE_LABEL = { projects: 'projet', cards: 'carte libre' };
+
+    function toast(msg, type = 'info') {
+        const colors = { info: 'bg-gray-900 text-white', success: 'bg-emerald-600 text-white', error: 'bg-red-600 text-white' };
+        const el = document.createElement('div');
+        el.className = `animate-toast ${colors[type]} text-xs font-medium px-4 py-3 rounded-xl shadow-lg max-w-xs`;
+        el.textContent = msg;
+        $('toasts').appendChild(el);
+        setTimeout(() => el.remove(), 3500);
+    }
+    const showModal = (id) => { $(id).classList.remove('hidden'); $(id).classList.add('flex'); };
+    const hideModal = (id) => { $(id).classList.add('hidden'); $(id).classList.remove('flex'); };
+
+    /* ---------- Session ---------- */
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session?.user) { window.location.href = 'index.html'; return; }
+    const user = session.user;
+    const myEmail = norm(user.email);
+    const meta = user.user_metadata || {};
+    const fullName = (meta.first_name || meta.last_name) ? `${meta.first_name || ''} ${meta.last_name || ''}`.trim() : user.email;
+    $('nav-user-name').textContent = fullName;
+    $('nav-user-email').textContent = user.email;
+    $('nav-user-initial').textContent = fullName.charAt(0).toUpperCase();
+
+    /* ---------- État ---------- */
+    const state = {
+        tab: 'projects', view: localStorage.getItem('viewMode') || 'grid',
+        data: { projects: [], cards: [] },      // éléments visibles (possédés + invitation acceptée)
+        invitations: [],                         // { table, item, from }
+        activeProject: null, selectedFolderId: null, expanded: new Set(),
+        tempCollabs: [], draggedId: null
+    };
+
+    /* ---------- Modèle collaborateurs ----------
+       collaborators (jsonb) = [{ email, status: 'pending' | 'accepted', invited_by, invited_at }]
+       Les anciennes valeurs (simple string) sont traitées comme "accepted". */
+    function collabEntries(item) {
+        const raw = Array.isArray(item.collaborators) ? item.collaborators : [];
+        return raw.map(c => typeof c === 'string'
+            ? { email: norm(c), status: 'accepted' }
+            : { ...c, email: norm(c.email), status: c.status || 'accepted' });
+    }
+    const isOwner = (item) => item.owner_id === user.id || norm(item.owner_email) === myEmail;
+    const myEntry = (item) => collabEntries(item).find(c => c.email === myEmail);
+    const hasCollab = (item) => collabEntries(item).some(c => c.status === 'accepted');
+    const pendingCount = (item) => collabEntries(item).filter(c => c.status === 'pending').length;
+
+    /* ---------- Chargement ---------- */
+    async function fetchTable(table) {
+        // 3 requêtes : possédés, invité (objet JSON), ancien format (string)
+        const queries = [
+            sb.from(table).select('*').eq('owner_id', user.id),
+            sb.from(table).select('*').contains('collaborators', [{ email: myEmail }]),
+            sb.from(table).select('*').contains('collaborators', [myEmail])
+        ];
+        const results = await Promise.all(queries);
+        const map = new Map();
+        results.forEach((r, i) => {
+            if (r.error) { if (i === 0) console.warn(`[${table}]`, r.error.message); return; }
+            (r.data || []).forEach(row => map.set(row.id, row));
         });
-    </script>
+        return [...map.values()];
+    }
+
+    async function loadAll() {
+        const [projects, cards] = await Promise.all([fetchTable('projects'), fetchTable('cards')]);
+        state.data.projects = [];
+        state.data.cards = [];
+        state.invitations = [];
+
+        [['projects', projects], ['cards', cards]].forEach(([table, rows]) => {
+            rows.forEach(item => {
+                const entry = myEntry(item);
+                if (!isOwner(item) && entry?.status === 'pending') {
+                    state.invitations.push({ table, item, from: entry.invited_by || item.owner_email, at: entry.invited_at });
+                } else if (isOwner(item) || entry?.status === 'accepted') {
+                    state.data[table].push(item);
+                }
+            });
+        });
+        renderNotifications();
+        renderDashboard();
+    }
+
+    /* ---------- Rendu dashboard ---------- */
+    function applyTabStyles() {
+        document.querySelectorAll('.tab-btn').forEach(b => {
+            const active = b.dataset.tab === state.tab;
+            b.className = `tab-btn flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold transition-all ${active ? 'bg-white dark:bg-gray-900 shadow-sm' : 'text-gray-500 dark:text-gray-400'}`;
+        });
+        document.querySelectorAll('.view-btn').forEach(b => {
+            const active = b.dataset.view === state.view;
+            b.className = `view-btn w-8 h-8 rounded-lg text-xs flex items-center justify-center transition-all ${active ? 'bg-white dark:bg-gray-900 shadow-sm' : 'text-gray-500 dark:text-gray-400'}`;
+        });
+        $('create-btn-text').textContent = state.tab === 'projects' ? 'Nouveau Projet' : 'Nouvelle Carte Libre';
+    }
+
+    function renderDashboard() {
+        applyTabStyles();
+        const container = $('items-grid');
+        const q = $('search-input').value.trim().toLowerCase();
+        const sort = $('sort-select').value;
+        const items = [...state.data[state.tab]]
+            .filter(i => !q || i.name.toLowerCase().includes(q))
+            .sort((a, b) => sort === 'alpha' ? a.name.localeCompare(b.name) : new Date(b.created_at) - new Date(a.created_at));
+
+        container.className = state.view === 'grid'
+            ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'
+            : 'flex flex-col gap-2';
+
+        if (!items.length) {
+            container.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400 text-xs">${q ? 'Aucun résultat.' : 'Aucun élément pour le moment. Cliquez sur le bouton en haut pour en créer un !'}</div>`;
+            return;
+        }
+
+        container.innerHTML = items.map(item => {
+            const owner = isOwner(item);
+            const shared = !owner;                       // partagé avec moi
+            const collab = hasCollab(item) || shared;
+            const pending = owner ? pendingCount(item) : 0;
+            const base = state.view === 'grid'
+                ? 'rounded-2xl p-4 flex flex-col gap-3 hover:shadow-lg'
+                : 'rounded-xl p-4 flex items-center justify-between gap-3 hover:shadow-md';
+            return `
+            <div class="item-card bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 ${base} transition-all cursor-pointer" data-id="${esc(item.id)}">
+                <div class="flex items-center gap-3 min-w-0 flex-1">
+                    <div class="w-10 h-10 shrink-0 rounded-xl bg-[#5246EE]/10 text-[#5246EE] flex items-center justify-center relative">
+                        <i class="fa-solid ${state.tab === 'projects' ? 'fa-folder' : 'fa-note-sticky'}"></i>
+                        ${collab ? `<span class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 text-white text-[8px] flex items-center justify-center ring-2 ring-white dark:ring-gray-900" title="Collaboratif"><i class="fa-solid fa-user-group"></i></span>` : ''}
+                    </div>
+                    <div class="min-w-0">
+                        <h3 class="text-xs font-bold truncate">${esc(item.name)}</h3>
+                        <p class="text-[10px] text-gray-400 truncate">${owner ? 'Vous êtes propriétaire' : 'Partagé par ' + esc(item.owner_email)}</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 justify-between">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        ${shared ? `<span class="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"><i class="fa-solid fa-user-group mr-1"></i>Collaboration</span>` : ''}
+                        ${owner && hasCollab(item) ? `<span class="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"><i class="fa-solid fa-user-group mr-1"></i>Partagé</span>` : ''}
+                        ${pending ? `<span class="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-600" title="Invitations en attente"><i class="fa-regular fa-clock mr-1"></i>${pending}</span>` : ''}
+                        ${item.pwd ? '<i class="fa-solid fa-lock text-xs text-amber-500" title="Protégé par mot de passe"></i>' : ''}
+                    </div>
+                    <button data-action="delete" data-id="${esc(item.id)}" class="w-8 h-8 shrink-0 rounded-lg ${owner ? 'bg-red-50 dark:bg-red-950/30 text-red-600' : 'bg-gray-100 dark:bg-gray-800 text-gray-500'} hover:opacity-80 flex items-center justify-center text-xs transition-all" title="${owner ? 'Supprimer' : 'Quitter'}">
+                        <i class="fa-solid ${owner ? 'fa-trash' : 'fa-right-from-bracket'}"></i>
+                    </button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    $('items-grid').addEventListener('click', (e) => {
+        const del = e.target.closest('[data-action="delete"]');
+        if (del) { e.stopPropagation(); deleteItem(del.dataset.id); return; }
+        const card = e.target.closest('.item-card');
+        if (!card) return;
+        if (state.tab === 'projects') openProject(card.dataset.id);
+        else openCard(card.dataset.id);
+    });
+
+    /* ---------- Prompt / Confirm (promesses) ---------- */
+    let promptResolve = null, confirmResolve = null;
+    function askPrompt(title, placeholder = '', type = 'text') {
+        return new Promise(res => {
+            promptResolve = res;
+            $('prompt-title').textContent = title;
+            const input = $('prompt-input');
+            input.type = type; input.value = ''; input.placeholder = placeholder;
+            showModal('prompt-modal');
+            setTimeout(() => input.focus(), 40);
+        });
+    }
+    function closePrompt(ok) {
+        hideModal('prompt-modal');
+        const v = $('prompt-input').value;
+        if (promptResolve) promptResolve(ok ? v : null);
+        promptResolve = null;
+    }
+    $('prompt-form').addEventListener('submit', (e) => { e.preventDefault(); closePrompt(true); });
+    document.querySelector('[data-prompt="cancel"]').addEventListener('click', () => closePrompt(false));
+
+    function askConfirm(message) {
+        return new Promise(res => { confirmResolve = res; $('confirm-message').textContent = message; showModal('confirm-modal'); });
+    }
+    document.querySelectorAll('[data-confirm]').forEach(b => b.addEventListener('click', () => {
+        hideModal('confirm-modal');
+        if (confirmResolve) confirmResolve(b.dataset.confirm === 'yes');
+        confirmResolve = null;
+    }));
+
+    /* ---------- Suppression / sortie ---------- */
+    async function deleteItem(id) {
+        const table = state.tab;
+        const item = state.data[table].find(i => i.id === id);
+        if (!item) return;
+
+        if (item.pwd) {
+            const p = await askPrompt('Mot de passe requis :', 'Mot de passe', 'password');
+            if (p === null) return;
+            if (p !== item.pwd) return toast('Mot de passe incorrect.', 'error');
+        }
+
+        if (isOwner(item)) {
+            if (!await askConfirm('Supprimer définitivement cet élément pour tous les membres ?')) return;
+            const { error } = await sb.from(table).delete().eq('id', id);
+            if (error) return toast('Suppression impossible : ' + error.message, 'error');
+            toast('Élément supprimé.', 'success');
+        } else {
+            if (!await askConfirm(`Quitter ce ${TABLE_LABEL[table]} ? Il disparaîtra de votre dashboard.`)) return;
+            // On retire uniquement MON entrée du JSON, jamais la ligne.
+            const { error } = await sb.rpc('leave_collab', { p_table: table, p_id: id });
+            if (error) return toast('Impossible de quitter : ' + error.message, 'error');
+            toast('Vous avez quitté la collaboration.', 'success');
+        }
+        loadAll();
+    }
+
+    function openCard(id) { window.location.href = `map.html?cardId=${encodeURIComponent(id)}`; }
+
+    /* ---------- Notifications ---------- */
+    function timeAgo(iso) {
+        if (!iso) return '';
+        const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+        if (s < 60) return "à l'instant";
+        if (s < 3600) return `il y a ${Math.floor(s / 60)} min`;
+        if (s < 86400) return `il y a ${Math.floor(s / 3600)} h`;
+        return `il y a ${Math.floor(s / 86400)} j`;
+    }
+
+    function renderNotifications() {
+        const n = state.invitations.length;
+        const badge = $('notif-badge');
+        badge.textContent = n > 9 ? '9+' : n;
+        badge.classList.toggle('hidden', n === 0);
+        $('notif-count-label').textContent = n ? `${n} invitation${n > 1 ? 's' : ''}` : '';
+
+        const list = $('notif-list');
+        if (!n) {
+            list.innerHTML = `<div class="px-4 py-10 text-center text-xs text-gray-400"><i class="fa-regular fa-bell-slash text-xl mb-2 block"></i>Aucune notification</div>`;
+            return;
+        }
+        list.innerHTML = state.invitations.map((inv, idx) => `
+            <div class="px-4 py-3.5 space-y-2.5">
+                <div class="flex items-start gap-3">
+                    <div class="w-9 h-9 shrink-0 rounded-xl bg-[#5246EE]/10 text-[#5246EE] flex items-center justify-center text-sm">
+                        <i class="fa-solid ${inv.table === 'projects' ? 'fa-folder' : 'fa-note-sticky'}"></i>
+                    </div>
+                    <div class="min-w-0 text-xs leading-snug">
+                        <p><span class="font-semibold">${esc(inv.from)}</span> vous invite à collaborer sur le ${TABLE_LABEL[inv.table]} <span class="font-semibold">« ${esc(inv.item.name)} »</span></p>
+                        <p class="text-[10px] text-gray-400 mt-0.5">${timeAgo(inv.at)}</p>
+                    </div>
+                </div>
+                <div class="flex gap-2 pl-12">
+                    <button data-invite="refuse" data-idx="${idx}" class="flex-1 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-[11px] font-semibold">Refuser</button>
+                    <button data-invite="accept" data-idx="${idx}" class="flex-1 py-1.5 rounded-lg bg-[#5246EE] hover:bg-[#4538d8] text-white text-[11px] font-semibold shadow-sm">Accepter</button>
+                </div>
+            </div>`).join('');
+    }
+
+    $('notif-list').addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-invite]');
+        if (!btn) return;
+        const inv = state.invitations[Number(btn.dataset.idx)];
+        if (!inv) return;
+        const accept = btn.dataset.invite === 'accept';
+        btn.closest('div.px-4').querySelectorAll('button').forEach(b => b.disabled = true);
+
+        // Mise à jour du JSON côté serveur : accepted => status mis à jour / refusé => entrée supprimée
+        const { error } = await sb.rpc('respond_to_invitation', { p_table: inv.table, p_id: inv.item.id, p_accept: accept });
+        if (error) {
+            toast("Erreur : " + error.message, 'error');
+            return renderNotifications();
+        }
+        toast(accept ? `Vous avez rejoint « ${inv.item.name} »` : 'Invitation refusée.', accept ? 'success' : 'info');
+        if (accept) state.tab = inv.table;
+        await loadAll();
+    });
+
+    $('notif-btn').addEventListener('click', (e) => { e.stopPropagation(); $('notif-panel').classList.toggle('hidden'); });
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#notif-panel') && !e.target.closest('#notif-btn')) $('notif-panel').classList.add('hidden');
+    });
+
+    // Rafraîchissement : toutes les 30 s + au retour sur l'onglet + temps réel si activé sur les tables
+    setInterval(() => { if (!document.hidden && $('main-view').offsetParent !== null) loadAll(); }, 30000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && $('main-view').offsetParent !== null) loadAll(); });
+    try {
+        sb.channel('mobius-collab')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => { if (!state.activeProject) loadAll(); })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'cards' }, () => { if (!state.activeProject) loadAll(); })
+            .subscribe();
+    } catch (_) { /* polling suffit */ }
+
+    /* ---------- Création ---------- */
+    function openCreateModal() {
+        state.tempCollabs = [];
+        ['modal-item-name', 'modal-collab-email', 'modal-item-pwd'].forEach(id => $(id).value = '');
+        $('modal-is-collab').checked = false; $('modal-has-pwd').checked = false;
+        $('collab-box').classList.add('hidden'); $('pwd-box').classList.add('hidden');
+        renderCollabBadges();
+        $('create-modal-title').textContent = state.tab === 'projects' ? 'Créer un nouveau projet' : 'Créer une nouvelle carte libre';
+        showModal('create-modal');
+        setTimeout(() => $('modal-item-name').focus(), 40);
+    }
+    $('create-btn').addEventListener('click', openCreateModal);
+    $('modal-is-collab').addEventListener('change', (e) => $('collab-box').classList.toggle('hidden', !e.target.checked));
+    $('modal-has-pwd').addEventListener('change', (e) => $('pwd-box').classList.toggle('hidden', !e.target.checked));
+    document.querySelector('[data-create-modal="cancel"]').addEventListener('click', () => hideModal('create-modal'));
+    document.querySelector('[data-create-modal="ok"]').addEventListener('click', confirmCreate);
+    $('modal-collab-email').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addCollaborator(); } });
+    $('add-collab-btn').addEventListener('click', addCollaborator);
+
+    async function addCollaborator() {
+        const input = $('modal-collab-email');
+        const email = norm(input.value);
+        if (!email) return;
+        if (!isEmail(email)) return toast('Adresse e-mail invalide.', 'error');
+        if (email === myEmail) return toast('Vous ne pouvez pas vous inviter vous-même.', 'error');
+        if (state.tempCollabs.includes(email)) return toast('Déjà ajouté.', 'info');
+
+        const { data, error } = await sb.from('profiles').select('email').ilike('email', email).maybeSingle();
+        if (error || !data) return toast('Aucun compte Mobius associé à cet e-mail.', 'error');
+
+        state.tempCollabs.push(email);
+        input.value = '';
+        renderCollabBadges();
+    }
+    function renderCollabBadges() {
+        $('collab-badges').innerHTML = state.tempCollabs.map(email => `
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#5246EE]/10 text-[#5246EE] text-[10px] font-semibold">
+                ${esc(email)} <i class="fa-solid fa-xmark cursor-pointer hover:text-red-500" data-remove-collab="${esc(email)}"></i>
+            </span>`).join('');
+    }
+    $('collab-badges').addEventListener('click', (e) => {
+        const x = e.target.closest('[data-remove-collab]');
+        if (!x) return;
+        state.tempCollabs = state.tempCollabs.filter(m => m !== x.dataset.removeCollab);
+        renderCollabBadges();
+    });
+
+    async function confirmCreate() {
+        const name = $('modal-item-name').value.trim();
+        if (!name) return toast('Veuillez entrer un nom.', 'error');
+        const isCollab = $('modal-is-collab').checked;
+        const pwd = $('modal-has-pwd').checked ? $('modal-item-pwd').value : '';
+        if ($('modal-has-pwd').checked && !pwd) return toast('Entrez un mot de passe.', 'error');
+
+        const now = new Date().toISOString();
+        const collaborators = isCollab ? state.tempCollabs.map(email => ({ email, status: 'pending', invited_by: user.email, invited_at: now })) : [];
+        const row = {
+            id: 'id_' + Date.now(),
+            name, pwd: pwd || null,
+            owner_email: user.email, owner_id: user.id,
+            is_collab: isCollab, collaborators
+        };
+        if (state.tab === 'projects') row.tree = [];
+
+        const { error } = await sb.from(state.tab).insert([row]);
+        if (error) return toast('Création impossible : ' + error.message, 'error');
+        hideModal('create-modal');
+        toast(collaborators.length ? `Créé · ${collaborators.length} invitation(s) envoyée(s)` : 'Créé avec succès.', 'success');
+        loadAll();
+    }
+
+    /* ---------- Onglets / vue / recherche ---------- */
+    document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => { state.tab = b.dataset.tab; renderDashboard(); }));
+    document.querySelectorAll('.view-btn').forEach(b => b.addEventListener('click', () => { state.view = b.dataset.view; localStorage.setItem('viewMode', state.view); renderDashboard(); }));
+    $('sort-select').addEventListener('change', renderDashboard);
+    $('search-input').addEventListener('input', renderDashboard);
+
+    /* ---------- Thème / profil ---------- */
+    $('theme-btn').addEventListener('click', () => {
+        const dark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('theme', dark ? 'dark' : 'light');
+    });
+    $('profile-btn').addEventListener('click', () => {
+        $('profile-name').textContent = fullName;
+        $('profile-email').textContent = user.email;
+        $('profile-initial').textContent = fullName.charAt(0).toUpperCase();
+        showModal('profile-modal');
+    });
+    document.querySelector('[data-close="profile-modal"]').addEventListener('click', () => hideModal('profile-modal'));
+    $('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'index.html'; });
+    ['create-modal', 'profile-modal'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target.id === id) hideModal(id); }));
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { ['create-modal', 'profile-modal'].forEach(hideModal); $('notif-panel').classList.add('hidden'); }
+    });
+
+    /* =========================================================
+       WORKSPACE PROJET (arborescence)
+       ========================================================= */
+    const tree = () => state.activeProject.tree;
+
+    function findItem(list, id) {
+        for (const it of list) {
+            if (it.id === id) return it;
+            if (it.children) { const f = findItem(it.children, id); if (f) return f; }
+        }
+        return null;
+    }
+    function removeItem(list, id) {
+        return list.filter(it => {
+            if (it.id === id) return false;
+            if (it.children) it.children = removeItem(it.children, id);
+            return true;
+        });
+    }
+    function extractItem(list, id) {
+        for (let i = 0; i < list.length; i++) {
+            if (list[i].id === id) return list.splice(i, 1)[0];
+            if (list[i].children) { const f = extractItem(list[i].children, id); if (f) return f; }
+        }
+        return null;
+    }
+    function containsId(item, id) {            // `id` est-il dans le sous-arbre de `item` ?
+        return (item.children || []).some(c => c.id === id || containsId(c, id));
+    }
+
+    let saveTimer = null;
+    function saveTree() {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(async () => {
+            const { error } = await sb.from('projects').update({ tree: state.activeProject.tree }).eq('id', state.activeProject.id);
+            if (error) toast('Sauvegarde impossible : ' + error.message, 'error');
+        }, 250);
+    }
+
+    async function openProject(id) {
+        const p = state.data.projects.find(x => x.id === id);
+        if (!p) return;
+        if (p.pwd && !isOwner(p)) {
+            const v = await askPrompt('Ce projet est protégé. Entrez le mot de passe :', 'Mot de passe', 'password');
+            if (v === null) return;
+            if (v !== p.pwd) return toast('Mot de passe incorrect.', 'error');
+        }
+        // Relit la version la plus récente pour ne pas écraser le travail des collaborateurs
+        const { data } = await sb.from('projects').select('*').eq('id', id).maybeSingle();
+        state.activeProject = data || p;
+        if (!Array.isArray(state.activeProject.tree)) state.activeProject.tree = [];
+        state.selectedFolderId = null;
+        state.expanded.clear();
+
+        $('main-view').classList.add('hidden');
+        $('project-workspace').classList.remove('hidden');
+        const collab = hasCollab(state.activeProject) || !isOwner(state.activeProject);
+        $('workspace-title').innerHTML = `${esc(state.activeProject.name)} ${collab ? '<i class="fa-solid fa-user-group text-emerald-500 text-xs" title="Collaboratif"></i>' : ''}`;
+        const members = collabEntries(state.activeProject).filter(c => c.status === 'accepted').length;
+        $('workspace-subtitle').textContent = collab ? `Collaboratif · ${members + 1} membre${members ? 's' : ''}` : 'Sélectionnez un dossier pour y ajouter des éléments';
+        updateFolderIndicator();
+        renderTree();
+    }
+
+    function goHome() {
+        state.activeProject = null;
+        $('project-workspace').classList.add('hidden');
+        $('main-view').classList.remove('hidden');
+        loadAll();
+    }
+    $('back-btn').addEventListener('click', goHome);
+    $('brand').addEventListener('click', goHome);
+
+    function updateFolderIndicator() {
+        const f = state.selectedFolderId && findItem(tree(), state.selectedFolderId);
+        $('selected-folder-indicator').textContent = f ? `📁 Destination : Dossier [ ${f.name} ]` : '📁 Destination : Racine du projet';
+    }
+
+    function insertInto(newItem, folderId) {
+        if (!folderId) { tree().push(newItem); return; }
+        const f = findItem(tree(), folderId);
+        if (f && f.type === 'folder') { (f.children ||= []).push(newItem); state.expanded.add(folderId); }
+        else tree().push(newItem);
+    }
+
+    document.querySelectorAll('.tree-create').forEach(b => b.addEventListener('click', async () => {
+        const type = b.dataset.create;
+        const label = { folder: 'dossier', txt: 'fichier .txt', card: 'carte' }[type];
+        const name = (await askPrompt(`Nom du ${label} :`, `Nom du ${label}`))?.trim();
+        if (!name) return;
+        const item = { id: 'item_' + Date.now(), type, name, content: type === 'txt' ? '' : '' };
+        if (type === 'folder') item.children = [];
+        item.isNewDrop = true;
+        insertInto(item, state.selectedFolderId);
+        saveTree(); renderTree();
+    }));
+
+    $('import-btn').addEventListener('click', () => $('tree-file-input').click());
+    $('tree-file-input').addEventListener('change', (e) => { importFiles([...e.target.files], state.selectedFolderId); e.target.value = ''; });
+
+    async function importFiles(files, folderId) {
+        const accepted = files.filter(f => /\.(txt|json)$/i.test(f.name));
+        if (accepted.length < files.length) toast('Seuls les fichiers .txt et .json sont acceptés.', 'info');
+        for (const file of accepted) {
+            const content = await file.text();
+            insertInto({ id: 'item_' + Date.now() + Math.random().toString(36).slice(2, 7), type: 'txt', name: file.name, content, isNewDrop: true }, folderId);
+        }
+        if (accepted.length) { saveTree(); renderTree(); }
+    }
+
+    function renderTree() {
+        const c = $('tree');
+        if (!tree().length) {
+            c.innerHTML = `<div class="text-center py-12 text-gray-400 text-xs">Arborescence vide. Utilisez les boutons ci-dessus ou glissez-déposez des fichiers .txt ici.</div>`;
+            return;
+        }
+        c.innerHTML = '';
+        renderLevel(tree(), c);
+    }
+
+    function renderLevel(items, container) {
+        const sorted = [...items].sort((a, b) => (a.type === 'folder' ? 0 : 1) - (b.type === 'folder' ? 0 : 1) || a.name.localeCompare(b.name));
+        sorted.forEach(item => {
+            const el = document.createElement('div');
+            el.className = `space-y-1 ${item.isNewDrop ? 'animate-drop' : ''}`;
+            delete item.isNewDrop;
+            el.draggable = true;
+            el.dataset.id = item.id;
+
+            if (item.type === 'folder') {
+                const selected = state.selectedFolderId === item.id;
+                const open = state.expanded.has(item.id);
+                el.innerHTML = `
+                    <div class="folder-row flex items-center justify-between p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${selected ? 'bg-[#5246EE]/10 border-[#5246EE] text-[#5246EE] font-semibold' : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700/60'}" data-folder="${esc(item.id)}">
+                        <div class="flex items-center gap-2.5 flex-1 min-w-0">
+                            <i class="fa-solid fa-chevron-right text-[10px] text-gray-400 transition-transform ${open ? 'rotate-90' : ''}" data-toggle="${esc(item.id)}"></i>
+                            <i class="fa-solid fa-folder text-[#5246EE]"></i>
+                            <span class="truncate">${esc(item.name)}</span>
+                            <span class="text-[10px] text-gray-400">${(item.children || []).length || ''}</span>
+                        </div>
+                        <button data-remove="${esc(item.id)}" class="text-red-500 hover:text-red-700 px-2" title="Supprimer"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="pl-6 space-y-1 mt-1 border-l-2 border-gray-100 dark:border-gray-800 ${open ? '' : 'hidden'}" data-children="${esc(item.id)}"></div>`;
+                container.appendChild(el);
+                if (item.children?.length) renderLevel(item.children, el.querySelector('[data-children]'));
+            } else {
+                const icon = item.type === 'txt' ? 'fa-file-lines text-emerald-500' : 'fa-note-sticky text-indigo-500';
+                el.innerHTML = `
+                    <div class="file-row flex items-center justify-between p-2.5 bg-gray-50/60 dark:bg-gray-800/60 rounded-xl border border-gray-200/60 dark:border-gray-700/60 text-xs hover:bg-gray-100 dark:hover:bg-gray-800 transition-all cursor-pointer" data-file="${esc(item.id)}">
+                        <div class="flex items-center gap-2.5 flex-1 min-w-0">
+                            <i class="fa-solid ${icon}"></i>
+                            <span class="font-medium truncate">${esc(item.name)}</span>
+                            ${item.type === 'card' ? '<span class="text-[9px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-semibold">Carte</span>' : ''}
+                        </div>
+                        <button data-remove="${esc(item.id)}" class="text-red-500 hover:text-red-700 px-2" title="Supprimer"><i class="fa-solid fa-xmark"></i></button>
+                    </div>`;
+                container.appendChild(el);
+            }
+        });
+    }
+
+    // Délégation d'événements pour l'arborescence
+    $('tree').addEventListener('click', async (e) => {
+        const rm = e.target.closest('[data-remove]');
+        if (rm) {
+            e.stopPropagation();
+            if (!await askConfirm("Supprimer cet élément de l'arborescence ?")) return;
+            if (state.selectedFolderId === rm.dataset.remove) state.selectedFolderId = null;
+            state.activeProject.tree = removeItem(tree(), rm.dataset.remove);
+            saveTree(); updateFolderIndicator(); renderTree();
+            return;
+        }
+        const tg = e.target.closest('[data-toggle]');
+        if (tg) {
+            e.stopPropagation();
+            const id = tg.dataset.toggle;
+            state.expanded.has(id) ? state.expanded.delete(id) : state.expanded.add(id);
+            return renderTree();
+        }
+        const fo = e.target.closest('[data-folder]');
+        if (fo) {
+            const id = fo.dataset.folder;
+            if (state.selectedFolderId === id) { state.selectedFolderId = null; state.expanded.delete(id); }
+            else { state.selectedFolderId = id; state.expanded.add(id); }
+            updateFolderIndicator(); return renderTree();
+        }
+        const fi = e.target.closest('[data-file]');
+        if (fi) {
+            const it = findItem(tree(), fi.dataset.file);
+            if (!it) return;
+            window.location.href = it.type === 'card'
+                ? `map.html?cardId=${encodeURIComponent(it.id)}`
+                : `editor.html?projectId=${encodeURIComponent(state.activeProject.id)}&fileId=${encodeURIComponent(it.id)}`;
+        }
+    });
+
+    // Glisser-déposer (déplacement interne + import de fichiers)
+    const dropOn = 'ring-2 ring-[#5246EE]/40 bg-[#5246EE]/5 dark:ring-green-400/40 dark:bg-green-500/10';
+    const clearDrop = (el) => el?.classList.remove(...dropOn.split(' '));
+    const tr = $('tree');
+
+    tr.addEventListener('dragstart', (e) => {
+        const el = e.target.closest('[data-id]');
+        if (!el) return;
+        e.stopPropagation();
+        state.draggedId = el.dataset.id;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', el.dataset.id);
+    });
+    tr.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const row = e.target.closest('.folder-row');
+        tr.querySelectorAll('.folder-row').forEach(clearDrop); clearDrop(tr);
+        (row || tr).classList.add(...dropOn.split(' '));
+    });
+    tr.addEventListener('dragleave', (e) => { if (!tr.contains(e.relatedTarget)) { clearDrop(tr); tr.querySelectorAll('.folder-row').forEach(clearDrop); } });
+    tr.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        const row = e.target.closest('.folder-row');
+        const targetId = row ? row.dataset.folder : null;
+        clearDrop(tr); tr.querySelectorAll('.folder-row').forEach(clearDrop);
+
+        if (e.dataTransfer.files?.length) return importFiles([...e.dataTransfer.files], targetId);
+
+        const id = state.draggedId; state.draggedId = null;
+        if (!id || id === targetId) return;
+        const moving = findItem(tree(), id);
+        if (!moving) return;
+        if (targetId && containsId(moving, targetId)) return toast("Impossible de déplacer un dossier dans lui-même.", 'error');
+
+        extractItem(tree(), id);
+        insertInto(moving, targetId);
+        saveTree(); renderTree();
+    });
+
+    /* ---------- Export ZIP (vraie arborescence) ---------- */
+    $('export-btn').addEventListener('click', async () => {
+        const p = state.activeProject;
+        if (p.pwd) {
+            const v = await askPrompt('Mot de passe requis pour télécharger :', 'Mot de passe', 'password');
+            if (v === null) return;
+            if (v !== p.pwd) return toast('Mot de passe incorrect.', 'error');
+        }
+        const zip = new JSZip();
+        const safe = (s) => String(s).replace(/[\\/:*?"<>|]/g, '_');
+        const walk = (items, folder) => items.forEach(it => {
+            if (it.type === 'folder') walk(it.children || [], folder.folder(safe(it.name)));
+            else if (it.type === 'txt') folder.file(safe(it.name), it.content || '');
+            else folder.file(safe(it.name) + '.card.json', JSON.stringify({ id: it.id, name: it.name }, null, 2));
+        });
+        walk(p.tree || [], zip);
+        zip.file('project_manifest.json', JSON.stringify({ id: p.id, name: p.name, owner_email: p.owner_email, exported_at: new Date().toISOString(), tree: p.tree }, null, 2));
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${safe(p.name).toLowerCase().replace(/\s+/g, '_')}_mobius.zip`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
+
+    /* ---------- Démarrage ---------- */
+    const params = new URLSearchParams(window.location.search);
+    const openId = params.get('openProjectId');
+    await loadAll();
+    if (openId) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+        state.tab = 'projects';
+        openProject(openId);
+    }
+});
+</script>
 </body>
 </html>
+
