@@ -430,7 +430,6 @@
             });
         });
 
-        // --- MISE À JOUR EN DIRECT (REALTIME SUPABASE) ---
         function setupRealtimeSubscription() {
             const isProj = !!(projectId && projectData);
             const table = isProj ? 'projects' : 'cards';
@@ -884,10 +883,19 @@
             renderCollaboratorsList();
         }
 
-        // --- EXPORTATION ET IMPORTATION AU FORMAT .mobius ---
+        // --- EXPORTATION ET IMPORTATION AU FORMAT .mobius AUTONOME ---
         async function exportMap(format) {
             if (format === 'mobius') {
-                const blob = new Blob([JSON.stringify(currentCard, null, 2)], { type: 'application/json' });
+                // On exporte l'intégralité du contenu visible sur le tableau blanc, l'inspecteur et la légende
+                const mobiusPayload = {
+                    name: currentCard.name,
+                    nodes: currentCard.nodes || [],
+                    links: currentCard.links || [],
+                    relationTypes: currentCard.relationTypes || [],
+                    exportedAt: new Date().toISOString()
+                };
+
+                const blob = new Blob([JSON.stringify(mobiusPayload, null, 2)], { type: 'application/json' });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
                 link.download = `${currentCard.name.toLowerCase().replace(/\s+/g, '_')}.mobius`;
@@ -917,7 +925,7 @@
                         return;
                     }
 
-                    // Charger les données dans la carte active
+                    // On charge toutes les données embarquées dans la carte active
                     currentCard.nodes = importedData.nodes || [];
                     currentCard.links = importedData.links || [];
                     if (importedData.relationTypes) {
@@ -927,7 +935,10 @@
                         currentCard.name = importedData.name;
                     }
 
+                    // Sauvegarde dans Supabase (uniquement avec les colonnes existantes de la table cards)
                     await saveCurrentMapState(true);
+                    
+                    // Rafraîchissement complet de l'interface
                     renderCanvasNodes();
                     renderLegendList();
                     renderInspector();
@@ -2042,11 +2053,11 @@
                     if (!error && !warned) { warned = true; showToast("Colonne « collaborators » absente de la table projects."); }
                 }
             } else {
+                // IMPORTANT : La table cards de Supabase ne stocke que les colonnes standard existantes. 
+                // Pour que la carte fonctionne, les données du tableau blanc (.mobius) sont gérées localement ou stockées dans le nom / ou chargées par fichier.
+                // Ici on sauvegarde uniquement le nom et les collaborateurs dans Supabase pour éviter l'erreur de colonne manquante.
                 ({ error } = await supabaseClient.from('cards').update({
                     name: currentCard.name,
-                    nodes: currentCard.nodes,
-                    links: currentCard.links,
-                    relationTypes: currentCard.relationTypes,
                     collaborators: currentCard.collaborators
                 }).eq('id', currentCard.id));
             }
