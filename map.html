@@ -823,14 +823,44 @@
             if (!requireAdmin()) return;
             const input = document.getElementById('new-collab-email');
             const email = input.value.trim().toLowerCase();
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showToast("Adresse e-mail invalide."); return; }
-            if (email === myEmail() || getCollabs().some(c => c.email.toLowerCase() === email)) { showToast("Cette personne fait déjà partie de la carte."); return; }
-            getCollabs().push({ email, role: document.getElementById('new-collab-role').value, status: 'pending', invitedBy: currentUser.email, invitedAt: new Date().toISOString() });
-            await saveCurrentMapState();
-            renderCollaboratorsList();
-            input.value = '';
-            showToast("Invitation envoyée !");
+    
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { 
+                showToast("Adresse e-mail invalide."); 
+                return; 
         }
+            if (email === myEmail() || getCollabs().some(c => c.email.toLowerCase() === email)) { 
+                showToast("Cette personne fait déjà partie de la carte."); 
+                return; 
+        }
+
+            const role = document.getElementById('new-collab-role').value;
+    
+        // 1. Ajouter dans le tableau JSON de la carte/projet
+            getCollabs().push({ 
+            email, 
+            role, 
+            status: 'pending', 
+            invitedBy: currentUser.email, 
+            invitedAt: new Date().toISOString() 
+        });
+    
+        await saveCurrentMapState();
+    
+        // 2. Insérer dans la table map_collaborators pour que le dashboard l'affiche dans les invitations en attente
+        const targetMapId = (projectId && projectData) ? projectId : cardId;
+        const { error: collabTableError } = await supabaseClient.from('map_collaborators').insert([{
+            map_id: targetMapId,
+            email: email
+        }]);
+
+        if (collabTableError) {
+            console.error("Erreur insertion map_collaborators:", collabTableError);
+        }
+
+        renderCollaboratorsList();
+        input.value = '';
+        showToast("Invitation envoyée !");
+    }    
 
         window.setCollaboratorRole = async function(idx, role) {
             if (!requireAdmin()) return;
