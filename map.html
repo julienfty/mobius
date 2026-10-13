@@ -818,8 +818,8 @@
             });
             lucide.createIcons();
         }
-// collaboration
-       async function addCollaborator() {
+
+        async function addCollaborator() {
             if (!requireAdmin()) return;
             const input = document.getElementById('new-collab-email');
             const email = input.value.trim().toLowerCase();
@@ -836,18 +836,15 @@
             const role = document.getElementById('new-collab-role').value;
             const collabs = getCollabs();
 
-            // Vérifier si l'e-mail existe déjà dans le tableau des collaborateurs
             const existingCollab = collabs.find(c => (c.email || '').toLowerCase() === email);
 
             if (existingCollab) {
-                // S'il existe déjà (qu'il ait été accepté ou refusé avant), on force le statut à 'pending'
                 existingCollab.role = role;
                 existingCollab.status = 'pending';
                 existingCollab.invitedBy = currentUser.email;
                 existingCollab.invitedAt = new Date().toISOString();
-                delete existingCollab.acceptedAt; // Nettoyer l'ancienne date d'acceptation s'il y en avait une
+                delete existingCollab.acceptedAt;
             } else {
-                // S'il n'existe pas, on l'ajoute en tant que nouveau
                 collabs.push({ 
                     email, 
                     role, 
@@ -863,24 +860,6 @@
             input.value = '';
             showToast("Invitation envoyée !");
         }
-    
-        await saveCurrentMapState();
-    
-        // 2. Insérer dans la table map_collaborators pour que le dashboard l'affiche dans les invitations en attente
-        const targetMapId = (projectId && projectData) ? projectId : cardId;
-        const { error: collabTableError } = await supabaseClient.from('map_collaborators').insert([{
-            map_id: targetMapId,
-            email: email
-        }]);
-
-        if (collabTableError) {
-            console.error("Erreur insertion map_collaborators:", collabTableError);
-        }
-
-        renderCollaboratorsList();
-        input.value = '';
-        showToast("Invitation envoyée !");
-    }    
 
         window.setCollaboratorRole = async function(idx, role) {
             if (!requireAdmin()) return;
@@ -2012,7 +1991,7 @@
                 ({ error } = await supabaseClient.from('projects').update({ tree: projectData.tree, collaborators: projectData.collaborators || [] }).eq('id', projectId));
                 if (error) {
                     ({ error } = await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId));
-                    if (!error && !warned) { warned = true; showToast("Colonne « collaborators » absente de la table projects (voir collaboration.sql)."); }
+                    if (!error && !warned) { warned = true; showToast("Colonne « collaborators » absente de la table projects."); }
                 }
             } else {
                 ({ error } = await supabaseClient.from('cards').update({
