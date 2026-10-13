@@ -351,42 +351,41 @@
             }
 
             // --- VÉRIFICATION DES INVITATIONS EN ATTENTE ---
+           // --- VÉRIFICATION DES INVITATIONS VIA LE JSON ---
             async function checkPendingInvitations() {
                 const section = document.getElementById('invitations-section');
                 const container = document.getElementById('invitations-container');
                 container.innerHTML = '';
 
-                // Récupérer les invitations pour l'email de l'utilisateur connecté
-                const { data: invites, error } = await supabase
-                    .from('map_collaborators')
-                    .select('id, map_id')
-                    .eq('email', currentUser.email.toLowerCase());
+                // Récupérer tous les projets accessibles ou filtrer ceux contenant l'email en pending
+                const { data: projects, error } = await supabase
+                    .from('projects')
+                    .select('id, name, collaborators');
 
-                if (error || !invites || invites.length === 0) {
+                if (error || !projects) {
                     section.classList.add('hidden');
                     return;
                 }
 
-                // Filtrer celles qui n'ont pas encore été acceptées (ou on peut rajouter un champ status si besoin, ou juste lister)
-                // Ici on liste toutes les entrées présentes dans map_collaborators pour cet email
-                if (invites.length > 0) {
-                    section.classList.remove('hidden');
-                    for (let inv of invites) {
-                        // Chercher le nom du projet/carte associé via map_id
-                        const { data: proj } = await supabase.from('projects').select('id, name').eq('id', inv.map_id).single();
-                        const title = proj ? proj.name : 'Projet / Carte partagée';
-                        const targetId = proj ? proj.id : inv.map_id;
+                const email = currentUser.email.toLowerCase();
+                const pendingInvites = projects.filter(proj => {
+                    const collabs = proj.collaborators || [];
+                    return collabs.some(c => (c.email || '').toLowerCase() === email && c.status === 'pending');
+                });
 
+                if (pendingInvites.length > 0) {
+                    section.classList.remove('hidden');
+                    for (let proj of pendingInvites) {
                         const row = document.createElement('div');
                         row.className = "flex items-center justify-between bg-white dark:bg-gray-900 p-3 rounded-xl border border-amber-200 dark:border-amber-900/50 text-xs";
                         row.innerHTML = `
                             <div>
-                                <span class="font-bold text-gray-800 dark:text-gray-200">${title}</span>
+                                <span class="font-bold text-gray-800 dark:text-gray-200">${proj.name}</span>
                                 <span class="text-[10px] text-gray-400 block">Invitation reçue</span>
                             </div>
                             <div class="flex items-center gap-2">
-                                <button onclick="acceptInvitation('${inv.id}', '${targetId}')" class="px-3 py-1.5 bg-[#5246EE] hover:bg-[#4538d8] text-white font-semibold rounded-lg shadow-xs">Accepter</button>
-                                <button onclick="declineInvitation('${inv.id}')" class="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-gray-600 dark:text-gray-300 font-semibold rounded-lg">Refuser</button>
+                                <button onclick="acceptInvitationJson('${proj.id}')" class="px-3 py-1.5 bg-[#5246EE] hover:bg-[#4538d8] text-white font-semibold rounded-lg shadow-xs">Accepter</button>
+                                <button onclick="declineInvitationJson('${proj.id}')" class="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 text-gray-600 dark:text-gray-300 font-semibold rounded-lg">Refuser</button>
                             </div>
                         `;
                         container.appendChild(row);
@@ -396,19 +395,29 @@
                 }
             }
 
-            window.acceptInvitation = async function(collabId, projectId) {
-                // Mettre à jour le user_id de l'invitation avec l'ID de l'utilisateur connecté
-                await supabase.from('map_collaborators').update({ user_id: currentUser.id }).eq('id', collabId);
-                alert("Invitation acceptée ! Le projet est désormais accessible.");
-                loadDashboardData();
-            }
-
-            window.declineInvitation = async function(collabId) {
-                const confirmed = await showCustomConfirm("Voulez-vous refuser cette invitation ?");
-                if (confirmed) {
-                    await supabase.from('map_collaborators').delete().eq('id', collabId);
+            window.acceptInvitationJson = async function(projectId) {
+                const { data: proj } = await supabase.from('projects').select('collaborators').eq('id', projectId).single();
+                if (!proj) return;
+                const collabs = proj.collaborators || [];
+                const me = collabs.find(c => (c.email || '').toLowerCase() === currentUser.email.toLowerCase());
+                if (me) {
+                    me.status = 'accepted';
+                    me.acceptedAt = new Date().toISOString();
+                    await supabase.from('projects').update({ collaborators: collabs }).eq('id', projectId);
+                    alert("Invitation acceptée ! Le projet est désormais accessible.");
                     loadDashboardData();
                 }
+            }
+
+            window.declineInvitationJson = async function(projectId) {
+                const confirmed = await showCustomConfirm("Voulez-vous refuser cette invitation ?");
+                if (!confirmed) return;
+                const { data: proj } = await supabase.from('projects').select('collaborators').eq('id', projectId).single();
+                if (!proj) return;
+                let collabs = proj.collaborators || [];
+                collabs = collabs.filter(c => (c.email || '').toLowerCase() !== currentUser.email.toLowerCase());
+                await supabase.from('projects').update({ collaborators: collabs }).eq('id', projectId);
+                loadDashboardData();
             }
 
             window.renderDashboard = function() {
