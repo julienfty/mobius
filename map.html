@@ -823,26 +823,46 @@
             if (!requireAdmin()) return;
             const input = document.getElementById('new-collab-email');
             const email = input.value.trim().toLowerCase();
-    
+            
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { 
                 showToast("Adresse e-mail invalide."); 
                 return; 
-        }
-            if (email === myEmail() || getCollabs().some(c => c.email.toLowerCase() === email)) { 
-                showToast("Cette personne fait déjà partie de la carte."); 
+            }
+            if (email === myEmail()) { 
+                showToast("Vous ne pouvez pas vous inviter vous-même."); 
                 return; 
-        }
+            }
 
             const role = document.getElementById('new-collab-role').value;
-    
-        // 1. Ajouter dans le tableau JSON de la carte/projet
-            getCollabs().push({ 
-            email, 
-            role, 
-            status: 'pending', 
-            invitedBy: currentUser.email, 
-            invitedAt: new Date().toISOString() 
-        });
+            const collabs = getCollabs();
+
+            // Vérifier si l'e-mail existe déjà dans le tableau des collaborateurs
+            const existingCollab = collabs.find(c => (c.email || '').toLowerCase() === email);
+
+            if (existingCollab) {
+                // S'il existe déjà (qu'il ait été accepté ou refusé avant), on force le statut à 'pending'
+                existingCollab.role = role;
+                existingCollab.status = 'pending';
+                existingCollab.invitedBy = currentUser.email;
+                existingCollab.invitedAt = new Date().toISOString();
+                delete existingCollab.acceptedAt; // Nettoyer l'ancienne date d'acceptation s'il y en avait une
+            } else {
+                // S'il n'existe pas, on l'ajoute en tant que nouveau
+                collabs.push({ 
+                    email, 
+                    role, 
+                    status: 'pending', 
+                    invitedBy: currentUser.email, 
+                    invitedAt: new Date().toISOString() 
+                });
+            }
+            
+            await saveCurrentMapState(true);
+
+            renderCollaboratorsList();
+            input.value = '';
+            showToast("Invitation envoyée !");
+        }
     
         await saveCurrentMapState();
     
