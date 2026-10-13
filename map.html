@@ -308,8 +308,7 @@
                 { id: 'rel-1', name: 'Ami / Proche', color: '#10b981' },
                 { id: 'rel-2', name: 'Collègue / Pro', color: '#5246EE' },
                 { id: 'rel-3', name: 'Famille', color: '#f59e0b' }
-            ],
-            collaborators: []
+            ]
         };
         let projectData = null;
         let supabaseClient = null;
@@ -2008,7 +2007,9 @@
         function updateCardInTree(list, updatedCard) {
             for (let i = 0; i < list.length; i++) {
                 if (list[i].id === updatedCard.id) {
-                    list[i] = { ...list[i], ...updatedCard };
+                    const cardCopy = { ...updatedCard };
+                    delete cardCopy.collaborators; // Nettoie pour ne pas polluer l'arborescence
+                    list[i] = { ...list[i], ...cardCopy };
                     return true;
                 }
                 if (list[i].children) {
