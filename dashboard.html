@@ -67,13 +67,30 @@
 <body class="h-full bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col selection:bg-[#5246EE] selection:text-white">
 
     <!-- TOP NAVIGATION BAR -->
-    <header class="w-full border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 glass-card sticky top-0 z-30 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+    <header class="w-full border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 glass-card sticky top-0 z-45 px-4 sm:px-8 py-3.5 flex items-center justify-between">
         <div class="flex items-center gap-3 cursor-pointer" onclick="goHome()">
             <img src="logo_mobius_nobg.png" alt="MOBIUS" class="w-8 h-8 object-contain rounded-xl">
             <span class="font-bold tracking-tight text-base sm:text-lg">MOBIUS <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#5246EE]/10 text-[#5246EE] font-semibold uppercase tracking-wider" id="user-version-badge">Standard</span></span>
         </div>
 
         <div class="flex items-center gap-3 sm:gap-4">
+            <!-- NOTIFICATION / INVITATIONS DROPDOWN -->
+            <div class="relative">
+                <button onclick="toggleNotificationsDropdown()" class="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all relative">
+                    <i class="fa-solid fa-bell text-xs"></i>
+                    <span id="notif-badge" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">0</span>
+                </button>
+                <div id="notif-dropdown" class="hidden absolute right-0 mt-2 w-80 max-w-[92vw] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-4 z-50">
+                    <div class="flex items-center justify-between mb-3 pb-2 border-b border-gray-100 dark:border-gray-800">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-gray-500">Invitations à collaborer</h4>
+                        <span id="notif-count-label" class="text-[10px] font-semibold text-[#5246EE]">0 en attente</span>
+                    </div>
+                    <div id="notifications-list" class="space-y-2 max-h-64 overflow-y-auto">
+                        <p class="text-xs text-gray-400 text-center py-4">Aucune invitation en attente.</p>
+                    </div>
+                </div>
+            </div>
+
             <button onclick="toggleDarkMode()" class="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all">
                 <i class="fa-solid fa-moon dark:hidden"></i>
                 <i class="fa-solid fa-sun hidden dark:block text-amber-400"></i>
@@ -252,12 +269,14 @@
 
     <!-- SCRIPT APPLICATION -->
     <script>
+        let supabase = null;
+        let currentUser = null;
+
         document.addEventListener('DOMContentLoaded', async () => {
             const SUPABASE_URL = 'https://nfvnayuqrmlldtixzdpx.supabase.co';
             const SUPABASE_KEY = 'sb_publishable_EwONSAsqSfu8_SocZ7wZBA_rVODWqSF';
-            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-            let currentUser = null;
             let currentTab = 'projects';
             let viewMode = 'grid';
             let activeProject = null;
@@ -278,10 +297,22 @@
             document.getElementById('nav-user-email').textContent = currentUser.email;
             document.getElementById('nav-user-initial').textContent = fullName.charAt(0).toUpperCase();
 
+            loadPendingInvitations();
+
             window.toggleDarkMode = function() {
                 const isDark = document.documentElement.classList.toggle('dark');
                 localStorage.setItem('theme', isDark ? 'dark' : 'light');
             }
+
+            window.toggleNotificationsDropdown = function() {
+                document.getElementById('notif-dropdown').classList.toggle('hidden');
+            }
+
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#notif-dropdown') && !e.target.closest('[onclick="toggleNotificationsDropdown()"]')) {
+                    document.getElementById('notif-dropdown').classList.add('hidden');
+                }
+            });
 
             let promptResolve = null;
             window.showCustomPrompt = function(title, placeholder = '') {
@@ -306,7 +337,7 @@
                 return new Promise((resolve) => {
                     confirmResolve = resolve;
                     document.getElementById('custom-confirm-message').textContent = message;
-                    document.getElementById('custom-confirm-modal').classList.remove('hidden');
+                    document.getElementById('custom-confirm-modal').classList.add('hidden');
                 });
             }
             window.closeCustomConfirm = function(confirmed) {
@@ -341,6 +372,79 @@
 
             let projectsList = [];
             let cardsList = [];
+
+            window.loadPendingInvitations = async function() {
+                const userEmail = currentUser.email.toLowerCase();
+                // On interroge la table map_collaborators pour l'e-mail de l'utilisateur connecté
+                const { data: invites, error } = await supabase
+                    .from('map_collaborators')
+                    .select('id, map_id, role, status')
+                    .eq('email', userEmail);
+
+                if (error || !invites) return;
+
+                // Filtrer les invitations en attente (si la colonne status existe ou par défaut)
+                const pendingInvites = invites.filter(i => !i.status || i.status === 'pending');
+                const badge = document.getElementById('notif-badge');
+                const label = document.getElementById('notif-count-label');
+                const list = document.getElementById('notifications-list');
+
+                if (pendingInvites.length > 0) {
+                    badge.textContent = pendingInvites.length;
+                    badge.classList.remove('hidden');
+                    label.textContent = `${pendingInvites.length} en attente`;
+                    list.innerHTML = '';
+
+                    for (let inv of pendingInvites) {
+                        // Récupérer les infos du projet ou de la carte associée
+                        let targetName = 'Projet / Carte';
+                        let isProj = true;
+                        const { data: proj } = await supabase.from('projects').select('name').eq('id', inv.map_id).single();
+                        if (proj) {
+                            targetName = proj.name;
+                        } else {
+                            const { data: card } = await supabase.from('cards').select('name').eq('id', inv.map_id).single();
+                            if (card) { targetName = card.name; isProj = false; }
+                        }
+
+                        const item = document.createElement('div');
+                        item.className = "p-2.5 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 text-xs space-y-2";
+                        item.innerHTML = `
+                            <div class="font-bold text-gray-800 dark:text-gray-200 truncate">Invitation : ${targetName}</div>
+                            <div class="flex items-center justify-end gap-2">
+                                <button onclick="respondInvite('${inv.id}', false)" class="px-2.5 py-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-[10px] font-semibold">Refuser</button>
+                                <button onclick="respondInvite('${inv.id}', true, '${inv.map_id}', ${isProj})" class="px-2.5 py-1 bg-[#5246EE] text-white rounded-lg text-[10px] font-semibold">Accepter</button>
+                            </div>
+                        `;
+                        list.appendChild(item);
+                    }
+                } else {
+                    badge.classList.add('hidden');
+                    label.textContent = `0 en attente`;
+                    list.innerHTML = `<p class="text-xs text-gray-400 text-center py-4">Aucune invitation en attente.</p>`;
+                }
+            }
+
+            window.respondInvite = async function(inviteId, accept, mapId, isProj) {
+                if (accept) {
+                    // Mettre à jour le statut à 'accepted' dans map_collaborators
+                    await supabase.from('map_collaborators').update({ status: 'accepted', user_id: currentUser.id }).eq('id', inviteId);
+                    alert("Invitation acceptée avec succès !");
+                    document.getElementById('notif-dropdown').classList.add('hidden');
+                    loadPendingInvitations();
+                    loadDashboardData();
+                    if (isProj) {
+                        openProject(mapId);
+                    } else {
+                        window.location.href = `map.html?cardId=${mapId}`;
+                    }
+                } else {
+                    // Supprimer l'invitation si refusée
+                    await supabase.from('map_collaborators').delete().eq('id', inviteId);
+                    alert("Invitation refusée.");
+                    loadPendingInvitations();
+                }
+            }
 
             window.loadDashboardData = async function() {
                 if (currentTab === 'projects') {
@@ -456,12 +560,6 @@
                 const email = emailInput.value.trim();
                 if (!email) return;
 
-                const { data, error } = await supabase.from('profiles').select('email').eq('email', email).single();
-                if (error || !data) {
-                    alert("Adresse email invalide ou aucun compte Mobius associé à cet e-mail.");
-                    return;
-                }
-
                 collaboratorsListTemp.push(email);
                 emailInput.value = '';
                 renderCollabBadges();
@@ -500,11 +598,21 @@
                         owner_email: currentUser.email,
                         owner_id: currentUser.id,
                         is_collab: document.getElementById('modal-is-collab').checked,
-                        collaborators: collaboratorsListTemp,
                         pwd,
                         tree: []
                     };
-                    await supabase.from('projects').insert([newProj]);
+                    const { data: createdProj, error } = await supabase.from('projects').insert([newProj]).select().single();
+                    
+                    // Insérer également les collaborateurs dans la table relationnelle map_collaborators
+                    if (!error && createdProj && collaboratorsListTemp.length > 0) {
+                        const collabRows = collaboratorsListTemp.map(email => ({
+                            map_id: createdProj.id,
+                            email: email.toLowerCase(),
+                            role: 'editor',
+                            status: 'pending'
+                        }));
+                        await supabase.from('map_collaborators').insert(collabRows);
+                    }
                 } else {
                     const newCard = {
                         id: newItemId,
@@ -513,9 +621,19 @@
                         owner_id: currentUser.id,
                         pwd
                     };
-                    await supabase.from('cards').insert([newCard]);
+                    const { data: createdCard, error } = await supabase.from('cards').insert([newCard]).select().single();
+                    if (!error && createdCard && collaboratorsListTemp.length > 0) {
+                        const collabRows = collaboratorsListTemp.map(email => ({
+                            map_id: createdCard.id,
+                            email: email.toLowerCase(),
+                            role: 'editor',
+                            status: 'pending'
+                        }));
+                        await supabase.from('map_collaborators').insert(collabRows);
+                    }
                 }
 
+                collaboratorsListTemp = [];
                 closeCreateModal();
                 loadDashboardData();
             }
@@ -708,7 +826,6 @@
                 });
             }
 
-            // --- ANIMATIONS DE GLISSER-DÉPOSER (VERT EN MODE SOMBRE / BLEU EN MODE CLAIR) ---
             let draggedItemId = null;
 
             window.dragStart = function(e, id) {
