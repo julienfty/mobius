@@ -195,13 +195,21 @@
                     </div>
                     <input type="checkbox" id="modal-has-pwd" class="w-4 h-4 accent-[#5246EE]">
                 </label>
+                <label id="admin-pwd-row" class="flex items-center justify-between bg-gray-50 dark:bg-gray-800/60 p-3.5 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer">
+                    <div>
+                        <div class="text-xs font-semibold">Les admins peuvent gérer le mot de passe</div>
+                        <div class="text-[10px] text-gray-500">Sinon, seul le propriétaire peut le modifier</div>
+                    </div>
+                    <input type="checkbox" id="modal-admin-pwd" class="w-4 h-4 accent-[#5246EE]">
+                </label>
+                <p id="pwd-locked-note" class="hidden text-[10px] text-gray-500"><i class="fa-solid fa-lock mr-1"></i>Seul le propriétaire peut modifier le mot de passe.</p>
                 <div id="pwd-box" class="hidden">
                     <input type="password" id="modal-item-pwd" placeholder="••••••••" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none focus:border-[#5246EE]">
                 </div>
             </div>
             <div class="flex gap-3 pt-2">
                 <button data-create-modal="cancel" class="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs font-semibold hover:bg-gray-200 dark:hover:bg-gray-700 transition-all">Annuler</button>
-                <button data-create-modal="ok" class="flex-1 py-3 rounded-xl bg-[#5246EE] text-white text-xs font-semibold hover:bg-[#4538d8] transition-all shadow-md shadow-[#5246EE]/25">Créer</button>
+                <button id="create-modal-ok" data-create-modal="ok" class="flex-1 py-3 rounded-xl bg-[#5246EE] text-white text-xs font-semibold hover:bg-[#4538d8] transition-all shadow-md shadow-[#5246EE]/25">Créer</button>
             </div>
         </div>
     </div>
@@ -277,6 +285,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     const isOwner = (item) => item.owner_id === user.id || norm(item.owner_email) === myEmail;
     const myEntry = (item) => collabEntries(item).find(c => c.email === myEmail);
+    const ROLE_LABELS = { viewer: 'Observateur', editor: 'Peut modifier', admin: 'Admin' };
+    // rôle de l'utilisateur sur un élément : owner | admin | editor | viewer
+    // (un collaborateur sans champ role, ex. invité avant l'ajout des rôles, est « editor »)
+    const roleOf = (item) => {
+        if (isOwner(item)) return 'owner';
+        const e = myEntry(item);
+        return e && e.status === 'accepted' ? (e.role || 'editor') : 'viewer';
+    };
+    const isAdminOf = (item) => ['owner', 'admin'].includes(roleOf(item));
+    const canEditItem = (item) => ['owner', 'admin', 'editor'].includes(roleOf(item));
+    // le mot de passe : propriétaire, ou admin si le propriétaire l'a autorisé (colonne admins_manage_pwd)
+    const canManagePwd = (item) => isOwner(item) || (roleOf(item) === 'admin' && !!item.admins_manage_pwd);
     const hasCollab = (item) => collabEntries(item).some(c => c.status === 'accepted');
     const pendingCount = (item) => collabEntries(item).filter(c => c.status === 'pending').length;
 
@@ -369,14 +389,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
                 <div class="flex items-center gap-2 justify-between">
                     <div class="flex items-center gap-1.5 flex-wrap">
-                        ${shared ? `<span class="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"><i class="fa-solid fa-user-group mr-1"></i>Collaboration</span>` : ''}
+                        ${shared ? `<span class="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"><i class="fa-solid fa-user-group mr-1"></i>Collaboration · ${ROLE_LABELS[roleOf(item)] || ''}</span>` : ''}
                         ${owner && hasCollab(item) ? `<span class="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"><i class="fa-solid fa-user-group mr-1"></i>Partagé</span>` : ''}
                         ${pending ? `<span class="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-600" title="Invitations en attente"><i class="fa-regular fa-clock mr-1"></i>${pending}</span>` : ''}
                         ${item.pwd ? '<i class="fa-solid fa-lock text-xs text-amber-500" title="Protégé par mot de passe"></i>' : ''}
                     </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                    ${isAdminOf(item) ? `<button data-action="settings" data-id="${esc(item.id)}" class="w-8 h-8 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-[#5246EE] flex items-center justify-center text-xs transition-all" title="Paramètres"><i class="fa-solid fa-gear"></i></button>` : ''}
                     <button data-action="delete" data-id="${esc(item.id)}" class="w-8 h-8 shrink-0 rounded-lg ${owner ? 'bg-red-50 dark:bg-red-950/30 text-red-600' : 'bg-gray-100 dark:bg-gray-800 text-gray-500'} hover:opacity-80 flex items-center justify-center text-xs transition-all" title="${owner ? 'Supprimer' : 'Quitter'}">
                         <i class="fa-solid ${owner ? 'fa-trash' : 'fa-right-from-bracket'}"></i>
                     </button>
+                    </div>
                 </div>
             </div>`;
         }).join('');
@@ -385,6 +408,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('items-grid').addEventListener('click', (e) => {
         const del = e.target.closest('[data-action="delete"]');
         if (del) { e.stopPropagation(); deleteItem(del.dataset.id); return; }
+        const set = e.target.closest('[data-action="settings"]');
+        if (set) { e.stopPropagation(); openSettingsModal(set.dataset.id); return; }
         const card = e.target.closest('.item-card');
         if (!card) return;
         if (state.tab === 'projects') openProject(card.dataset.id);
@@ -501,14 +526,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /* ---------- Prompt / Confirm (promesses) ---------- */
     let promptResolve = null, confirmResolve = null;
-    function askPrompt(title, placeholder = '', type = 'text') {
+    function askPrompt(title, placeholder = '', type = 'text', initial = '') {
         return new Promise(res => {
             promptResolve = res;
             $('prompt-title').textContent = title;
             const input = $('prompt-input');
-            input.type = type; input.value = ''; input.placeholder = placeholder;
+            input.type = type; input.value = initial; input.placeholder = placeholder;
             showModal('prompt-modal');
-            setTimeout(() => input.focus(), 40);
+            setTimeout(() => { input.focus(); if (initial) input.select(); }, 40);
         });
     }
     function closePrompt(ok) {
@@ -631,7 +656,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /* ---------- Création ---------- */
     function openCreateModal() {
-        state.tempCollabs = [];
+        state.tempCollabs = []; state.collabMeta = new Map(); state.collabRoles = new Map(); state.editing = null;
+        ['modal-is-collab', 'modal-has-pwd', 'modal-item-pwd'].forEach(id => $(id).disabled = false);
+        $('modal-admin-pwd').checked = false; $('admin-pwd-row').classList.remove('hidden'); $('pwd-locked-note').classList.add('hidden');
+        $('modal-item-pwd').placeholder = '••••••••'; $('create-modal-ok').textContent = 'Créer';
         ['modal-item-name', 'modal-collab-email', 'modal-item-pwd'].forEach(id => $(id).value = '');
         $('modal-is-collab').checked = false; $('modal-has-pwd').checked = false;
         $('collab-box').classList.add('hidden');$('pwd-box').classList.add('hidden');
@@ -641,9 +669,99 @@ document.addEventListener('DOMContentLoaded', async () => {
         setTimeout(() => $('modal-item-name').focus(), 40); }$('create-btn').addEventListener('click', openCreateModal);
     $('modal-is-collab').addEventListener('change', (e) =>$('collab-box').classList.toggle('hidden', !e.target.checked));
     $('modal-has-pwd').addEventListener('change', (e) =>$('pwd-box').classList.toggle('hidden', !e.target.checked));
-    document.querySelector('[data-create-modal="cancel"]').addEventListener('click', () => hideModal('create-modal'));
-    document.querySelector('[data-create-modal="ok"]').addEventListener('click', confirmCreate);
+    document.querySelector('[data-create-modal="cancel"]').addEventListener('click', () => { state.editing = null; hideModal('create-modal'); });
+    document.querySelector('[data-create-modal="ok"]').addEventListener('click', () => state.editing ? saveSettings() : confirmCreate());
     $('modal-collab-email').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addCollaborator(); } });$('add-collab-btn').addEventListener('click', addCollaborator);
+
+    /* ---------- Paramètres d'un projet / d'une carte libre (nom, collaboration, sécurité) ---------- */
+    async function openSettingsModal(id) {
+        const table = state.tab;
+        const item = state.data[table].find(i => i.id === id);
+        if (!item) return;
+        if (!isAdminOf(item)) return toast('Seuls le propriétaire et les admins peuvent modifier les paramètres.', 'error');
+        if (item.pwd) {
+            const p = await askPrompt('Mot de passe requis :', 'Mot de passe', 'password');
+            if (p === null) return;
+            if (p !== item.pwd) return toast('Mot de passe incorrect.', 'error');
+        }
+        const entries = collabEntries(item);
+        state.editing = { table, id };
+        state.collabMeta = new Map(entries.map(c => [c.email, c]));
+        state.collabRoles = new Map(entries.map(c => [c.email, c.role || 'editor']));
+        state.tempCollabs = entries.map(c => c.email);
+        $('modal-item-name').value = item.name || '';
+        $('modal-collab-email').value = '';
+        $('modal-is-collab').checked = !!item.is_collab || entries.length > 0;
+        $('collab-box').classList.toggle('hidden', !$('modal-is-collab').checked);
+        $('modal-has-pwd').checked = !!item.pwd;
+        $('pwd-box').classList.toggle('hidden', !item.pwd);
+        $('modal-item-pwd').value = '';
+        $('modal-item-pwd').placeholder = item.pwd ? 'Laisser vide pour garder le mot de passe actuel' : '••••••••';
+        // permissions : seul le propriétaire active/désactive la collaboration et règle l'autorisation des admins ;
+        // le mot de passe n'est modifiable par un admin que si le propriétaire l'a autorisé
+        const owner = isOwner(item);
+        $('modal-is-collab').disabled = !owner;
+        $('admin-pwd-row').classList.toggle('hidden', !owner);
+        $('modal-admin-pwd').checked = !!item.admins_manage_pwd;
+        const pwdOk = canManagePwd(item);
+        ['modal-has-pwd', 'modal-item-pwd'].forEach(id => $(id).disabled = !pwdOk);
+        $('pwd-locked-note').classList.toggle('hidden', pwdOk);
+        renderCollabBadges();
+        $('create-modal-title').textContent = table === 'projects' ? 'Paramètres du projet' : 'Paramètres de la carte libre';
+        $('create-modal-ok').textContent = 'Enregistrer';
+        showModal('create-modal');
+        setTimeout(() => $('modal-item-name').focus(), 40);
+    }
+
+    async function saveSettings() {
+        const { table, id } = state.editing || {};
+        const item = state.data[table]?.find(i => i.id === id);
+        if (!item) return;
+        const name = $('modal-item-name').value.trim();
+        if (!name) return toast('Veuillez entrer un nom.', 'error');
+
+        const owner = isOwner(item);
+        const pwdOk = canManagePwd(item);
+        const isCollab = owner ? $('modal-is-collab').checked : true;
+        const hasPwd = pwdOk ? $('modal-has-pwd').checked : !!item.pwd;
+        const pwd = pwdOk ? (hasPwd ? ($('modal-item-pwd').value || item.pwd || '') : '') : (item.pwd || '');
+        if (hasPwd && !pwd) return toast('Entrez un mot de passe.', 'error');
+
+        const before = collabEntries(item);
+        if (!isCollab && before.length && !await askConfirm('Désactiver la collaboration retirera tous les collaborateurs et invitations en attente. Continuer ?')) return;
+
+        const now = new Date().toISOString();
+        const collaborators = isCollab
+            ? state.tempCollabs.map(email => {
+                const meta = state.collabMeta.get(email);
+                const role = state.collabRoles.get(email) || meta?.role || 'editor';
+                return meta ? { ...meta, role } : { email, role, status: 'pending', invited_by: user.email, invited_at: now };
+            })
+            : [];
+        const invited = collaborators.filter(c => !state.collabMeta.has(c.email)).length;
+
+        const update = { name, pwd: pwd || null, is_collab: isCollab, collaborators };
+        if (owner && $('modal-admin-pwd').checked !== !!item.admins_manage_pwd) update.admins_manage_pwd = $('modal-admin-pwd').checked;
+        if (table === 'cards') {
+            // le nom d'une carte libre est aussi dans cards.info (lu par map.html)
+            let info = item.info;
+            if (typeof info === 'string') { try { info = JSON.parse(info); } catch (e) { info = null; } }
+            if (info && typeof info === 'object') update.info = { ...info, name };
+        }
+
+        let { error } = await sb.from(table).update(update).eq('id', id);
+        if (error && 'admins_manage_pwd' in update) {
+            // colonne pas encore créée : on enregistre le reste
+            delete update.admins_manage_pwd;
+            ({ error } = await sb.from(table).update(update).eq('id', id));
+            if (!error) toast("Colonne « admins_manage_pwd » absente : autorisation des admins non enregistrée.", 'error');
+        }
+        if (error) return toast('Enregistrement impossible : ' + error.message, 'error');
+        state.editing = null;
+        hideModal('create-modal');
+        toast(invited ? `Paramètres enregistrés · ${invited} invitation${invited > 1 ? 's' : ''} envoyée${invited > 1 ? 's' : ''}` : 'Paramètres enregistrés.', 'success');
+        loadAll();
+    }
 
     async function addCollaborator() {
         const input = $('modal-collab-email');
@@ -657,15 +775,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (error || !data) return toast('Aucun compte Mobius associé à cet e-mail.', 'error');
 
         state.tempCollabs.push(email);
+        (state.collabRoles ||= new Map()).set(email, 'editor');
         input.value = '';
         renderCollabBadges();
     }
     function renderCollabBadges() {
-        $('collab-badges').innerHTML = state.tempCollabs.map(email => `
+        $('collab-badges').innerHTML = state.tempCollabs.map(email => {
+            const meta = state.collabMeta?.get(email);
+            const role = state.collabRoles?.get(email) || meta?.role || 'editor';
+            const self = !!state.editing && email === myEmail;      // on ne se retire / rétrograde pas soi-même
+            const roleCtl = self
+                ? `<span class="font-semibold opacity-70">${ROLE_LABELS[role] || role}</span>`
+                : `<select data-role-for="${esc(email)}" class="text-[10px] bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded px-1 py-0.5 focus:outline-none">${Object.entries(ROLE_LABELS).map(([k, v]) => `<option value="${k}" ${k === role ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
+            return `
             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#5246EE]/10 text-[#5246EE] text-[10px] font-semibold">
-                ${esc(email)} <i class="fa-solid fa-xmark cursor-pointer hover:text-red-500" data-remove-collab="${esc(email)}"></i>
-            </span>`).join('');
+                ${meta?.status === 'pending' ? '<i class="fa-regular fa-clock" title="Invitation en attente"></i>' : ''}${esc(email)} ${roleCtl}${self ? '' : ` <i class="fa-solid fa-xmark cursor-pointer hover:text-red-500" data-remove-collab="${esc(email)}"></i>`}
+            </span>`;
+        }).join('');
     }
+    $('collab-badges').addEventListener('change', (e) => {
+        const sel = e.target.closest('[data-role-for]');
+        if (sel) state.collabRoles.set(sel.dataset.roleFor, sel.value);
+    });
     $('collab-badges').addEventListener('click', (e) => {
         const x = e.target.closest('[data-remove-collab]');
         if (!x) return;
@@ -681,13 +812,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if ($('modal-has-pwd').checked && !pwd) return toast('Entrez un mot de passe.', 'error');
 
         const now = new Date().toISOString();
-        const collaborators = isCollab ? state.tempCollabs.map(email => ({ email, status: 'pending', invited_by: user.email, invited_at: now })) : [];
+        const collaborators = isCollab ? state.tempCollabs.map(email => ({ email, role: state.collabRoles.get(email) || 'editor', status: 'pending', invited_by: user.email, invited_at: now })) : [];
         const row = {
             id: 'id_' + Date.now(),
             name, pwd: pwd || null,
             owner_email: user.email, owner_id: user.id,
             is_collab: isCollab, collaborators
         };
+        if ($('modal-admin-pwd').checked) row.admins_manage_pwd = true;
         if (state.tab === 'projects') row.tree = [];
 
         const { error } = await sb.from(state.tab).insert([row]);
@@ -750,6 +882,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     let saveTimer = null;
+    const canEditTree = () => !!state.activeProject && canEditItem(state.activeProject);
+    function requireEditTree() {
+        if (canEditTree()) return true;
+        toast("Lecture seule : vous êtes observateur de ce projet.", 'error');
+        return false;
+    }
     function saveTree() {
         clearTimeout(saveTimer);
         saveTimer = setTimeout(async () => {
@@ -771,6 +909,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!Array.isArray(state.activeProject.tree)) state.activeProject.tree = [];
         state.selectedFolderId = null;
         state.expanded.clear();
+        document.querySelectorAll('.tree-create, #import-btn').forEach(b => b.classList.toggle('hidden', !canEditTree()));
 
         $('main-view').classList.add('hidden');$('project-workspace').classList.remove('hidden');
         const collab = hasCollab(state.activeProject) || !isOwner(state.activeProject);
@@ -801,6 +940,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     document.querySelectorAll('.tree-create').forEach(b => b.addEventListener('click', async () => {
+        if (!requireEditTree()) return;
         const type = b.dataset.create;
         const label = { folder: 'dossier', txt: 'fichier .txt', card: 'carte' }[type];
         const name = (await askPrompt(`Nom du ${label} :`, `Nom du ${label}`))?.trim();
@@ -812,7 +952,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         saveTree(); renderTree();
     }));
 
-    $('import-btn').addEventListener('click', () => $('tree-file-input').click());$('tree-file-input').addEventListener('change', (e) => { importFiles([...e.target.files], state.selectedFolderId); e.target.value = ''; });
+    $('import-btn').addEventListener('click', () => { if (requireEditTree()) $('tree-file-input').click(); });$('tree-file-input').addEventListener('change', (e) => { importFiles([...e.target.files], state.selectedFolderId); e.target.value = ''; });
 
     const newItemId = () => 'id_' + Date.now() + Math.random().toString(36).slice(2, 7);
     const MAX_INPUT_BYTES = 20 * 1024 * 1024;   // taille max du fichier source
@@ -922,6 +1062,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function importFiles(files, folderId) {
+        if (!requireEditTree()) return;
         const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx)$/i.test(f.name));
         if (accepted.length < files.length) toast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx et .mobius.', 'info');
         let added = 0;
@@ -966,7 +1107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const el = document.createElement('div');
             el.className = `space-y-1 ${item.isNewDrop ? 'animate-drop' : ''}`;
             delete item.isNewDrop;
-            el.draggable = true;
+            el.draggable = canEditTree();
             el.dataset.id = item.id;
 
             if (item.type === 'folder') {
@@ -980,7 +1121,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             <span class="truncate">${esc(item.name)}</span>
                             <span class="text-[10px] text-gray-400">${(item.children || []).length || ''}</span>
                         </div>
-                        <button data-remove="${esc(item.id)}" class="text-red-500 hover:text-red-700 px-2" title="Supprimer"><i class="fa-solid fa-xmark"></i></button>
+                        ${canEditTree() ? `<div class="flex items-center shrink-0"><button data-rename="${esc(item.id)}" class="text-gray-400 hover:text-[#5246EE] px-2" title="Renommer"><i class="fa-solid fa-pen text-[10px]"></i></button><button data-remove="${esc(item.id)}" class="text-red-500 hover:text-red-700 px-2" title="Supprimer"><i class="fa-solid fa-xmark"></i></button></div>` : ''}
                     </div>
                     <div class="pl-6 space-y-1 mt-1 border-l-2 border-gray-100 dark:border-gray-800 ${open ? '' : 'hidden'}" data-children="${esc(item.id)}"></div>`;
                 container.appendChild(el);
@@ -994,7 +1135,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             <span class="font-medium truncate">${esc(item.name)}</span>
                             ${item.type === 'card' ? '<span class="text-[9px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-semibold">Carte</span>' : ''}
                         </div>
-                        <button data-remove="${esc(item.id)}" class="text-red-500 hover:text-red-700 px-2" title="Supprimer"><i class="fa-solid fa-xmark"></i></button>
+                        ${canEditTree() ? `<div class="flex items-center shrink-0"><button data-rename="${esc(item.id)}" class="text-gray-400 hover:text-[#5246EE] px-2" title="Renommer"><i class="fa-solid fa-pen text-[10px]"></i></button><button data-remove="${esc(item.id)}" class="text-red-500 hover:text-red-700 px-2" title="Supprimer"><i class="fa-solid fa-xmark"></i></button></div>` : ''}
                     </div>`;
                 container.appendChild(el);
             }
@@ -1002,9 +1143,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     $('tree').addEventListener('click', async (e) => {
+        const rn = e.target.closest('[data-rename]');
+        if (rn) {
+            e.stopPropagation();
+            if (!requireEditTree()) return;
+            const it = findItem(tree(), rn.dataset.rename);
+            if (!it) return;
+            const label = { folder: 'du dossier', txt: 'du fichier', card: 'de la carte', pdf: 'du fichier' }[it.type] || "de l'élément";
+            const name = (await askPrompt(`Nouveau nom ${label} :`, 'Nom', 'text', it.name))?.trim();
+            if (!name || name === it.name) return;
+            it.name = name;
+            saveTree(); updateFolderIndicator(); renderTree();
+            toast('Renommé.', 'success');
+            return;
+        }
         const rm = e.target.closest('[data-remove]');
         if (rm) {
             e.stopPropagation();
+            if (!requireEditTree()) return;
             if (!await askConfirm("Supprimer cet élément de l'arborescence ?")) return;
             if (state.selectedFolderId === rm.dataset.remove) state.selectedFolderId = null;
             state.activeProject.tree = removeItem(tree(), rm.dataset.remove);
@@ -1056,6 +1212,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     tr.addEventListener('dragleave', (e) => { if (!tr.contains(e.relatedTarget)) { clearDrop(tr); tr.querySelectorAll('.folder-row').forEach(clearDrop); } });
     tr.addEventListener('drop', async (e) => {
         e.preventDefault();
+        if (!requireEditTree()) return;
         const row = e.target.closest('.folder-row');
         const targetId = row ? row.dataset.folder : null;
         clearDrop(tr); tr.querySelectorAll('.folder-row').forEach(clearDrop);
