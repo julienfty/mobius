@@ -83,36 +83,6 @@
         <div class="flex items-center gap-2 shrink-0">
             <span id="role-badge" class="hidden sm:inline-flex px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500"></span>
             
-            <!-- Bouton d'importation de fichier .mobius -->
-            <input type="file" id="import-mobius-input" accept=".mobius,.json" class="hidden" onchange="importMapFromFile(event)">
-            <button onclick="document.getElementById('import-mobius-input').click()" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition" title="Importer un fichier .mobius">
-                <i data-lucide="upload" class="w-3.5 h-3.5 text-[#5246EE]"></i>
-                <span class="hidden sm:inline">Importer</span>
-            </button>
-
-            <div class="relative">
-                <button onclick="toggleCollaboratorsDropdown()" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition">
-                    <i data-lucide="users" class="w-3.5 h-3.5 text-[#5246EE]"></i>
-                    <span id="collab-count-label" class="hidden sm:inline">Collaborateurs (1)</span>
-                    <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
-                </button>
-                <div id="collab-dropdown" class="hidden absolute right-0 mt-2 w-[24rem] max-w-[92vw] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-50">
-                    <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Gestion des collaborateurs</h4>
-                    <div id="collaborators-list" class="space-y-2 max-h-56 overflow-y-auto mb-3"></div>
-                    <div id="collab-add-section" class="pt-2 border-t border-slate-100 dark:border-slate-800">
-                        <div class="flex space-x-2">
-                            <input type="email" id="new-collab-email" placeholder="email@membre.com" class="flex-1 min-w-0 px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#5246EE]">
-                            <select id="new-collab-role" class="px-2 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none">
-                                <option value="viewer">Observateur</option>
-                                <option value="editor" selected>Peut modifier</option>
-                                <option value="admin">Admin</option>
-                            </select>
-                            <button onclick="addCollaborator()" class="px-3 py-1.5 bg-[#5246EE] hover:bg-[#4538d8] text-white text-xs font-medium rounded-lg">Ajouter</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <div class="relative">
                 <button onclick="toggleDownloadDropdown()" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition">
                     <i data-lucide="download" class="w-3.5 h-3.5 text-emerald-500"></i>
@@ -151,6 +121,9 @@
                 <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx" multiple>
             </div>
             <div id="tree-sidebar-content" class="flex-1 p-3 overflow-y-auto space-y-1 text-xs"></div>
+            <div class="p-3 border-t border-slate-200 dark:border-slate-800">
+                <button onclick="downloadProject()" class="w-full px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-2 transition"><i data-lucide="download" class="w-4 h-4 text-emerald-500"></i> Télécharger le projet (.mobpro)</button>
+            </div>
         </aside>
 
         <!-- 2. MENU LÉGENDE (Page Légende - 100% largeur mobile) -->
@@ -325,11 +298,7 @@
             name: '',
             nodes: [],
             links: [],
-            relationTypes: [
-                { id: 'rel-1', name: 'Ami / Proche', color: '#10b981' },
-                { id: 'rel-2', name: 'Collègue / Pro', color: '#5246EE' },
-                { id: 'rel-3', name: 'Famille', color: '#f59e0b' }
-            ]
+            relationTypes: []
         };
         let projectData = null;
         let supabaseClient = null;
@@ -407,13 +376,7 @@
                 if (cData) currentCard = cardFromRow(cData);
             }
 
-            if (!currentCard.relationTypes) {
-                currentCard.relationTypes = [
-                    { id: 'rel-1', name: 'Ami / Proche', color: '#10b981' },
-                    { id: 'rel-2', name: 'Collègue / Pro', color: '#5246EE' },
-                    { id: 'rel-3', name: 'Famille', color: '#f59e0b' }
-                ];
-            }
+            if (!Array.isArray(currentCard.relationTypes)) currentCard.relationTypes = [];
             if (!currentCard.nodes) currentCard.nodes = [];
             if (!currentCard.links) currentCard.links = [];
             normalizeCollaborators();
@@ -1788,6 +1751,7 @@
             document.getElementById('add-link-form').classList.toggle('hidden');
         }
 
+        const fillEmptyTypeOption = (sel) => { if (sel && !sel.options.length) sel.innerHTML = '<option value="">Lien simple (sans type)</option>'; };
         function populateInspectorSelects(currentNodeId) {
             const targetSel = document.getElementById('link-target-select');
             const typeSel = document.getElementById('link-type-select');
@@ -1808,6 +1772,7 @@
                 opt.textContent = r.name;
                 typeSel.appendChild(opt);
             });
+            fillEmptyTypeOption(typeSel);
         }
 
         function renderNodeLinksInInspector(nodeId) {
@@ -1847,7 +1812,7 @@
             const targetId = document.getElementById('link-target-select').value;
             const relationTypeId = document.getElementById('link-type-select').value;
 
-            if (!targetId || !relationTypeId) return;
+            if (!targetId) return;   // le type de lien est facultatif
 
             const selectedNodeId = selectedNodeIds[0];
             const exists = (currentCard.links || []).some(l => (l.sourceId === selectedNodeId && l.targetId === targetId) || (l.sourceId === targetId && l.targetId === selectedNodeId));
@@ -1959,11 +1924,7 @@
 
         async function deleteRelationType(relId) {
             if (!requireEdit()) return;
-            if (currentCard.relationTypes.length <= 1) {
-                showToast("Vous devez conserver au moins un type de relation.");
-                return;
-            }
-            const fallbackId = currentCard.relationTypes.find(r => r.id !== relId).id;
+            const fallbackId = (currentCard.relationTypes.find(r => r.id !== relId) || {}).id || '';
             (currentCard.links || []).forEach(l => {
                 if (l.relationTypeId === relId) l.relationTypeId = fallbackId;
             });
@@ -1993,6 +1954,7 @@
                 opt.textContent = r.name;
                 select.appendChild(opt);
             });
+            fillEmptyTypeOption(select);
 
             document.getElementById('modal-quick-link').classList.remove('hidden');
         }
@@ -2044,6 +2006,7 @@
                 if (r.id === link.relationTypeId) opt.selected = true;
                 select.appendChild(opt);
             });
+            fillEmptyTypeOption(select);
 
             document.getElementById('modal-edit-link').classList.remove('hidden');
         }
@@ -2130,7 +2093,7 @@
             const [h, p, inp, bar] = ov.querySelector('div').children;
             h.textContent = title;
             if (message) { p.textContent = message; p.classList.remove('hidden'); }
-            if (input) { inp.classList.remove('hidden'); inp.placeholder = input.placeholder || ''; inp.value = input.value || ''; }
+            if (input) { inp.classList.remove('hidden'); inp.type = input.type || 'text'; inp.placeholder = input.placeholder || ''; inp.value = input.value || ''; }
             const done = (value) => { ov.remove(); document.removeEventListener('keydown', onKey, true); resolve(value === undefined ? null : { value, text: inp.value }); };
             const primary = buttons.find(b => b.primary);
             const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); done(undefined); } else if (e.key === 'Enter' && input && primary) { e.preventDefault(); done(primary.value); } };
@@ -2148,8 +2111,8 @@
             if (input) inp.select();
         });
     }
-    const treeAsk = async (title, placeholder, value = '') => {
-        const r = await dlg({ title, input: { placeholder, value }, row: true, buttons: [{ label: 'Annuler', value: null }, { label: 'OK', value: true, primary: true }] });
+    const treeAsk = async (title, placeholder, value = '', type = 'text') => {
+        const r = await dlg({ title, input: { placeholder, value, type }, row: true, buttons: [{ label: 'Annuler', value: null }, { label: 'OK', value: true, primary: true }] });
         return r && r.value ? r.text.trim() : null;
     };
     const treeConfirm = async (message) => !!(await dlg({ title: 'Confirmation', message, row: true, buttons: [{ label: 'Annuler', value: false }, { label: 'Confirmer', value: true, primary: true }] }))?.value;
@@ -2439,6 +2402,25 @@
                 } catch (err) { console.error(err); showToast(`« ${file.name} » refusé : ${err.message}.`); }
             }
             if (added) refreshTree();
+        }
+
+        /* ---------- Export .mobpro (contenu de la colonne tree, comme le dashboard) ---------- */
+        async function downloadProject() {
+            if (!projectData) return;
+            if (projectData.pwd) {
+                const r = await treeAsk('Mot de passe requis pour télécharger :', 'Mot de passe', '', 'password');
+                if (r === null) return;
+                if (r !== projectData.pwd) { showToast('Mot de passe incorrect.'); return; }
+            }
+            updateCardInTree(projectData.tree, currentCard);   // inclut l'état courant de la carte ouverte
+            const safe = (s) => String(s).replace(/[\\/:*?"<>|]/g, '_');
+            const blob = new Blob([JSON.stringify(projectData.tree || [], null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `${safe(projectData.name).toLowerCase().replace(/\s+/g, '_')}.mobpro`;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+            showToast('Projet exporté au format .mobpro !');
         }
 
         /* ---------- Rendu ---------- */
