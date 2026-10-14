@@ -198,11 +198,12 @@
                 <label id="admin-pwd-row" class="flex items-center justify-between bg-gray-50 dark:bg-gray-800/60 p-3.5 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer">
                     <div>
                         <div class="text-xs font-semibold">Les admins peuvent gérer le mot de passe</div>
-                        <div class="text-[10px] text-gray-500">Sinon, seul le propriétaire peut le modifier</div>
+                        <div class="text-[10px] text-gray-500">Chaque modification devra être validée par vous (notification). Sinon, vous seul pouvez le modifier</div>
                     </div>
                     <input type="checkbox" id="modal-admin-pwd" class="w-4 h-4 accent-[#5246EE]">
                 </label>
                 <p id="pwd-locked-note" class="hidden text-[10px] text-gray-500"><i class="fa-solid fa-lock mr-1"></i>Seul le propriétaire peut modifier le mot de passe.</p>
+                <p id="pwd-approval-note" class="hidden text-[10px] text-amber-600 dark:text-amber-400"><i class="fa-solid fa-shield-halved mr-1"></i>Toute création ou modification du mot de passe sera envoyée au propriétaire pour validation.</p>
                 <div id="pwd-box" class="hidden">
                     <input type="password" id="modal-item-pwd" placeholder="••••••••" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none focus:border-[#5246EE]">
                 </div>
@@ -270,6 +271,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         tab: 'projects', view: localStorage.getItem('viewMode') || 'grid',
         data: { projects: [], cards: [] },      // éléments visibles (possédés + invitation acceptée)
         invitations: [],                         // { table, item, from }
+        pwdRequests: [],                         // demandes de mot de passe en attente (pour le propriétaire)
         activeProject: null, selectedFolderId: null, expanded: new Set(),
         tempCollabs: [], draggedId: null
     };
@@ -321,6 +323,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         state.data.projects = [];
         state.data.cards = [];
         state.invitations = [];
+        state.pwdRequests = [];
 
         [['projects', projects], ['cards', cards]].forEach(([table, rows]) => {
             rows.forEach(item => {
@@ -332,6 +335,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             });
         });
+        // demandes de mot de passe envoyées par les admins aux propriétaires
+        try {
+            const { data: reqs, error: reqErr } = await sb.from('pwd_requests').select('*')
+                .eq('owner_id', user.id).eq('status', 'pending').order('created_at', { ascending: false });
+            if (!reqErr) {
+                state.pwdRequests = (reqs || []).map(r => ({ ...r, item: (state.data[r.table_name] || []).find(i => i.id === r.item_id) })).filter(r => r.item);
+            }
+        } catch (_) {}
         renderNotifications();
         renderDashboard();
     }
@@ -593,18 +604,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function renderNotifications() {
-        const n = state.invitations.length;
+        const nInv = state.invitations.length, nPwd = state.pwdRequests.length;
+        const n = nInv + nPwd;
         const badge = $('notif-badge');
         badge.textContent = n > 9 ? '9+' : n;
         badge.classList.toggle('hidden', n === 0);
-        $('notif-count-label').textContent = n ? `${n} invitation${n > 1 ? 's' : ''}` : '';
+        $('notif-count-label').textContent = n ? `${n} notification${n > 1 ? 's' : ''}` : '';
 
         const list = $('notif-list');
         if (!n) {
             list.innerHTML = `<div class="px-4 py-10 text-center text-xs text-gray-400"><i class="fa-regular fa-bell-slash text-xl mb-2 block"></i>Aucune notification</div>`;
             return;
         }
-        list.innerHTML = state.invitations.map((inv, idx) => `
+        const pwdHtml = state.pwdRequests.map((r, idx) => {
+            const removal = r.new_pwd == null;
+            const verb = removal ? 'souhaite <span class="font-semibold">supprimer</span> le mot de passe' : (r.item.pwd ? 'souhaite <span class="font-semibold">modifier</span> le mot de passe' : 'souhaite <span class="font-semibold">créer</span> un mot de passe');
+            return `
+            <div class="px-4 py-3.5 space-y-2.5">
+                <div class="flex items-start gap-3">
+                    <div class="w-9 h-9 shrink-0 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center text-sm"><i class="fa-solid fa-key"></i></div>
+                    <div class="min-w-0 text-xs leading-snug">
+                        <p><span class="font-semibold">${esc(r.requested_by_email || 'Un admin')}</span> ${verb} du ${TABLE_LABEL[r.table_name]} <span class="font-semibold">« ${esc(r.item.name)} »</span></p>
+                        <p class="text-[10px] text-gray-400 mt-0.5">${timeAgo(r.created_at)}</p>
+                    </div>
+                </div>
+                <div class="flex gap-2 pl-12">
+                    <button data-pwdreq="refuse" data-idx="${idx}" class="flex-1 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-[11px] font-semibold">Refuser</button>
+                    <button data-pwdreq="accept" data-idx="${idx}" class="flex-1 py-1.5 rounded-lg bg-[#5246EE] hover:bg-[#4538d8] text-white text-[11px] font-semibold shadow-sm">Accepter</button>
+                </div>
+            </div>`;
+        }).join('');
+        const invHtml = state.invitations.map((inv, idx) => `
             <div class="px-4 py-3.5 space-y-2.5">
                 <div class="flex items-start gap-3">
                     <div class="w-9 h-9 shrink-0 rounded-xl bg-[#5246EE]/10 text-[#5246EE] flex items-center justify-center text-sm">
@@ -620,9 +650,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <button data-invite="accept" data-idx="${idx}" class="flex-1 py-1.5 rounded-lg bg-[#5246EE] hover:bg-[#4538d8] text-white text-[11px] font-semibold shadow-sm">Accepter</button>
                 </div>
             </div>`).join('');
+        list.innerHTML = pwdHtml + invHtml;
     }
 
     $('notif-list').addEventListener('click', async (e) => {
+        // --- demandes de mot de passe (propriétaire uniquement ; revalidé côté base par la fonction SQL)
+        const pbtn = e.target.closest('[data-pwdreq]');
+        if (pbtn) {
+            const req = state.pwdRequests[Number(pbtn.dataset.idx)];
+            if (!req) return;
+            const accept = pbtn.dataset.pwdreq === 'accept';
+            pbtn.closest('div.px-4').querySelectorAll('button').forEach(b => b.disabled = true);
+            const { error } = await sb.rpc('respond_to_pwd_request', { p_request: req.id, p_accept: accept });
+            if (error) { toast('Erreur : ' + error.message, 'error'); return renderNotifications(); }
+            toast(accept ? 'Mot de passe mis à jour.' : 'Demande refusée.', accept ? 'success' : 'info');
+            return loadAll();
+        }
         const btn = e.target.closest('[data-invite]');
         if (!btn) return;
         const inv = state.invitations[Number(btn.dataset.idx)];
@@ -651,6 +694,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         sb.channel('mobius-collab')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => { if (!state.activeProject) loadAll(); })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'cards' }, () => { if (!state.activeProject) loadAll(); })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'pwd_requests' }, () => { if (!state.activeProject) loadAll(); })
             .subscribe();
     } catch (_) {}
 
@@ -658,7 +702,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function openCreateModal() {
         state.tempCollabs = []; state.collabMeta = new Map(); state.collabRoles = new Map(); state.editing = null;
         ['modal-is-collab', 'modal-has-pwd', 'modal-item-pwd'].forEach(id => $(id).disabled = false);
-        $('modal-admin-pwd').checked = false; $('admin-pwd-row').classList.remove('hidden'); $('pwd-locked-note').classList.add('hidden');
+        $('modal-admin-pwd').checked = false; $('admin-pwd-row').classList.remove('hidden'); $('pwd-locked-note').classList.add('hidden'); $('pwd-approval-note').classList.add('hidden');
         $('modal-item-pwd').placeholder = '••••••••'; $('create-modal-ok').textContent = 'Créer';
         ['modal-item-name', 'modal-collab-email', 'modal-item-pwd'].forEach(id => $(id).value = '');
         $('modal-is-collab').checked = false; $('modal-has-pwd').checked = false;
@@ -706,6 +750,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const pwdOk = canManagePwd(item);
         ['modal-has-pwd', 'modal-item-pwd'].forEach(id => $(id).disabled = !pwdOk);
         $('pwd-locked-note').classList.toggle('hidden', pwdOk);
+        $('pwd-approval-note').classList.toggle('hidden', owner || !pwdOk);
         renderCollabBadges();
         $('create-modal-title').textContent = table === 'projects' ? 'Paramètres du projet' : 'Paramètres de la carte libre';
         $('create-modal-ok').textContent = 'Enregistrer';
@@ -724,23 +769,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         const pwdOk = canManagePwd(item);
         const isCollab = owner ? $('modal-is-collab').checked : true;
         const hasPwd = pwdOk ? $('modal-has-pwd').checked : !!item.pwd;
-        const pwd = pwdOk ? (hasPwd ? ($('modal-item-pwd').value || item.pwd || '') : '') : (item.pwd || '');
+        const typedPwd = $('modal-item-pwd').value;
+        const pwd = pwdOk ? (hasPwd ? (typedPwd || item.pwd || '') : '') : (item.pwd || '');
         if (hasPwd && !pwd) return toast('Entrez un mot de passe.', 'error');
+        // un admin ne change jamais le mot de passe directement : il envoie une demande au propriétaire
+        const pwdRequested = !owner && pwdOk && ((hasPwd !== !!item.pwd) || (hasPwd && !!typedPwd));
 
         const before = collabEntries(item);
         if (!isCollab && before.length && !await askConfirm('Désactiver la collaboration retirera tous les collaborateurs et invitations en attente. Continuer ?')) return;
 
         const now = new Date().toISOString();
-        const collaborators = isCollab
+        let collaborators = isCollab
             ? state.tempCollabs.map(email => {
                 const meta = state.collabMeta.get(email);
                 const role = state.collabRoles.get(email) || meta?.role || 'editor';
                 return meta ? { ...meta, role } : { email, role, status: 'pending', invited_by: user.email, invited_at: now };
             })
             : [];
+        // --- garde-fous rôles : un admin ne peut ni se modifier, ni modifier/retirer un autre admin, ni nommer d'admin
+        if (!owner) {
+            const protectedEntries = before.filter(c => (c.role || 'editor') === 'admin' || c.email === myEmail);
+            const isProtected = (email) => protectedEntries.some(p => p.email === email);
+            collaborators = collaborators.map(c => {
+                const orig = protectedEntries.find(p => p.email === c.email);
+                if (orig) return orig;                                   // entrée intacte
+                return c.role === 'admin' ? { ...c, role: 'editor' } : c; // pas de promotion en admin
+            });
+            protectedEntries.forEach(p => { if (!collaborators.some(c => c.email === p.email)) collaborators.push(p); });
+        }
         const invited = collaborators.filter(c => !state.collabMeta.has(c.email)).length;
 
-        const update = { name, pwd: pwd || null, is_collab: isCollab, collaborators };
+        const update = { name, is_collab: isCollab, collaborators };
+        if (owner) update.pwd = pwd || null;
         if (owner && $('modal-admin-pwd').checked !== !!item.admins_manage_pwd) update.admins_manage_pwd = $('modal-admin-pwd').checked;
         if (table === 'cards') {
             // le nom d'une carte libre est aussi dans cards.info (lu par map.html)
@@ -757,9 +817,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!error) toast("Colonne « admins_manage_pwd » absente : autorisation des admins non enregistrée.", 'error');
         }
         if (error) return toast('Enregistrement impossible : ' + error.message, 'error');
+        let reqSent = false;
+        if (pwdRequested) {
+            const { error: reqErr } = await sb.rpc('request_pwd_change', { p_table: table, p_id: id, p_new_pwd: hasPwd ? typedPwd : null });
+            if (reqErr) toast("Demande de mot de passe impossible : " + reqErr.message, 'error'); else reqSent = true;
+        }
         state.editing = null;
         hideModal('create-modal');
-        toast(invited ? `Paramètres enregistrés · ${invited} invitation${invited > 1 ? 's' : ''} envoyée${invited > 1 ? 's' : ''}` : 'Paramètres enregistrés.', 'success');
+        if (reqSent) toast('Paramètres enregistrés · demande de mot de passe envoyée au propriétaire.', 'success');
+        else toast(invited ? `Paramètres enregistrés · ${invited} invitation${invited > 1 ? 's' : ''} envoyée${invited > 1 ? 's' : ''}` : 'Paramètres enregistrés.', 'success');
         loadAll();
     }
 
@@ -770,6 +836,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!isEmail(email)) return toast('Adresse e-mail invalide.', 'error');
         if (email === myEmail) return toast('Vous ne pouvez pas vous inviter vous-même.', 'error');
         if (state.tempCollabs.includes(email)) return toast('Déjà ajouté.', 'info');
+        const editingItem = state.editing && state.data[state.editing.table].find(i => i.id === state.editing.id);
+        if (editingItem && norm(editingItem.owner_email) === email) return toast('Le propriétaire est déjà responsable de cet élément.', 'error');
 
         const { data, error } = await sb.from('profiles').select('email').ilike('email', email).maybeSingle();
         if (error || !data) return toast('Aucun compte Mobius associé à cet e-mail.', 'error');
@@ -783,10 +851,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         $('collab-badges').innerHTML = state.tempCollabs.map(email => {
             const meta = state.collabMeta?.get(email);
             const role = state.collabRoles?.get(email) || meta?.role || 'editor';
-            const self = !!state.editing && email === myEmail;      // on ne se retire / rétrograde pas soi-même
+            const editingItem = state.editing && state.data[state.editing.table].find(i => i.id === state.editing.id);
+            const iAmOwner = !editingItem || isOwner(editingItem);
+            // verrouillé : soi-même, ou (si je ne suis pas propriétaire) un autre admin
+            const self = !!state.editing && (email === myEmail || (!iAmOwner && (meta?.role || 'editor') === 'admin'));
+            const roleOptions = Object.entries(ROLE_LABELS).filter(([k]) => iAmOwner || k !== 'admin');   // seul le propriétaire nomme des admins
             const roleCtl = self
                 ? `<span class="font-semibold opacity-70">${ROLE_LABELS[role] || role}</span>`
-                : `<select data-role-for="${esc(email)}" class="text-[10px] bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded px-1 py-0.5 focus:outline-none">${Object.entries(ROLE_LABELS).map(([k, v]) => `<option value="${k}" ${k === role ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
+                : `<select data-role-for="${esc(email)}" class="text-[10px] bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 rounded px-1 py-0.5 focus:outline-none">${roleOptions.map(([k, v]) => `<option value="${k}" ${k === role ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
             return `
             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#5246EE]/10 text-[#5246EE] text-[10px] font-semibold">
                 ${meta?.status === 'pending' ? '<i class="fa-regular fa-clock" title="Invitation en attente"></i>' : ''}${esc(email)} ${roleCtl}${self ? '' : ` <i class="fa-solid fa-xmark cursor-pointer hover:text-red-500" data-remove-collab="${esc(email)}"></i>`}
@@ -795,11 +867,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     $('collab-badges').addEventListener('change', (e) => {
         const sel = e.target.closest('[data-role-for]');
-        if (sel) state.collabRoles.set(sel.dataset.roleFor, sel.value);
+        if (!sel) return;
+        const item = state.editing && state.data[state.editing.table].find(i => i.id === state.editing.id);
+        if (item && !isOwner(item) && sel.value === 'admin') { toast('Seul le propriétaire peut nommer un admin.', 'error'); return renderCollabBadges(); }
+        state.collabRoles.set(sel.dataset.roleFor, sel.value);
     });
     $('collab-badges').addEventListener('click', (e) => {
         const x = e.target.closest('[data-remove-collab]');
         if (!x) return;
+        const item = state.editing && state.data[state.editing.table].find(i => i.id === state.editing.id);
+        const target = collabEntries(item || {}).find(c => c.email === x.dataset.removeCollab);
+        if (item && !isOwner(item) && (target?.role || 'editor') === 'admin') return toast("Seul le propriétaire peut retirer un admin.", 'error');
         state.tempCollabs = state.tempCollabs.filter(m => m !== x.dataset.removeCollab);
         renderCollabBadges();
     });
