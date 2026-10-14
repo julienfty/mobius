@@ -33,6 +33,7 @@
         .animate-toast { animation: toastIn .25s ease-out forwards; }
         @media (max-width: 768px) { input, select, textarea { font-size: 16px !important; } }
     </style>
+    <style>.tree-drop-before{box-shadow:0 -2px 0 0 #5246EE}.tree-drop-after{box-shadow:0 2px 0 0 #5246EE}.tree-drop-inside{background:rgba(82,70,238,.12);box-shadow:inset 0 0 0 2px rgba(82,70,238,.5)}</style>
 </head>
 <body class="h-full bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col selection:bg-[#5246EE] selection:text-white">
 
@@ -1017,6 +1018,69 @@ document.addEventListener('DOMContentLoaded', async () => {
         else tree().push(newItem);
     }
 
+    // t : { folderId } | { id, pos: 'before'|'after'|'inside' } | null (racine)
+    function insertAtPos(item, t) {
+        if (!t) { tree().push(item); return; }
+        if (t.folderId !== undefined) return insertInto(item, t.folderId);
+        const loc = t.id && locateItem(tree(), t.id);
+        if (!loc) { tree().push(item); return; }
+        if (t.pos === 'inside' && loc.item.type === 'folder') { (loc.item.children ||= []).push(item); state.expanded.add(loc.item.id); return; }
+        loc.list.splice(loc.index + (t.pos === 'before' ? 0 : 1), 0, item);
+    }
+    function locateItem(list, id) {
+        for (let i = 0; i < list.length; i++) {
+            if (list[i].id === id) return { list, index: i, item: list[i] };
+            if (list[i].children) { const f = locateItem(list[i].children, id); if (f) return f; }
+        }
+        return null;
+    }
+    // --- Boîte de dialogue générique (saisie / confirmation / choix) ---
+    function dlg({ title, message = '', input = null, buttons, row = false }) {
+        return new Promise(resolve => {
+            const ov = document.createElement('div');
+            ov.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50';
+            ov.innerHTML = '<div class="w-full max-w-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-3 text-xs"><h3 class="font-bold text-sm"></h3><p class="text-gray-500 dark:text-gray-400 whitespace-pre-line hidden"></p><input class="hidden w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:border-[#5246EE]"><div class="' + (row ? 'flex gap-2' : 'flex flex-col gap-2') + ' pt-1"></div></div>';
+            const [h, p, inp, bar] = ov.querySelector('div').children;
+            h.textContent = title;
+            if (message) { p.textContent = message; p.classList.remove('hidden'); }
+            if (input) { inp.classList.remove('hidden'); inp.placeholder = input.placeholder || ''; inp.value = input.value || ''; }
+            const done = (value) => { ov.remove(); document.removeEventListener('keydown', onKey, true); resolve(value === undefined ? null : { value, text: inp.value }); };
+            const primary = buttons.find(b => b.primary);
+            const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); done(undefined); } else if (e.key === 'Enter' && input && primary) { e.preventDefault(); done(primary.value); } };
+            buttons.forEach(b => {
+                const btn = document.createElement('button');
+                btn.type = 'button'; btn.textContent = b.label; btn.disabled = !!b.disabled; if (b.title) btn.title = b.title;
+                btn.className = 'py-2.5 px-3 rounded-xl font-semibold transition-all ' + (row ? 'flex-1 ' : '') + (b.primary ? 'bg-[#5246EE] hover:bg-[#4538d8] text-white' : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700') + (b.disabled ? ' opacity-40 cursor-not-allowed' : '');
+                btn.addEventListener('click', () => done(b.value));
+                bar.appendChild(btn);
+            });
+            ov.addEventListener('mousedown', (e) => { if (e.target === ov) done(undefined); });
+            document.addEventListener('keydown', onKey, true);
+            document.body.appendChild(ov);
+            setTimeout(() => (input ? inp : bar.querySelector('button:not([disabled])'))?.focus(), 30);
+            if (input) inp.select();
+        });
+    }
+    const treeAsk = async (title, placeholder, value = '') => {
+        const r = await dlg({ title, input: { placeholder, value }, row: true, buttons: [{ label: 'Annuler', value: null }, { label: 'OK', value: true, primary: true }] });
+        return r && r.value ? r.text.trim() : null;
+    };
+    const treeConfirm = async (message) => !!(await dlg({ title: 'Confirmation', message, row: true, buttons: [{ label: 'Annuler', value: false }, { label: 'Confirmer', value: true, primary: true }] }))?.value;
+    // JSON importé : carte / JSON conservé / texte
+    async function askJsonFormat(fileName, isMap) {
+        const r = await dlg({
+            title: `Importer « ${fileName} »`,
+            message: 'Que faire de ce fichier JSON ?' + (isMap ? '' : '\n(Il ne contient pas de carte Mobius : conversion en carte impossible.)'),
+            buttons: [
+                { label: 'Convertir en carte (map)', value: 'map', primary: true, disabled: !isMap },
+                { label: 'Préserver en JSON', value: 'json' },
+                { label: 'Convertir en texte (.txt)', value: 'txt' },
+                { label: 'Ignorer ce fichier', value: 'skip' }
+            ]
+        });
+        return r ? r.value : 'skip';
+    }
+
     document.querySelectorAll('.tree-create').forEach(b => b.addEventListener('click', async () => {
         if (!requireEditTree()) return;
         const type = b.dataset.create;
@@ -1139,32 +1203,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { text, fixes };
     }
 
-    async function importFiles(files, folderId) {
+    async function importFiles(files, dest) {
         if (!requireEditTree()) return;
+        let t = (dest && typeof dest === 'object') ? dest : { folderId: dest };
         const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx)$/i.test(f.name));
         if (accepted.length < files.length) toast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx et .mobius.', 'info');
         let added = 0;
+        const put = (item) => {
+            item.isNewDrop = true;
+            insertAtPos(item, t); added++;
+            if (t.id && (t.pos === 'before' || t.pos === 'after')) t = { id: item.id, pos: 'after' };   // conserve l'ordre des fichiers déposés
+        };
         for (const file of accepted) {
-            if (/\.mobius$/i.test(file.name)) {
-                // .mobius : nouvelle carte dans l'arborescence (même format que cards.info)
-                const card = parseMobiusCard(await file.text(), file.name);
-                if (!card) { toast(`« ${file.name} » n'est pas une carte Mobius valide.`, 'error'); continue; }
-                card.isNewDrop = true;
-                insertInto(card, folderId);
-            } else {
-                // tous les autres formats sont retranscrits en texte brut (type txt)
-                try {
+            try {
+                if (/\.mobius$/i.test(file.name)) {
+                    const card = parseMobiusCard(await file.text(), file.name);
+                    if (!card) { toast(`« ${file.name} » n'est pas une carte Mobius valide.`, 'error'); continue; }
+                    put(card);
+                } else if (/\.json$/i.test(file.name)) {
+                    // JSON : on demande quoi en faire (carte / JSON conservé / texte)
+                    const card = parseMobiusCard(await file.text(), file.name);
+                    const choice = await askJsonFormat(file.name, !!card);
+                    if (choice === 'skip') continue;
+                    if (choice === 'map' && card) { put(card); continue; }
+                    const { text } = await fileToText(file);
+                    put({ id: newItemId(), type: 'txt', name: choice === 'txt' ? file.name.replace(/\.json$/i, '.txt') : file.name, content: text });
+                } else {
+                    // tous les autres formats sont retranscrits en texte brut (type txt)
                     const { text: content, fixes } = await fileToText(file);
                     if (fixes) toast(`« ${file.name} » : ${fixes} ligature${fixes > 1 ? 's' : ''} (ti / tt) corrigée${fixes > 1 ? 's' : ''}.`, 'info');
                     const name = /\.(pdf|docx)$/i.test(file.name) ? file.name.replace(/\.[^.]+$/, '') + '.txt' : file.name;
-                    insertInto({ id: newItemId(), type: 'txt', name, content, isNewDrop: true }, folderId);
-                } catch (err) {
-                    console.error(err);
-                    toast(`« ${file.name} » refusé : ${err.message}.`, 'error');
-                    continue;
+                    put({ id: newItemId(), type: 'txt', name, content, isNewDrop: true });
                 }
+            } catch (err) {
+                console.error(err);
+                toast(`« ${file.name} » refusé : ${err.message}.`, 'error');
             }
-            added++;
         }
         if (added) { saveTree(); renderTree(); }
     }
@@ -1180,8 +1254,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function renderLevel(items, container) {
-        const sorted = [...items].sort((a, b) => (a.type === 'folder' ? 0 : 1) - (b.type === 'folder' ? 0 : 1) || a.name.localeCompare(b.name));
-        sorted.forEach(item => {
+        items.forEach(item => {   // ordre libre : celui du tableau (réorganisable par glisser-déposer)
             const el = document.createElement('div');
             el.className = `space-y-1 ${item.isNewDrop ? 'animate-drop' : ''}`;
             delete item.isNewDrop;
@@ -1269,9 +1342,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    const dropOn = 'ring-2 ring-[#5246EE]/40 bg-[#5246EE]/5 dark:ring-green-400/40 dark:bg-green-500/10';
-    const clearDrop = (el) => el?.classList.remove(...dropOn.split(' '));
     const tr = $('tree');
+    const dropClasses = ['tree-drop-before', 'tree-drop-after', 'tree-drop-inside'];
+    const clearDropUI = () => tr.querySelectorAll('.folder-row, .file-row').forEach(r => r.classList.remove(...dropClasses));
+    function dropTarget(e) {
+        const row = e.target.closest('.folder-row, .file-row');
+        if (!row) return { id: null, pos: 'end', row: null };
+        const id = row.closest('[data-id]').dataset.id;
+        const r = row.getBoundingClientRect(), y = (e.clientY - r.top) / r.height;
+        const pos = row.classList.contains('folder-row') ? (y < 0.25 ? 'before' : y > 0.75 ? 'after' : 'inside') : (y < 0.5 ? 'before' : 'after');
+        return { id, pos, row };
+    }
 
     tr.addEventListener('dragstart', (e) => {
         const el = e.target.closest('[data-id]');
@@ -1281,30 +1362,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', el.dataset.id);
     });
+    tr.addEventListener('dragend', () => { state.draggedId = null; clearDropUI(); });
     tr.addEventListener('dragover', (e) => {
         e.preventDefault();
-        const row = e.target.closest('.folder-row');
-        tr.querySelectorAll('.folder-row').forEach(clearDrop); clearDrop(tr);
-        (row || tr).classList.add(...dropOn.split(' '));
+        clearDropUI();
+        const t = dropTarget(e);
+        if (t.row && t.id !== state.draggedId) t.row.classList.add('tree-drop-' + t.pos);
     });
-    tr.addEventListener('dragleave', (e) => { if (!tr.contains(e.relatedTarget)) { clearDrop(tr); tr.querySelectorAll('.folder-row').forEach(clearDrop); } });
+    tr.addEventListener('dragleave', (e) => { if (!tr.contains(e.relatedTarget)) clearDropUI(); });
     tr.addEventListener('drop', async (e) => {
         e.preventDefault();
+        clearDropUI();
         if (!requireEditTree()) return;
-        const row = e.target.closest('.folder-row');
-        const targetId = row ? row.dataset.folder : null;
-        clearDrop(tr); tr.querySelectorAll('.folder-row').forEach(clearDrop);
+        const t = dropTarget(e);
+        const dest = t.id ? { id: t.id, pos: t.pos } : null;
 
-        if (e.dataTransfer.files?.length) return importFiles([...e.dataTransfer.files], targetId);
+        if (e.dataTransfer.files?.length) return importFiles([...e.dataTransfer.files], dest);
 
         const id = state.draggedId; state.draggedId = null;
-        if (!id || id === targetId) return;
+        if (!id || id === t.id) return;
         const moving = findItem(tree(), id);
         if (!moving) return;
-        if (targetId && containsId(moving, targetId)) return toast("Impossible de déplacer un dossier dans lui-même.", 'error');
+        if (t.id && containsId(moving, t.id)) return toast("Impossible de déplacer un dossier dans lui-même.", 'error');
 
         extractItem(tree(), id);
-        insertInto(moving, targetId);
+        insertAtPos(moving, dest);
+        if (dest?.pos === 'inside') state.expanded.add(dest.id);
         saveTree(); renderTree();
     });
 
