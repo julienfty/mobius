@@ -7,8 +7,14 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Import de fichiers dans l'arborescence (mêmes outils que la page map) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>.tree-row{user-select:none}.tree-drop-before{box-shadow:0 -2px 0 0 #5246EE}.tree-drop-after{box-shadow:0 2px 0 0 #5246EE}.tree-drop-inside{background:rgba(82,70,238,.12);box-shadow:inset 0 0 0 2px rgba(82,70,238,.5)}</style>
+
     <script>
         if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             document.documentElement.classList.add('dark');
@@ -39,135 +45,785 @@
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             transition: background-color 0.3s, color 0.3s;
+            overflow: hidden;
         }
-        .glass-card {
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(0, 0, 0, 0.06);
-        }
-        .dark .glass-card {
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(100,100,100,0.2); border-radius: 4px; }
     </style>
 </head>
-<body class="h-full bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col selection:bg-[#5246EE] selection:text-white">
+<body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col antialiased selection:bg-[#5246EE] selection:text-white">
 
-    <!-- HEADER DE L'ÉDITEUR -->
-    <header class="w-full border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 glass-card sticky top-0 z-30 px-4 sm:px-8 py-3.5 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-            <button onclick="goBack()" class="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all">
+    <!-- HEADER (même structure que la page map : retour + fil d'Ariane cliquable) -->
+    <header id="top-header" class="w-full border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-40 px-4 py-3 flex items-center justify-between gap-2 shadow-xs">
+        <div class="flex items-center gap-3 overflow-hidden">
+            <button onclick="goBack()" class="w-9 h-9 shrink-0 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all" title="Quitter le fichier">
                 <i class="fa-solid fa-arrow-left"></i>
             </button>
-            <div class="flex items-center gap-2">
-                <i class="fa-solid fa-file-lines text-emerald-500"></i>
-                <span class="font-bold text-sm sm:text-base" id="file-title">Chargement...</span>
+            <div id="breadcrumb-container" class="flex items-center gap-1.5 text-xs font-semibold overflow-x-auto whitespace-nowrap cursor-pointer py-1 px-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all" onclick="toggleTreeSidebar()">
+                <span class="text-slate-400">Chargement...</span>
             </div>
         </div>
 
-        <div class="flex items-center gap-3">
-            <button onclick="toggleDarkMode()" class="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all">
+        <div class="flex items-center gap-2 shrink-0">
+            <span id="role-badge" class="hidden sm:inline-flex px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500"></span>
+            <button onclick="toggleDarkMode()" class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
                 <i class="fa-solid fa-moon dark:hidden"></i>
                 <i class="fa-solid fa-sun hidden dark:block text-amber-400"></i>
             </button>
-            <button onclick="saveFile()" class="bg-[#5246EE] hover:bg-[#4538d8] text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-md shadow-[#5246EE]/25 flex items-center gap-2 transition-all">
+            <button id="save-btn" onclick="saveFile()" class="bg-[#5246EE] hover:bg-[#4538d8] text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-md shadow-[#5246EE]/25 flex items-center gap-2 transition-all">
                 <i class="fa-solid fa-floppy-disk"></i>
-                <span>Enregistrer</span>
+                <span class="hidden sm:inline">Enregistrer</span>
             </button>
         </div>
     </header>
 
-    <!-- ZONE DE TEXTE (ÉDITEUR) -->
-    <main class="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-8 flex flex-col">
-        <textarea id="text-editor" class="flex-1 w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 text-base font-mono focus:outline-none focus:border-[#5246EE] resize-none leading-relaxed shadow-sm" placeholder="Rédigez votre texte ici..."></textarea>
-    </main>
+    <!-- ZONE PRINCIPALE : ARBORESCENCE + ÉDITEUR -->
+    <div class="flex-1 flex overflow-hidden relative min-h-0">
+        <aside id="tree-sidebar" class="hidden md:flex flex-col w-full md:w-72 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20 shadow-md">
+            <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <h3 class="font-bold text-xs uppercase tracking-wider text-slate-500">Arborescence du Projet</h3>
+                <button onclick="closeTreeSidebar()" title="Replier l'arborescence" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+            <div id="tree-toolbar" class="hidden px-3 py-2 border-b border-slate-200 dark:border-slate-800">
+                <div class="flex flex-wrap gap-1.5">
+                    <button data-tree-create="folder" title="Nouveau dossier" class="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-medium flex items-center gap-1"><i data-lucide="folder-plus" class="w-3.5 h-3.5 text-[#5246EE]"></i>Dossier</button>
+                    <button data-tree-create="txt" title="Nouveau fichier .txt" class="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-medium flex items-center gap-1"><i data-lucide="file-text" class="w-3.5 h-3.5 text-emerald-500"></i>.txt</button>
+                    <button data-tree-create="card" title="Nouvelle carte" class="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-medium flex items-center gap-1"><i data-lucide="sticky-note" class="w-3.5 h-3.5 text-indigo-500"></i>Carte</button>
+                    <button id="tree-import-btn" title="Importer un fichier" class="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-medium flex items-center gap-1"><i data-lucide="file-up" class="w-3.5 h-3.5 text-[#5246EE]"></i>Importer</button>
+                </div>
+                <div id="tree-dest" class="mt-1.5 text-[10px] text-slate-400 truncate"></div>
+                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx" multiple>
+            </div>
+            <div id="tree-sidebar-content" class="flex-1 p-3 overflow-y-auto space-y-1 text-xs"></div>
+            <div class="p-3 border-t border-slate-200 dark:border-slate-800">
+                <button onclick="downloadProject()" class="w-full px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-2 transition"><i data-lucide="download" class="w-4 h-4 text-red-500"></i> Télécharger le projet (.mobpro)</button>
+            </div>
+        </aside>
 
-    <!-- SCRIPT DE CHARGEMENT ET SAUVEGARDE SUPABASE -->
+
+        <main class="flex-1 min-w-0 overflow-y-auto">
+            <div class="max-w-5xl w-full mx-auto p-4 sm:p-8 h-full flex flex-col">
+                <textarea id="text-editor" class="flex-1 w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 text-base font-mono focus:outline-none focus:border-[#5246EE] resize-none leading-relaxed shadow-sm" placeholder="Rédigez votre texte ici..."></textarea>
+            </div>
+        </main>
+    </div>
+
+    <!-- MENU CONTEXTUEL DE L'ARBORESCENCE -->
+    <div id="tree-context-menu" class="hidden fixed bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 py-2 z-50 text-xs w-56"></div>
+
+    <div id="toast-notification" class="hidden fixed bottom-6 right-6 bg-slate-900 text-white text-xs px-4 py-3 rounded-xl shadow-2xl z-50 flex items-center space-x-3 transition transform translate-y-2 opacity-0 pointer-events-none">
+        <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
+        <span id="toast-message">Notification</span>
+    </div>
+
+
     <script>
+        /* ===================== ÉTAT & PERMISSIONS (comme la page map) ===================== */
+        let supabaseClient = null;
+        let currentUser = null;
+        let projectId = null;
+        let projectData = null;
+        let cardId = null;            // id du fichier ouvert (nom conservé pour partager le code de l'arborescence)
+        let currentCard = null;       // fichier ouvert (même objet que dans projectData.tree)
+        let treeOpen = localStorage.getItem('treeOpen') !== '0';
+        let mobileTreeOpen = false;
+
+        const ROLE_LABELS = { viewer: 'Observateur', editor: 'Peut modifier', admin: 'Admin' };
+        let myRole = 'admin';
+        let saveTimer = null;
+
+        function getCollabs() { if (!Array.isArray(projectData.collaborators)) projectData.collaborators = []; return projectData.collaborators; }
+        function normalizeCollaborators() {
+            projectData.collaborators = (projectData.collaborators || [])
+                .map(c => typeof c === 'string' ? { email: c, role: 'editor', status: 'pending' } : c)
+                .filter(c => c && c.email)
+                .map(c => c.role ? c : { ...c, role: 'editor' });
+        }
+        function getOwnerId() { return projectData.user_id || projectData.owner_id || null; }
+        function computeMyRole() {
+            const ownerId = getOwnerId();
+            if (ownerId && ownerId === currentUser.id) return 'admin';
+            const me = getCollabs().find(c => c.email.toLowerCase() === (currentUser.email || '').toLowerCase());
+            if (me) return me.status === 'accepted' ? me.role : 'viewer';
+            return ownerId ? 'viewer' : 'admin';
+        }
+        function canEdit() { return myRole === 'admin' || myRole === 'editor'; }
+        function requireEdit() { if (canEdit()) return true; showToast("Lecture seule : vous n'avez pas les droits de modification."); return false; }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast-notification');
+            document.getElementById('toast-message').textContent = msg;
+            toast.classList.remove('hidden', 'translate-y-2', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.classList.add('hidden'), 300);
+            }, 2500);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
+        }
+
+        /* ===================== SAUVEGARDE DU FICHIER ===================== */
+        // Utilisé aussi par le code de l'arborescence : recopie le texte de l'éditeur dans le fichier ouvert
+        function updateCardInTree(list, file) {
+            if (file && file === currentCard) file.content = document.getElementById('text-editor').value;
+            return true;
+        }
+
+        async function saveCurrentMapState() {
+            if (!canEdit()) return false;
+            clearTimeout(saveTimer); saveTimer = null;
+            updateCardInTree(projectData.tree, currentCard);
+            lastTreeSave = Date.now();
+            const { error } = await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId);
+            lastTreeSave = Date.now();
+            if (error) { console.error(error); showToast("Erreur d'enregistrement."); return false; }
+            return true;
+        }
+
+        window.saveFile = async function() {
+            if (!requireEdit()) return;
+            if (await saveCurrentMapState()) showToast('Fichier enregistré !');
+        }
+
+        /* ===================== FIL D'ARIANE & ARBORESCENCE (même logique que la page map) ===================== */
+        function getTreePath(list, targetId, currentPath = []) {
+            for (let item of list) {
+                if (item.id === targetId) return [...currentPath, item.name];
+                if (item.children) {
+                    const found = getTreePath(item.children, targetId, [...currentPath, item.name]);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
+        function formatTruncatedPath(pathArray) {
+            if (!pathArray || pathArray.length === 0) return '';
+            if (pathArray.length <= 3) return pathArray.join(' > ');
+            return `${pathArray[0]} > ... > ${pathArray[pathArray.length - 2]} > ${pathArray[pathArray.length - 1]}`;
+        }
+
+        function renderBreadcrumb() {
+            const bc = document.getElementById('breadcrumb-container');
+            const open = window.innerWidth >= 768 ? treeOpen : mobileTreeOpen;
+            const path = getTreePath(projectData.tree, cardId) || [currentCard.name];
+            const label = window.innerWidth >= 768 ? formatTruncatedPath([projectData.name, ...path]) : path[path.length - 1];
+            bc.title = open ? "Replier l'arborescence" : "Ouvrir l'arborescence";
+            bc.innerHTML = `
+                <span class="text-slate-900 dark:text-slate-100 font-bold"><i data-lucide="folder-tree" class="w-3.5 h-3.5 inline mr-1.5 text-[#5246EE]"></i> ${escapeHtml(label)}</span>
+                <i data-lucide="${open ? 'panel-left-close' : 'panel-left-open'}" class="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1"></i>`;
+            lucide.createIcons();
+        }
+
+        function applyTreeSidebarState() {
+            const sidebar = document.getElementById('tree-sidebar');
+            sidebar.style.cssText = '';
+            if (window.innerWidth >= 768) sidebar.style.display = treeOpen ? 'flex' : 'none';
+            else if (mobileTreeOpen) sidebar.style.cssText = `display:flex;position:fixed;left:0;right:0;bottom:0;top:${document.getElementById('top-header').offsetHeight}px;z-index:35`;
+        }
+
+        function setupTreeSidebarVisibility() {
+            applyTreeSidebarState();
+            renderTreeSidebarContent();
+        }
+
+        window.toggleTreeSidebar = function() {
+            if (window.innerWidth < 768) mobileTreeOpen = !mobileTreeOpen;
+            else { treeOpen = !treeOpen; localStorage.setItem('treeOpen', treeOpen ? '1' : '0'); }
+            applyTreeSidebarState();
+            renderBreadcrumb();
+        }
+
+        window.closeTreeSidebar = function() {
+            const open = window.innerWidth >= 768 ? treeOpen : mobileTreeOpen;
+            if (open) toggleTreeSidebar();
+        }
+
+        window.toggleDarkMode = function() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        }
+
+        window.goBack = async function() {
+            if (saveTimer) await saveCurrentMapState();
+            window.location.href = `dashboard.html?openProjectId=${encodeURIComponent(projectId)}`;
+        }
+
+        /* ===================== DÉMARRAGE ===================== */
         document.addEventListener('DOMContentLoaded', async () => {
+            lucide.createIcons();
+
             const SUPABASE_URL = 'https://nfvnayuqrmlldtixzdpx.supabase.co';
             const SUPABASE_KEY = 'sb_publishable_EwONSAsqSfu8_SocZ7wZBA_rVODWqSF';
-            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
             const urlParams = new URLSearchParams(window.location.search);
-            const projectId = urlParams.get('projectId');
-            const fileId = urlParams.get('fileId');
+            projectId = urlParams.get('projectId');
+            cardId = urlParams.get('fileId');
 
-            if (!projectId || !fileId) {
+            if (!projectId || !cardId) {
                 alert("Paramètres manquants.");
                 window.location.href = 'dashboard.html';
                 return;
             }
 
-            let projectData = null;
-            let targetFile = null;
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session || !session.user) { window.location.href = 'index.html'; return; }
+            currentUser = session.user;
 
-            const { data, error } = await supabase.from('projects').select('*').eq('id', projectId).single();
+            const { data, error } = await supabaseClient.from('projects').select('*').eq('id', projectId).single();
             if (error || !data) {
                 alert("Impossible de charger le projet.");
                 window.location.href = 'dashboard.html';
                 return;
             }
-
             projectData = data;
+            if (!Array.isArray(projectData.tree)) projectData.tree = [];
 
-            function findFile(list) {
-                for (let item of list) {
-                    if (item.id === fileId) return item;
-                    if (item.children) {
-                        const found = findFile(item.children);
-                        if (found) return found;
-                    }
-                }
-                return null;
-            }
-
-            targetFile = findFile(projectData.tree);
-            if (!targetFile) {
+            currentCard = findTreeItem(projectData.tree, cardId);
+            if (!currentCard) {
                 alert("Fichier introuvable.");
-                window.location.href = 'dashboard.html';
+                window.location.href = 'dashboard.html?openProjectId=' + encodeURIComponent(projectId);
                 return;
             }
 
-            document.getElementById('file-title').textContent = targetFile.name;
-            document.getElementById('text-editor').value = targetFile.content || '';
+            normalizeCollaborators();
+            myRole = computeMyRole();
 
-            window.toggleDarkMode = function() {
-                const isDark = document.documentElement.classList.toggle('dark');
-                localStorage.setItem('theme', isDark ? 'dark' : 'light');
-            }
+            const editor = document.getElementById('text-editor');
+            editor.value = currentCard.content || '';
+            editor.readOnly = !canEdit();
+            document.getElementById('save-btn').classList.toggle('hidden', !canEdit());
+            const badge = document.getElementById('role-badge');
+            badge.textContent = ROLE_LABELS[myRole] || '';
+            badge.classList.toggle('text-[#5246EE]', myRole === 'admin');
 
-            window.goBack = function() {
-                window.location.href = `dashboard.html?openProjectId=${projectId}`;
-            }
+            // enregistrement automatique 1 s après la dernière frappe
+            editor.addEventListener('input', () => {
+                if (!canEdit()) return;
+                clearTimeout(saveTimer);
+                saveTimer = setTimeout(() => { saveTimer = null; saveCurrentMapState(); }, 1000);
+            });
+            // ne pas perdre le texte si on ferme l'onglet juste après avoir tapé
+            window.addEventListener('beforeunload', () => { if (saveTimer) saveCurrentMapState(); });
 
-            function updateFileContent(list) {
-                for (let item of list) {
-                    if (item.id === fileId) {
-                        item.content = document.getElementById('text-editor').value;
-                        return true;
-                    }
-                    if (item.children) {
-                        if (updateFileContent(item.children)) return true;
-                    }
-                }
-                return false;
-            }
+            setupTreeSidebarVisibility();
+            renderBreadcrumb();
 
-            window.saveFile = async function() {
-                updateFileContent(projectData.tree);
-
-                const { error: updateError } = await supabase
-                    .from('projects')
-                    .update({ tree: projectData.tree })
-                    .eq('id', projectId);
-
-                if (updateError) {
-                    alert("Erreur lors de la sauvegarde dans Supabase.");
-                } else {
-                    alert("Fichier enregistré avec succès dans Supabase !");
-                }
-            }
+            window.addEventListener('resize', () => {
+                applyTreeSidebarState();
+                renderBreadcrumb();
+            });
         });
+
+    // --- Boîte de dialogue générique (saisie / confirmation / choix) ---
+    function dlg({ title, message = '', input = null, buttons, row = false }) {
+        return new Promise(resolve => {
+            const ov = document.createElement('div');
+            ov.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50';
+            ov.innerHTML = '<div class="w-full max-w-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-3 text-xs"><h3 class="font-bold text-sm"></h3><p class="text-gray-500 dark:text-gray-400 whitespace-pre-line hidden"></p><input class="hidden w-full px-3 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:border-[#5246EE]"><div class="' + (row ? 'flex gap-2' : 'flex flex-col gap-2') + ' pt-1"></div></div>';
+            const [h, p, inp, bar] = ov.querySelector('div').children;
+            h.textContent = title;
+            if (message) { p.textContent = message; p.classList.remove('hidden'); }
+            if (input) { inp.classList.remove('hidden'); inp.type = input.type || 'text'; inp.placeholder = input.placeholder || ''; inp.value = input.value || ''; }
+            const done = (value) => { ov.remove(); document.removeEventListener('keydown', onKey, true); resolve(value === undefined ? null : { value, text: inp.value }); };
+            const primary = buttons.find(b => b.primary);
+            const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); done(undefined); } else if (e.key === 'Enter' && input && primary) { e.preventDefault(); done(primary.value); } };
+            buttons.forEach(b => {
+                const btn = document.createElement('button');
+                btn.type = 'button'; btn.textContent = b.label; btn.disabled = !!b.disabled; if (b.title) btn.title = b.title;
+                btn.className = 'py-2.5 px-3 rounded-xl font-semibold transition-all ' + (row ? 'flex-1 ' : '') + (b.primary ? 'bg-[#5246EE] hover:bg-[#4538d8] text-white' : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700') + (b.disabled ? ' opacity-40 cursor-not-allowed' : '');
+                btn.addEventListener('click', () => done(b.value));
+                bar.appendChild(btn);
+            });
+            ov.addEventListener('mousedown', (e) => { if (e.target === ov) done(undefined); });
+            document.addEventListener('keydown', onKey, true);
+            document.body.appendChild(ov);
+            setTimeout(() => (input ? inp : bar.querySelector('button:not([disabled])'))?.focus(), 30);
+            if (input) inp.select();
+        });
+    }
+    const treeAsk = async (title, placeholder, value = '', type = 'text') => {
+        const r = await dlg({ title, input: { placeholder, value, type }, row: true, buttons: [{ label: 'Annuler', value: null }, { label: 'OK', value: true, primary: true }] });
+        return r && r.value ? r.text.trim() : null;
+    };
+    const treeConfirm = async (message) => !!(await dlg({ title: 'Confirmation', message, row: true, buttons: [{ label: 'Annuler', value: false }, { label: 'Confirmer', value: true, primary: true }] }))?.value;
+    // JSON importé : carte / JSON conservé / texte
+    async function askJsonFormat(fileName, isMap) {
+        const r = await dlg({
+            title: `Importer « ${fileName} »`,
+            message: 'Que faire de ce fichier JSON ?' + (isMap ? '' : '\n(Il ne contient pas de carte Mobius : conversion en carte impossible.)'),
+            buttons: [
+                { label: 'Convertir en carte (map)', value: 'map', primary: true, disabled: !isMap },
+                { label: 'Préserver en JSON', value: 'json' },
+                { label: 'Convertir en texte (.txt)', value: 'txt' },
+                { label: 'Ignorer ce fichier', value: 'skip' }
+            ]
+        });
+        return r ? r.value : 'skip';
+    }
+
+    function parseMobiusCard(text, fileName) {
+        let data;
+        try { data = JSON.parse(text); } catch (e) { return null; }
+        if (!data || !Array.isArray(data.nodes) || !Array.isArray(data.links)) return null;
+        return {
+            id: 'item_' + Date.now() + Math.random().toString(36).slice(2, 7),
+            name: data.name || String(fileName || 'Carte importée').replace(/\.[^/.]+$/, ''),
+            type: 'card',
+            links: data.links,
+            nodes: data.nodes,
+            content: data.content || '',
+            relationTypes: Array.isArray(data.relationTypes) ? data.relationTypes : []
+        };
+    }
+
+
+    const newItemId = () => 'id_' + Date.now() + Math.random().toString(36).slice(2, 7);
+    const MAX_INPUT_BYTES = 20 * 1024 * 1024;   // taille max du fichier source
+    const MAX_TEXT_CHARS = 2000000;              // taille max du texte stocké dans la colonne tree
+
+    // --- Détection de fichiers binaires / images (signatures + octets de contrôle) ---
+    function detectBinaryKind(bytes) {
+        const sig = (...b) => b.every((v, i) => bytes[i] === v);
+        if (sig(0x89, 0x50, 0x4E, 0x47)) return 'une image PNG';
+        if (sig(0xFF, 0xD8, 0xFF)) return 'une image JPEG';
+        if (sig(0x47, 0x49, 0x46, 0x38)) return 'une image GIF';
+        if (sig(0x52, 0x49, 0x46, 0x46)) return 'un fichier RIFF (image WebP / audio / vidéo)';
+        if (sig(0x25, 0x50, 0x44, 0x46)) return 'un PDF (renommé)';
+        if (sig(0x50, 0x4B, 0x03, 0x04)) return 'une archive ZIP (ex. fichier Pages ou Word)';
+        if (sig(0xD0, 0xCF, 0x11, 0xE0)) return 'un ancien document Office (.doc)';
+        const head = bytes.subarray(0, 8192);
+        if (head[0] === 0xFF && head[1] === 0xFE || head[0] === 0xFE && head[1] === 0xFF) return null; // UTF-16 avec BOM
+        let ctrl = 0;
+        for (const v of head) { if (v === 0) return 'des données binaires'; if (v < 9 || (v > 13 && v < 32)) ctrl++; }
+        return head.length && ctrl / head.length > 0.02 ? 'des données binaires' : null;
+    }
+
+    // --- Décodage avec détection d'encodage (UTF-16 BOM, UTF-8, sinon Windows-1252) ---
+    function decodeTextBytes(bytes) {
+        if (bytes[0] === 0xFF && bytes[1] === 0xFE) return new TextDecoder('utf-16le').decode(bytes.subarray(2));
+        if (bytes[0] === 0xFE && bytes[1] === 0xFF) return new TextDecoder('utf-16be').decode(bytes.subarray(2));
+        try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes).replace(/^\uFEFF/, ''); }
+        catch (e) { return new TextDecoder('windows-1252').decode(bytes); }
+    }
+
+    async function pdfToText(buf) {
+        if (!window.pdfjsLib) throw new Error("lecteur PDF indisponible (connexion ?)");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+        const pages = [];
+        for (let n = 1; n <= pdf.numPages; n++) {
+            const content = await (await pdf.getPage(n)).getTextContent();
+            let out = '', lastY = null;
+            for (const it of content.items) {
+                if (it.str === '') { if (it.hasEOL && out && !out.endsWith('\n')) out += '\n'; continue; }
+                const y = it.transform ? it.transform[5] : null;
+                if (lastY !== null && y !== null && Math.abs(y - lastY) > 2 && out && !out.endsWith('\n')) out += '\n';
+                out += it.str;
+                if (it.hasEOL && !out.endsWith('\n')) out += '\n';
+                if (y !== null) lastY = y;
+            }
+            pages.push(out.trim());
+        }
+        return fixPdfLigatures(pages.filter(Boolean).join('\n\n'));
+    }
+
+    // Beaucoup de PDF (Keynote, Pages, certaines polices) encodent les ligatures « ti » / « tt »
+    // avec un mauvais caractère : « aberra%ons », « len5lle », « vigne.e », « vigne=age ».
+    // On les répare quand le caractère est coincé entre des lettres (donc jamais dans « 50% » ou « x=2 »).
+    const KEEP_DOT = /^(com|fr|org|net|io|html?|js|css|txt|pdf|docx?|json|md|png|jpe?g|gif|svg|mobius|mobpro|fountain|pages?|xml|csv|zip|be|de|uk|eu|us|ca|ch)$/;
+    function fixPdfLigatures(text) {
+        let n = 0;
+        const bump = (r) => (...a) => { n++; return r(...a); };
+        text = text.replace(/⦁/g, '•');
+        text = text.replace(/(?<=\p{L})%(?=\p{L})/gu, bump(() => 'ti'));
+        text = text.replace(/(?<=\p{Ll})5(?=\p{Ll})/gu, bump(() => 'ti'));
+        text = text.replace(/(?<=\p{Ll}{2})=(?=\p{Ll}{2})/gu, bump(() => 'tt'));
+        text = text.replace(/(\p{Ll}{2,})\.(\p{Ll}+)/gu, (m, a, b) => KEEP_DOT.test(b) ? m : (n++, a + 'tt' + b));
+        return { text, fixes: n };
+    }
+
+    async function docxToText(buf) {
+        const zip = await JSZip.loadAsync(buf);
+        const entry = zip.file('word/document.xml');
+        if (!entry) throw new Error("ce n'est pas un document Word valide");
+        const xml = new DOMParser().parseFromString(await entry.async('string'), 'application/xml');
+        const walk = (node) => {
+            let t = '';
+            for (const ch of node.childNodes) {
+                const n = ch.localName;
+                if (n === 't') t += ch.textContent;
+                else if (n === 'tab') t += '\t';
+                else if (n === 'br' || n === 'cr') t += '\n';
+                else if (ch.nodeType === 1) t += walk(ch);
+            }
+            return t;
+        };
+        return [...xml.getElementsByTagNameNS('*', 'p')].map(walk).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    // Transforme n'importe quel fichier accepté en texte brut (images et mise en forme ignorées).
+    // Lance une Error (message lisible) si le fichier est refusé.
+    async function fileToText(file) {
+        if (file.size > MAX_INPUT_BYTES) throw new Error('fichier trop volumineux (max 20 Mo)');
+        const buf = await file.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let text, fixes = 0;
+        if (/\.pdf$/i.test(file.name)) {
+            if (!(bytes[0] === 0x25 && bytes[1] === 0x50)) throw new Error("ce n'est pas un vrai PDF");
+            ({ text, fixes } = await pdfToText(buf));
+        } else if (/\.docx$/i.test(file.name)) {
+            if (!(bytes[0] === 0x50 && bytes[1] === 0x4B)) throw new Error("ce n'est pas un vrai .docx");
+            text = await docxToText(buf);
+        } else {
+            const kind = detectBinaryKind(bytes);
+            if (kind) throw new Error(`le fichier contient ${kind}, pas du texte`);
+            text = decodeTextBytes(bytes);
+        }
+        if (!text.trim()) throw new Error('aucun texte trouvé (document scanné ou composé uniquement d\'images ?)');
+        if (text.length > MAX_TEXT_CHARS) throw new Error('texte trop long (max 2 millions de caractères)');
+        return { text, fixes };
+    }
+
+
+
+        /* ===================== ARBORESCENCE : création, import, ordre libre ===================== */
+        let treeSelectedId = null, treeDragId = null, treeMenuCtx = null, treeImportDest = null;
+        let treeSaveTimer = null, lastTreeSave = 0, treeUIReady = false, treeInteractive = false;
+        const treeExpanded = new Set();
+        const treeKey = () => 'mobiusTree:' + projectId;
+        function treeStoreUI() { try { sessionStorage.setItem(treeKey(), JSON.stringify({ exp: [...treeExpanded], sel: treeSelectedId })); } catch (e) {} }
+        function treeLoadUI() {
+            try { const s = JSON.parse(sessionStorage.getItem(treeKey()) || 'null'); if (s) { (s.exp || []).forEach(i => treeExpanded.add(i)); treeSelectedId = s.sel || null; } } catch (e) {}
+            (treeAncestorIds(projectData.tree, cardId) || []).forEach(i => treeExpanded.add(i));
+        }
+        function treeAncestorIds(list, id, acc = []) {
+            for (const it of list) {
+                if (it.id === id) return acc;
+                if (it.children) { const r = treeAncestorIds(it.children, id, [...acc, it.id]); if (r) return r; }
+            }
+            return null;
+        }
+        function findTreeItem(list, id) { const l = locateTreeItem(list, id); return l ? l.item : null; }
+        function locateTreeItem(list, id) {
+            for (let i = 0; i < list.length; i++) {
+                if (list[i].id === id) return { list, index: i, item: list[i] };
+                if (list[i].children) { const f = locateTreeItem(list[i].children, id); if (f) return f; }
+            }
+            return null;
+        }
+        function treeParentOf(list, id, parent = null) {
+            for (const it of list) {
+                if (it.id === id) return parent;
+                if (it.children) { const f = treeParentOf(it.children, id, it); if (f !== undefined) return f; }
+            }
+            return undefined;
+        }
+        const treeContainsId = (item, id) => (item.children || []).some(c => c.id === id || treeContainsId(c, id));
+        const treeDestFolder = () => { const f = treeSelectedId && findTreeItem(projectData.tree, treeSelectedId); return f && f.type === 'folder' ? f : null; };
+
+        function saveProjectTree() {
+            clearTimeout(treeSaveTimer);
+            treeSaveTimer = setTimeout(async () => {
+                treeSaveTimer = null;
+                updateCardInTree(projectData.tree, currentCard);
+                lastTreeSave = Date.now();
+                const { error } = await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId);
+                lastTreeSave = Date.now();
+                if (error) showToast("Sauvegarde de l'arborescence impossible.");
+            }, 250);
+        }
+        function refreshTree() { renderTreeSidebarContent(); renderBreadcrumb(); saveProjectTree(); }
+
+        // t : { folderId } (dans un dossier, à la fin) | { id, pos: 'before'|'after'|'inside' } | null (racine)
+        function treeInsert(item, t) {
+            const root = projectData.tree;
+            if (!t) { root.push(item); return; }
+            if (t.folderId !== undefined) {
+                const f = t.folderId && findTreeItem(root, t.folderId);
+                if (f && f.type === 'folder') { (f.children ||= []).push(item); treeExpanded.add(f.id); } else root.push(item);
+                return;
+            }
+            const loc = t.id && locateTreeItem(root, t.id);
+            if (!loc) { root.push(item); return; }
+            if (t.pos === 'inside' && loc.item.type === 'folder') { (loc.item.children ||= []).push(item); treeExpanded.add(loc.item.id); return; }
+            loc.list.splice(loc.index + (t.pos === 'before' ? 0 : 1), 0, item);
+        }
+
+        async function treeCreate(type, t) {
+            if (!requireEdit()) return;
+            const label = { folder: 'dossier', txt: 'fichier .txt', card: 'carte' }[type];
+            const name = await treeAsk(`Nom du ${label} :`, `Nom du ${label}`);
+            if (!name) return;
+            const item = { id: 'id_' + Date.now() + Math.random().toString(36).slice(2, 5), type, name, content: '' };
+            if (type === 'folder') item.children = [];
+            treeInsert(item, t);
+            refreshTree();
+        }
+
+        async function treeRename(id) {
+            if (!requireEdit()) return;
+            const it = findTreeItem(projectData.tree, id); if (!it) return;
+            const name = await treeAsk('Nouveau nom :', 'Nom', it.name);
+            if (!name || name === it.name) return;
+            it.name = name;
+            if (it.id === currentCard.id) currentCard.name = name;
+            refreshTree(); showToast('Renommé.');
+        }
+
+        async function treeDelete(id) {
+            if (!requireEdit()) return;
+            const loc = locateTreeItem(projectData.tree, id); if (!loc) return;
+            if (loc.item.id === cardId || treeContainsId(loc.item, cardId)) { showToast("Impossible de supprimer la carte actuellement ouverte (ni son dossier)."); return; }
+            if (!await treeConfirm(`Supprimer « ${loc.item.name} » de l'arborescence ?`)) return;
+            loc.list.splice(loc.index, 1);
+            if (treeSelectedId === id || !findTreeItem(projectData.tree, treeSelectedId)) treeSelectedId = null;
+            treeStoreUI(); refreshTree();
+        }
+
+        function treeMoveStep(id, dir) {
+            if (!requireEdit()) return;
+            const loc = locateTreeItem(projectData.tree, id); if (!loc) return;
+            const j = loc.index + dir;
+            if (j < 0 || j >= loc.list.length) return;
+            [loc.list[loc.index], loc.list[j]] = [loc.list[j], loc.list[loc.index]];
+            refreshTree();
+        }
+
+        function treeMoveTo(id, t) {
+            const root = projectData.tree;
+            const loc = locateTreeItem(root, id); if (!loc) return;
+            if (t.id === id) return;
+            if (t.id && treeContainsId(loc.item, t.id)) { showToast("Impossible de déplacer un dossier dans lui-même."); return; }
+            loc.list.splice(loc.index, 1);
+            treeInsert(loc.item, t.id ? t : null);
+            refreshTree();
+        }
+
+        /* ---------- Import (mêmes formats / conversions que le dashboard) ---------- */
+        async function treeImport(files, dest) {
+            if (!requireEdit()) return;
+            const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx)$/i.test(f.name));
+            if (accepted.length < files.length) showToast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx et .mobius.');
+            let t = dest, added = 0;
+            const put = (item) => {
+                treeInsert(item, t); added++;
+                if (t && t.id && (t.pos === 'before' || t.pos === 'after')) t = { id: item.id, pos: 'after' };   // conserve l'ordre des fichiers déposés
+            };
+            for (const file of accepted) {
+                try {
+                    if (/\.mobius$/i.test(file.name)) {
+                        const card = parseMobiusCard(await file.text(), file.name);
+                        if (!card) { showToast(`« ${file.name} » n'est pas une carte Mobius valide.`); continue; }
+                        put(card);
+                    } else if (/\.json$/i.test(file.name)) {
+                        const raw = await file.text();
+                        const card = parseMobiusCard(raw, file.name);
+                        const choice = await askJsonFormat(file.name, !!card);
+                        if (choice === 'skip') continue;
+                        if (choice === 'map' && card) { put(card); continue; }
+                        const { text } = await fileToText(file);
+                        put({ id: newItemId(), type: 'txt', name: choice === 'txt' ? file.name.replace(/\.json$/i, '.txt') : file.name, content: text });
+                    } else {
+                        const { text: content, fixes } = await fileToText(file);
+                        if (fixes) showToast(`« ${file.name} » : ${fixes} ligature(s) (ti / tt) corrigée(s).`);
+                        const name = /\.(pdf|docx)$/i.test(file.name) ? file.name.replace(/\.[^.]+$/, '') + '.txt' : file.name;
+                        put({ id: newItemId(), type: 'txt', name, content });
+                    }
+                } catch (err) { console.error(err); showToast(`« ${file.name} » refusé : ${err.message}.`); }
+            }
+            if (added) refreshTree();
+        }
+
+        /* ---------- Export .mobpro (contenu de la colonne tree, comme le dashboard) ---------- */
+        async function downloadProject() {
+            if (!projectData) return;
+            if (projectData.pwd) {
+                const r = await treeAsk('Mot de passe requis pour télécharger :', 'Mot de passe', '', 'password');
+                if (r === null) return;
+                if (r !== projectData.pwd) { showToast('Mot de passe incorrect.'); return; }
+            }
+            updateCardInTree(projectData.tree, currentCard);   // inclut l'état courant de la carte ouverte
+            const safe = (s) => String(s).replace(/[\\/:*?"<>|]/g, '_');
+            const blob = new Blob([JSON.stringify(projectData.tree || [], null, 2)], { type: 'application/json' });
+            const fileName = `${safe(projectData.name).toLowerCase().replace(/\s+/g, '_')}.mobpro`;
+            const fmtSize = (b) => b < 1024 ? `${b} octets` : b < 1048576 ? `${(b / 1024).toFixed(1).replace('.', ',')} Ko` : `${(b / 1048576).toFixed(2).replace('.', ',')} Mo`;
+            if (!await treeConfirm(`Télécharger « ${fileName} » ?\nTaille du fichier : ${fmtSize(blob.size)}`)) return;
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `${safe(projectData.name).toLowerCase().replace(/\s+/g, '_')}.mobpro`;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+            showToast('Projet exporté au format .mobpro !');
+        }
+
+        /* ---------- Rendu ---------- */
+        function updateTreeIndicator() {
+            const f = treeDestFolder();
+            const el = document.getElementById('tree-dest');
+            if (el) el.textContent = f ? `📁 Destination : ${f.name}` : '📁 Destination : racine du projet';
+        }
+
+        function renderTreeSidebarContent() {
+            const container = document.getElementById('tree-sidebar-content');
+            if (!projectId || !projectData) return;
+            if (!Array.isArray(projectData.tree)) projectData.tree = [];
+            if (!treeUIReady) { treeLoadUI(); treeUIReady = true; }
+            if (!treeInteractive) { setupTreeInteractions(container); treeInteractive = true; }
+            if (treeSelectedId && !findTreeItem(projectData.tree, treeSelectedId)) treeSelectedId = null;
+            document.getElementById('tree-toolbar').classList.toggle('hidden', !canEdit());
+            updateTreeIndicator();
+            container.innerHTML = '';
+            if (!projectData.tree.length) {
+                container.innerHTML = `<div class="text-center py-10 text-slate-400">Arborescence vide.<br>Clic droit pour créer, ou glissez des fichiers ici.</div>`;
+                return;
+            }
+            renderTreeList(projectData.tree, container);
+            lucide.createIcons();
+        }
+
+        function renderTreeList(items, container) {
+            const editable = canEdit();
+            items.forEach(item => {
+                const wrap = document.createElement('div');
+                wrap.dataset.wrap = item.id;
+                const row = document.createElement('div');
+                row.dataset.id = item.id; row.dataset.type = item.type;
+                row.draggable = editable;
+                const name = escapeHtml(item.name);
+                if (item.type === 'folder') {
+                    const open = treeExpanded.has(item.id), sel = treeSelectedId === item.id;
+                    row.className = `tree-row flex items-center gap-1.5 p-2 rounded-xl cursor-pointer ${sel ? 'bg-[#5246EE]/10 text-[#5246EE] font-semibold ring-1 ring-[#5246EE]' : 'font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`;
+                    row.innerHTML = `<i data-lucide="${open ? 'chevron-down' : 'chevron-right'}" data-toggle="${escapeHtml(item.id)}" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i><i data-lucide="${open ? 'folder-open' : 'folder'}" class="w-3.5 h-3.5 text-[#5246EE] shrink-0"></i><span class="truncate flex-1">${name}</span><span class="text-[10px] text-slate-400">${(item.children || []).length || ''}</span>`;
+                    wrap.appendChild(row);
+                    const sub = document.createElement('div');
+                    sub.className = 'pl-3 ml-2 border-l border-slate-100 dark:border-slate-800 space-y-1 mt-1' + (open ? '' : ' hidden');
+                    if (item.children && open) renderTreeList(item.children, sub);
+                    wrap.appendChild(sub);
+                } else {
+                    const isCard = item.type === 'card', current = item.id === cardId;
+                    const icon = isCard ? 'sticky-note' : item.type === 'pdf' ? 'file-text' : 'file-text';
+                    const color = isCard ? 'text-indigo-500' : 'text-emerald-500';
+                    row.className = `tree-row flex items-center gap-1.5 p-2 rounded-xl cursor-pointer ${current ? 'bg-[#5246EE]/10 text-[#5246EE] font-bold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`;
+                    row.innerHTML = `<i data-lucide="${icon}" class="w-3.5 h-3.5 shrink-0 ml-5 ${color}"></i><span class="truncate flex-1">${name}</span>${isCard ? '<span class="text-[9px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-semibold">Carte</span>' : ''}`;
+                    wrap.appendChild(row);
+                }
+                container.appendChild(wrap);
+            });
+        }
+
+        /* ---------- Interactions ---------- */
+        function treeDropTarget(e) {
+            const row = e.target.closest('.tree-row');
+            if (!row) return { id: null, pos: 'end', row: null };
+            const r = row.getBoundingClientRect(), y = (e.clientY - r.top) / r.height;
+            const pos = row.dataset.type === 'folder' ? (y < 0.25 ? 'before' : y > 0.75 ? 'after' : 'inside') : (y < 0.5 ? 'before' : 'after');
+            return { id: row.dataset.id, pos, row };
+        }
+        const treeClearDrop = () => document.querySelectorAll('#tree-sidebar-content .tree-row').forEach(r => r.classList.remove('tree-drop-before', 'tree-drop-after', 'tree-drop-inside'));
+
+        function openTreeMenu(x, y, targetId) {
+            if (!canEdit()) return;
+            const loc = targetId ? locateTreeItem(projectData.tree, targetId) : null;
+            const it = loc && loc.item;
+            let dest = null;
+            if (it) { if (it.type === 'folder') { dest = it.id; treeSelectedId = it.id; treeExpanded.add(it.id); treeStoreUI(); renderTreeSidebarContent(); } else { const p = treeParentOf(projectData.tree, it.id); dest = p ? p.id : null; } }
+            else dest = null;
+            treeMenuCtx = { targetId: it ? it.id : null, dest };
+            const df = dest && findTreeItem(projectData.tree, dest);
+            const btn = (a, icon, label, cls = '') => `<button data-tree-action="${a}" class="w-full text-left px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 ${cls || 'text-slate-700 dark:text-slate-200'}"><i data-lucide="${icon}" class="w-3.5 h-3.5"></i><span>${label}</span></button>`;
+            const menu = document.getElementById('tree-context-menu');
+            menu.innerHTML = `<div class="px-4 pb-1.5 text-[10px] text-slate-400 truncate">📁 ${df ? escapeHtml(df.name) : 'Racine du projet'}</div>`
+                + btn('new-folder', 'folder-plus', 'Nouveau dossier') + btn('new-txt', 'file-text', 'Nouveau fichier .txt') + btn('new-card', 'sticky-note', 'Nouvelle carte') + btn('import', 'file-up', 'Importer un fichier')
+                + (it ? `<div class="my-1 border-t border-slate-100 dark:border-slate-800"></div>` + btn('rename', 'pencil', 'Renommer') + btn('up', 'arrow-up', 'Monter') + btn('down', 'arrow-down', 'Descendre') + btn('delete', 'trash-2', 'Supprimer', 'text-rose-500') : '');
+            menu.classList.remove('hidden');
+            lucide.createIcons();
+            const w = menu.offsetWidth, h = menu.offsetHeight;
+            menu.style.left = Math.max(4, Math.min(x, window.innerWidth - w - 4)) + 'px';
+            menu.style.top = Math.max(4, Math.min(y, window.innerHeight - h - 4)) + 'px';
+        }
+        const closeTreeMenu = () => document.getElementById('tree-context-menu').classList.add('hidden');
+
+        function treeMenuAction(a) {
+            closeTreeMenu();
+            const { targetId, dest } = treeMenuCtx || {};
+            if (a.startsWith('new-')) return treeCreate(a.slice(4), { folderId: dest });
+            if (a === 'import') { if (!requireEdit()) return; treeImportDest = { folderId: dest }; return document.getElementById('tree-file-input').click(); }
+            if (!targetId) return;
+            if (a === 'rename') return treeRename(targetId);
+            if (a === 'up') return treeMoveStep(targetId, -1);
+            if (a === 'down') return treeMoveStep(targetId, 1);
+            if (a === 'delete') return treeDelete(targetId);
+        }
+
+        function setupTreeInteractions(c) {
+            // boutons de la barre d'outils
+            document.querySelectorAll('[data-tree-create]').forEach(b => b.addEventListener('click', () => treeCreate(b.dataset.treeCreate, { folderId: treeSelectedId })));
+            document.getElementById('tree-import-btn').addEventListener('click', () => { if (!requireEdit()) return; treeImportDest = { folderId: treeSelectedId }; document.getElementById('tree-file-input').click(); });
+            document.getElementById('tree-file-input').addEventListener('change', (e) => { treeImport([...e.target.files], treeImportDest || { folderId: treeSelectedId }); e.target.value = ''; });
+            document.getElementById('tree-context-menu').addEventListener('click', (e) => { const b = e.target.closest('[data-tree-action]'); if (b) treeMenuAction(b.dataset.treeAction); });
+            document.addEventListener('mousedown', (e) => { if (!e.target.closest('#tree-context-menu')) closeTreeMenu(); });
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeTreeMenu(); });
+            c.addEventListener('scroll', closeTreeMenu);
+
+            // clic : (dé)sélection d'un dossier destination / ouverture
+            c.addEventListener('click', async (e) => {
+                const row = e.target.closest('.tree-row'); if (!row) return;
+                const it = findTreeItem(projectData.tree, row.dataset.id); if (!it) return;
+                if (it.type === 'folder') {
+                    const tg = e.target.closest('[data-toggle]');
+                    if (tg) { treeExpanded.has(it.id) ? treeExpanded.delete(it.id) : treeExpanded.add(it.id); }
+                    else if (treeSelectedId === it.id) { treeSelectedId = null; treeExpanded.delete(it.id); }
+                    else { treeSelectedId = it.id; treeExpanded.add(it.id); }
+                    treeStoreUI(); return renderTreeSidebarContent();
+                }
+                if (it.id === cardId) { if (window.innerWidth < 768) closeTreeSidebar(); return; }
+                if (saveTimer) await saveCurrentMapState();
+                if (treeSaveTimer) { clearTimeout(treeSaveTimer); treeSaveTimer = null; updateCardInTree(projectData.tree, currentCard); await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId); }
+                window.location.href = it.type === 'card'
+                    ? `map.html?cardId=${encodeURIComponent(it.id)}&projectId=${encodeURIComponent(projectId)}`
+                    : `editor.html?projectId=${encodeURIComponent(projectId)}&fileId=${encodeURIComponent(it.id)}`;
+            });
+
+            // clic droit + appui long (mobile)
+            c.addEventListener('contextmenu', (e) => { if (!canEdit()) return; e.preventDefault(); const row = e.target.closest('.tree-row'); openTreeMenu(e.clientX, e.clientY, row ? row.dataset.id : null); });
+            let lpTimer = null;
+            c.addEventListener('touchstart', (e) => {
+                if (!canEdit() || e.touches.length !== 1) return;
+                const t = e.touches[0], row = e.target.closest('.tree-row');
+                lpTimer = setTimeout(() => { lpTimer = null; openTreeMenu(t.clientX, t.clientY, row ? row.dataset.id : null); }, 550);
+            }, { passive: true });
+            ['touchmove', 'touchend', 'touchcancel'].forEach(ev => c.addEventListener(ev, () => { clearTimeout(lpTimer); lpTimer = null; }, { passive: true }));
+
+            // glisser-déposer : réordonner / déplacer / importer des fichiers du système
+            c.addEventListener('dragstart', (e) => {
+                const row = e.target.closest('.tree-row'); if (!row || !canEdit()) return;
+                treeDragId = row.dataset.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', treeDragId);
+            });
+            c.addEventListener('dragend', () => { treeDragId = null; treeClearDrop(); });
+            c.addEventListener('dragover', (e) => {
+                if (!canEdit()) return;
+                e.preventDefault(); treeClearDrop();
+                const t = treeDropTarget(e);
+                if (t.row && t.id !== treeDragId) t.row.classList.add('tree-drop-' + t.pos);
+            });
+            c.addEventListener('dragleave', (e) => { if (!c.contains(e.relatedTarget)) treeClearDrop(); });
+            c.addEventListener('drop', (e) => {
+                e.preventDefault(); treeClearDrop();
+                if (!requireEdit()) return;
+                const t = treeDropTarget(e);
+                if (e.dataTransfer.files && e.dataTransfer.files.length) return treeImport([...e.dataTransfer.files], t.id ? { id: t.id, pos: t.pos } : null);
+                const id = treeDragId; treeDragId = null;
+                if (id) treeMoveTo(id, t.id ? { id: t.id, pos: t.pos } : { id: null });
+            });
+        }
+
+
     </script>
 </body>
 </html>
