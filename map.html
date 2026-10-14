@@ -746,6 +746,15 @@
             return ownerId ? 'viewer' : 'admin';
         }
 
+        // propriétaire réel (≠ admin) ; sans owner connu, on garde l'ancien comportement
+        function isOwner() { const o = getOwnerId(); return !o || o === currentUser.id; }
+        function ownerEmail() { const h = collabHolder(); return (h.owner_email || currentCard.owner_email || '').toLowerCase(); }
+        // un admin ne peut toucher ni à lui-même ni aux autres admins (seul le propriétaire le peut)
+        function canManageCollab(c) {
+            if (myRole !== 'admin') return false;
+            if (isOwner()) return true;
+            return (c.role || 'editor') !== 'admin' && (c.email || '').toLowerCase() !== myEmail();
+        }
         function canEdit() { return myRole === 'admin' || myRole === 'editor'; }
         function requireEdit() { if (canEdit()) return true; showToast("Lecture seule : vous n'avez pas les droits de modification."); return false; }
         function requireAdmin() { if (myRole === 'admin') return true; showToast("Seul un admin peut gérer les collaborateurs."); return false; }
@@ -802,15 +811,18 @@
             const admin = myRole === 'admin';
             document.getElementById('collab-count-label').textContent = `Collaborateurs (${collabs.length + 1})`;
             document.getElementById('collab-add-section').classList.toggle('hidden', !admin);
+            const adminOpt = document.querySelector('#new-collab-role option[value="admin"]');
+            if (adminOpt) { adminOpt.hidden = adminOpt.disabled = !isOwner(); if (!isOwner() && adminOpt.parentNode.value === 'admin') adminOpt.parentNode.value = 'editor'; }
             listEl.innerHTML = `
                 <div class="flex items-center justify-between gap-2 text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded-lg">
                     <span class="font-medium text-slate-700 dark:text-slate-300 truncate">${escapeHtml(currentUser.email)} (vous)</span>
-                    <span class="text-[10px] font-semibold text-[#5246EE] shrink-0">${ROLE_LABELS[myRole]}</span>
+                    <span class="text-[10px] font-semibold text-[#5246EE] shrink-0">${isOwner() ? 'Propriétaire' : ROLE_LABELS[myRole]}</span>
                 </div>`;
             collabs.forEach((c, idx) => {
                 const accepted = c.status === 'accepted';
-                const roleCtl = admin
-                    ? `<select onchange="setCollaboratorRole(${idx}, this.value)" class="px-1.5 py-1 text-[10px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none">${Object.entries(ROLE_LABELS).map(([k, v]) => `<option value="${k}" ${k === c.role ? 'selected' : ''}>${v}</option>`).join('')}</select>`
+                const manage = canManageCollab(c);
+                const roleCtl = manage
+                    ? `<select onchange="setCollaboratorRole(${idx}, this.value)" class="px-1.5 py-1 text-[10px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none">${Object.entries(ROLE_LABELS).filter(([k]) => isOwner() || k !== 'admin').map(([k, v]) => `<option value="${k}" ${k === c.role ? 'selected' : ''}>${v}</option>`).join('')}</select>`
                     : `<span class="text-[10px] font-semibold text-slate-500">${ROLE_LABELS[c.role] || c.role}</span>`;
                 const row = document.createElement('div');
                 row.className = "flex items-center justify-between gap-2 text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded-lg";
@@ -819,7 +831,7 @@
                         <div class="truncate text-slate-700 dark:text-slate-300">${escapeHtml(c.email)}</div>
                         <div class="text-[10px] ${accepted ? 'text-emerald-500' : 'text-amber-500'}">${accepted ? 'Accepté' : 'Invitation envoyée'}</div>
                     </div>
-                    <div class="flex items-center gap-1 shrink-0">${roleCtl}${admin ? `<button onclick="removeCollaborator(${idx})" class="text-rose-500 hover:text-rose-700 p-1" title="Retirer"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>` : ''}</div>`;
+                    <div class="flex items-center gap-1 shrink-0">${roleCtl}${manage ? `<button onclick="removeCollaborator(${idx})" class="text-rose-500 hover:text-rose-700 p-1" title="Retirer"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>` : ''}</div>`;
                 listEl.appendChild(row);
             });
             lucide.createIcons();
@@ -841,8 +853,11 @@
 
             const role = document.getElementById('new-collab-role').value;
             const collabs = getCollabs();
+            if (email === ownerEmail()) { showToast("Le propriétaire ne peut pas être invité."); return; }
+            if (role === 'admin' && !isOwner()) { showToast("Seul le propriétaire peut nommer un admin."); return; }
 
             const existingCollab = collabs.find(c => (c.email || '').toLowerCase() === email);
+            if (existingCollab && !canManageCollab(existingCollab)) { showToast("Vous ne pouvez pas modifier ce collaborateur."); return; }
 
             if (existingCollab) {
                 existingCollab.role = role;
@@ -869,7 +884,12 @@
 
         window.setCollaboratorRole = async function(idx, role) {
             if (!requireAdmin()) return;
-            getCollabs()[idx].role = role;
+            const target = getCollabs()[idx];
+            if (!target || !canManageCollab(target) || (role === 'admin' && !isOwner())) {
+                showToast("Seul le propriétaire peut modifier le rôle d'un admin ou nommer un admin.");
+                renderCollaboratorsList(); return;
+            }
+            target.role = role;
             await saveCurrentMapState();
             renderCollaboratorsList();
             showToast("Rôle mis à jour.");
@@ -878,6 +898,7 @@
         async function removeCollaborator(idx) {
             if (!requireAdmin()) return;
             const c = getCollabs()[idx];
+            if (c && !canManageCollab(c)) { showToast("Seul le propriétaire peut retirer un admin."); return; }
             if (!c || !confirm(`Retirer ${c.email} ?`)) return;
             getCollabs().splice(idx, 1);
             await saveCurrentMapState();
