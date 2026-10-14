@@ -84,6 +84,29 @@
             <span id="role-badge" class="hidden sm:inline-flex px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500"></span>
             
             <div class="relative">
+                <button onclick="toggleCollaboratorsDropdown()" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition">
+                    <i data-lucide="users" class="w-3.5 h-3.5 text-[#5246EE]"></i>
+                    <span id="collab-count-label" class="hidden sm:inline">Collaborateurs (1)</span>
+                    <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                </button>
+                <div id="collab-dropdown" class="hidden absolute right-0 mt-2 w-[24rem] max-w-[92vw] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-50">
+                    <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Gestion des collaborateurs</h4>
+                    <div id="collaborators-list" class="space-y-2 max-h-56 overflow-y-auto mb-3"></div>
+                    <div id="collab-add-section" class="pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <div class="flex space-x-2">
+                            <input type="email" id="new-collab-email" placeholder="email@membre.com" class="flex-1 min-w-0 px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#5246EE]">
+                            <select id="new-collab-role" class="px-2 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none">
+                                <option value="viewer">Observateur</option>
+                                <option value="editor" selected>Peut modifier</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                            <button onclick="addCollaborator()" class="px-3 py-1.5 bg-[#5246EE] hover:bg-[#4538d8] text-white text-xs font-medium rounded-lg">Ajouter</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="relative">
                 <button onclick="toggleDownloadDropdown()" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition">
                     <i data-lucide="download" class="w-3.5 h-3.5 text-emerald-500"></i>
                     <span class="hidden sm:inline">Exporter</span>
