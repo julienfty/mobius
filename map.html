@@ -170,11 +170,19 @@
             </div>
         </aside>
 
+        <!-- Retour arrière / avant sur téléphone (haut gauche) -->
+        <div id="map-history-mobile" class="hidden md:hidden absolute top-3 left-3 z-[45] items-center gap-2">
+            <button id="undo-btn" onclick="undoAction()" title="Retour arrière" aria-label="Retour arrière" class="flex items-center justify-center px-3 py-2 rounded-2xl text-xs font-semibold shadow-lg border bg-white/95 dark:bg-slate-900/95 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 backdrop-blur-md transition-all"><i data-lucide="undo-2" class="w-4 h-4"></i></button>
+            <button id="redo-btn" onclick="redoAction()" title="Retour avant" aria-label="Retour avant" class="flex items-center justify-center px-3 py-2 rounded-2xl text-xs font-semibold shadow-lg border bg-white/95 dark:bg-slate-900/95 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 backdrop-blur-md transition-all"><i data-lucide="redo-2" class="w-4 h-4"></i></button>
+        </div>
+
         <!-- Sélection multiple sur téléphone -->
-        <button id="select-mode-btn" onclick="toggleSelectMode()" class="hidden md:hidden absolute top-3 right-3 z-[45] items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-semibold shadow-lg border bg-white/95 dark:bg-slate-900/95 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 backdrop-blur-md transition-all">
-            <i data-lucide="box-select" class="w-4 h-4"></i>
-            <span id="select-mode-label">Sélection</span>
-        </button>
+        <div id="map-tools-mobile" class="hidden md:hidden absolute top-3 right-3 z-[45] items-center gap-2">
+            <button id="select-mode-btn" onclick="toggleSelectMode()" class="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-semibold shadow-lg border bg-white/95 dark:bg-slate-900/95 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 backdrop-blur-md transition-all">
+                <i data-lucide="box-select" class="w-4 h-4"></i>
+                <span id="select-mode-label">Sélection</span>
+            </button>
+        </div>
         <div id="multi-select-bar" class="hidden md:hidden absolute bottom-3 left-1/2 -translate-x-1/2 z-[45] items-center gap-3 px-4 py-2.5 rounded-2xl bg-slate-900 text-white text-xs shadow-2xl">
             <span id="multi-select-count" class="font-semibold"></span>
             <button onclick="selectedNodeIds = []; renderCanvasNodes(); renderInspector();" class="text-slate-300 hover:underline">Désélectionner</button>
@@ -192,7 +200,7 @@
 
             <div class="absolute bottom-6 left-6 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-2.5 rounded-2xl shadow-lg border border-slate-200/80 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 pointer-events-none z-20 hidden md:flex items-center space-x-2">
                 <i data-lucide="mouse-pointer-click" class="w-4 h-4 text-[#5246EE] shrink-0"></i>
-                <span>Glisser sur le vide pour se déplacer · Maj + glisser pour sélectionner · Ctrl + Molette pour zoomer · Clic droit pour le menu.</span>
+                <span>Glisser sur le vide pour se déplacer · Maj + glisser pour sélectionner · Ctrl + Molette pour zoomer · Clic droit pour le menu · Ctrl + Z pour annuler.</span>
             </div>
         </div>
 
@@ -429,6 +437,7 @@
             renderCanvasNodes();
             renderInspector();
             renderCollaboratorsList();
+            initHistory();
             setupCanvasGlobalInteractivity();
             setupKeyboardListeners();
             setupMobileSwipeGestures();
@@ -479,6 +488,7 @@
                     else { currentCard = { ...currentCard, ...fresh, collaborators: row.collaborators }; }
                     normalizeCollaborators();
                     if (isProj) { renderTreeSidebarContent(); renderBreadcrumb(); }
+                    if (mapChanged) resetHistory();   // modification venue d'un autre collaborateur : on repart d'un historique propre
                     const collabChanged = prevCollabs !== JSON.stringify(getCollabs());
                     selectedNodeIds = selectedNodeIds.filter(id => (currentCard.nodes || []).some(n => n.id === id));
                     if (collabChanged) {
@@ -647,12 +657,19 @@
 
         function updateSelectUi() {
             const btn = document.getElementById('select-mode-btn');
+            const tools = document.getElementById('map-tools-mobile');
             const bar = document.getElementById('multi-select-bar');
-            if (!btn || !bar) return;
+            if (!btn || !bar || !tools) return;
             const onMap = window.innerWidth >= 768 || currentMobilePageName === 'map';
             const show = onMap && canEdit();
-            btn.classList.toggle('hidden', !show);
-            btn.classList.toggle('flex', show);
+            tools.classList.toggle('hidden', !show);
+            tools.classList.toggle('flex', show);
+            const hist = document.getElementById('map-history-mobile');
+            if (hist) { hist.classList.toggle('hidden', !show); hist.classList.toggle('flex', show); }
+            [['undo-btn', undoStack.length === 0], ['redo-btn', redoStack.length === 0]].forEach(([id, off]) => {
+                const b = document.getElementById(id);
+                if (b) { b.disabled = off; b.classList.toggle('opacity-40', off); }
+            });
             btn.classList.toggle('!bg-[#5246EE]', selectMode);
             btn.classList.toggle('!text-white', selectMode);
             document.getElementById('select-mode-label').textContent = selectMode ? 'Terminer' : 'Sélection';
@@ -662,9 +679,134 @@
             document.getElementById('multi-select-count').textContent = `${selectedNodeIds.length} sélectionnée${selectedNodeIds.length > 1 ? 's' : ''}`;
         }
 
+        // ---- Historique annuler / rétablir ----
+        // Tout reste dans le navigateur (mémoire + sessionStorage) : rien n'est ajouté en base.
+        // Annuler = remettre un ancien état de la carte puis l'enregistrer par-dessus l'actuel.
+        const undoStack = [];
+        const redoStack = [];
+        let historyBase = null;        // état de la carte juste après la dernière modification
+        let lastHistoryTime = 0;
+        const HISTORY_MAX = 50;
+        const historyKey = () => `mobius-history-${currentCard && currentCard.id}`;
+
+        function mapSnapshot() {
+            return JSON.stringify({
+                nodes: currentCard.nodes || [],
+                links: currentCard.links || [],
+                relationTypes: currentCard.relationTypes || []
+            });
+        }
+
+        function persistHistory() {
+            try {
+                const dump = () => JSON.stringify({ base: historyBase, undo: undoStack, redo: redoStack });
+                let str = dump();
+                while (str.length > 3e6 && undoStack.length > 1) { undoStack.shift(); str = dump(); }
+                sessionStorage.setItem(historyKey(), str);
+            } catch (e) { /* stockage plein ou indisponible : l'historique reste en mémoire */ }
+        }
+
+        function initHistory() {
+            historyBase = mapSnapshot();
+            undoStack.length = 0; redoStack.length = 0;
+            try {
+                const saved = JSON.parse(sessionStorage.getItem(historyKey()) || 'null');
+                // on ne reprend l'historique que si la carte n'a pas changé entre-temps
+                if (saved && saved.base === historyBase) {
+                    undoStack.push(...(saved.undo || []));
+                    redoStack.push(...(saved.redo || []));
+                }
+            } catch (e) {}
+            updateSelectUi();
+        }
+
+        function resetHistory() {
+            undoStack.length = 0; redoStack.length = 0;
+            historyBase = mapSnapshot();
+            persistHistory();
+            updateSelectUi();
+        }
+
+        // appelé à chaque enregistrement, juste après une modification
+        function recordHistory() {
+            if (historyBase === null) { historyBase = mapSnapshot(); return; }
+            const now = mapSnapshot();
+            if (now === historyBase) return;
+            const t = Date.now();
+            // les modifications rapprochées (frappe au clavier, etc.) ne forment qu'une seule étape
+            if (undoStack.length === 0 || t - lastHistoryTime > 1000) {
+                undoStack.push(historyBase);
+                if (undoStack.length > HISTORY_MAX) undoStack.shift();
+            }
+            lastHistoryTime = t;
+            historyBase = now;
+            redoStack.length = 0;
+            persistHistory();
+            updateSelectUi();
+        }
+
+        // garde les liens entre cartes (crossLinks) cohérents dans les deux sens après annuler/rétablir
+        function reconcileCrossLinks(prevNodes, nextNodes) {
+            if (!projectData) return;
+            const toMap = nodes => {
+                const m = new Map();
+                (nodes || []).forEach(n => m.set(n.id, new Map((n.crossLinks || []).map(l => [l.cardId + '|' + l.nodeId, l]))));
+                return m;
+            };
+            const before = toMap(prevNodes), after = toMap(nextNodes);
+            const ids = new Set([...before.keys(), ...after.keys()]);
+            ids.forEach(id => {
+                const b = before.get(id) || new Map(), a = after.get(id) || new Map();
+                b.forEach((l, k) => {
+                    if (a.has(k)) return;
+                    const oc = getCardById(l.cardId), on = oc && (oc.nodes || []).find(x => x.id === l.nodeId);
+                    if (on) on.crossLinks = (on.crossLinks || []).filter(x => !(x.cardId === currentCard.id && x.nodeId === id));
+                });
+                a.forEach((l, k) => {
+                    if (b.has(k)) return;
+                    const oc = getCardById(l.cardId), on = oc && (oc.nodes || []).find(x => x.id === l.nodeId);
+                    if (on && !(on.crossLinks || []).some(x => x.cardId === currentCard.id && x.nodeId === id)) {
+                        on.crossLinks = (on.crossLinks || []).concat({ cardId: currentCard.id, nodeId: id });
+                    }
+                });
+            });
+        }
+
+        function stepHistory(from, to, doneMsg, emptyMsg) {
+            if (!canEdit()) return;
+            recordHistory();   // prend en compte une modification pas encore enregistrée
+            if (!from.length) { showToast(emptyMsg); return; }
+            const current = mapSnapshot();
+            const target = from.pop();
+            to.push(current);
+            const prev = JSON.parse(current), next = JSON.parse(target);
+            currentCard.nodes = next.nodes;
+            currentCard.links = next.links;
+            currentCard.relationTypes = next.relationTypes;
+            reconcileCrossLinks(prev.nodes, next.nodes);
+            historyBase = target;
+            lastHistoryTime = 0;
+            selectedNodeIds = selectedNodeIds.filter(id => currentCard.nodes.some(n => n.id === id));
+            persistHistory();
+            renderCanvasNodes();
+            renderLegendList();
+            renderInspector();
+            saveCurrentMapState(true);   // enregistre l'état restauré : il remplace l'actuel, la base ne grossit pas
+            showToast(doneMsg);
+        }
+
+        window.undoAction = () => stepHistory(undoStack, redoStack, 'Annulé', 'Rien à annuler');
+        window.redoAction = () => stepHistory(redoStack, undoStack, 'Rétabli', 'Rien à rétablir');
+
         function setupKeyboardListeners() {
             window.addEventListener('keydown', (e) => {
                 if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+
+                if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+                    const k = e.key.toLowerCase();
+                    if (k === 'z' && !e.shiftKey) { e.preventDefault(); undoAction(); return; }
+                    if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); redoAction(); return; }
+                }
 
                 if (e.key === 'Backspace' || e.key === 'Delete') {
                     if (selectedNodeIds && selectedNodeIds.length > 0) {
@@ -2364,6 +2506,7 @@ container.addEventListener('touchstart', (e) => {
 
         async function saveCurrentMapState(force = false) {
             if (!force && !canEdit()) return;
+            if (!force) recordHistory();
             clearTimeout(saveTimer); saveTimer = null;
             let error = null;
             if (projectId && projectData) {
