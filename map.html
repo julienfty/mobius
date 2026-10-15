@@ -219,13 +219,13 @@
 
     <!-- MOBILE INSTAGRAM-LIKE BOTTOM NAVIGATION BAR -->
     <nav class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-40 flex items-center justify-around px-2 shadow-lg">
-        <button onclick="switchMobilePage('legend', false)" id="nav-btn-legend" class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 px-3 transition-all">
-            <i data-lucide="bookmark" class="w-5 h-5"></i>
-            <span class="text-[10px] font-medium mt-1">Légende</span>
-        </button>
         <button id="nav-btn-tree" onclick="switchMobilePage('tree', false)" class="hidden flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 px-3 transition-all">
             <i data-lucide="folder-tree" class="w-5 h-5"></i>
             <span class="text-[10px] font-medium mt-1">Projet</span>
+        </button>
+        <button onclick="switchMobilePage('legend', false)" id="nav-btn-legend" class="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 py-1 px-3 transition-all">
+            <i data-lucide="bookmark" class="w-5 h-5"></i>
+            <span class="text-[10px] font-medium mt-1">Légende</span>
         </button>
         <button onclick="switchMobilePage('map', false)" id="nav-btn-map" class="flex flex-col items-center justify-center text-[#5246EE] py-1 px-3 transition-all scale-105 font-bold">
             <i data-lucide="map" class="w-6 h-6"></i>
@@ -508,12 +508,14 @@
         }
 
         function setupMobilePagesOrder() {
-            mobilePagesOrder = ['legend'];
+            // même ordre que sur ordinateur : Projet, Légende, Map, Inspecteur
+            mobilePagesOrder = [];
             if (projectId && projectData) {
                 mobilePagesOrder.push('tree');
                 document.getElementById('nav-btn-tree').classList.remove('hidden');
                 document.getElementById('nav-btn-tree').classList.add('flex');
             }
+            mobilePagesOrder.push('legend');
             mobilePagesOrder.push('map');
             mobilePagesOrder.push('inspector');
             currentMobilePageIndex = mobilePagesOrder.indexOf('map');
