@@ -171,7 +171,7 @@
         </aside>
 
         <!-- 3. TABLEAU BLANC / CANVAS (Page Map Centrale) -->
-        <div id="canvas-container" class="flex-1 relative whiteboard-grid overflow-auto cursor-default select-none">
+        <div id="canvas-container" class="flex-1 relative whiteboard-grid overflow-auto cursor-grab select-none">
             <div id="canvas-zoom-layer" class="absolute inset-0 origin-top-left" style="width: 6000px; height: 6000px; transform: scale(1);">
                 <svg id="links-svg" class="absolute inset-0 w-full h-full pointer-events-none z-0"></svg>
                 <div id="nodes-layer" class="absolute inset-0 z-10"></div>
@@ -181,7 +181,7 @@
 
             <div class="absolute bottom-6 left-6 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-4 py-2.5 rounded-2xl shadow-lg border border-slate-200/80 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 pointer-events-none z-20 hidden md:flex items-center space-x-2">
                 <i data-lucide="mouse-pointer-click" class="w-4 h-4 text-[#5246EE] shrink-0"></i>
-                <span>Ctrl + Molette pour zoomer. Clic droit pour le menu.</span>
+                <span>Glisser sur le vide pour se déplacer · Maj + glisser pour sélectionner · Ctrl + Molette pour zoomer · Clic droit pour le menu.</span>
             </div>
         </div>
 
@@ -1029,49 +1029,57 @@
             container.addEventListener('wheel', (e) => {
                 if (e.ctrlKey || e.metaKey) {
                     e.preventDefault();
-                    const zoomFactor = 1.15;
                     const oldZoom = whiteboardZoom;
-
-                    if (e.deltaY < 0) {
-                        whiteboardZoom = Math.min(maxZoom, whiteboardZoom * zoomFactor);
-                    } else {
-                        whiteboardZoom = Math.max(minZoom, whiteboardZoom / zoomFactor);
-                    }
+                    const delta = Math.max(-100, Math.min(100, e.deltaY));
+                    whiteboardZoom = Math.min(maxZoom, Math.max(minZoom, oldZoom * Math.exp(-delta * 0.0025)));
+                    if (whiteboardZoom === oldZoom) return;
 
                     const rect = container.getBoundingClientRect();
-                    const mouseX = e.clientX - rect.left + container.scrollLeft;
-                    const mouseY = e.clientY - rect.top + container.scrollTop;
-
-                    const zoomRatio = whiteboardZoom / oldZoom;
-                    container.scrollLeft = mouseX * zoomRatio - (e.clientX - rect.left);
-                    container.scrollTop = mouseY * zoomRatio - (e.clientY - rect.top);
+                    const px = e.clientX - rect.left;
+                    const py = e.clientY - rect.top;
+                    const canvasX = (px + container.scrollLeft) / oldZoom;
+                    const canvasY = (py + container.scrollTop) / oldZoom;
 
                     zoomLayer.style.transform = `scale(${whiteboardZoom})`;
+                    container.scrollLeft = canvasX * whiteboardZoom - px;
+                    container.scrollTop = canvasY * whiteboardZoom - py;
                 }
             }, { passive: false });
 
-            let initialPinchDistance = null;
+            let pinch = null;
+            const pinchMid = (e) => {
+                const rect = container.getBoundingClientRect();
+                return {
+                    x: (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left,
+                    y: (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top
+                };
+            };
             container.addEventListener('touchstart', (e) => {
                 if (e.touches.length === 2) {
-                    initialPinchDistance = Math.hypot(
-                        e.touches[0].clientX - e.touches[1].clientX,
-                        e.touches[0].clientY - e.touches[1].clientY
-                    );
+                    if (typeof longPressTimer !== 'undefined' && longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+                    isBoxSelecting = false;
+                    selectionBox.classList.add('hidden');
+                    contextMenu.classList.add('hidden');
+                    const mid = pinchMid(e);
+                    pinch = {
+                        dist: Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY),
+                        zoom: whiteboardZoom,
+                        cx: (mid.x + container.scrollLeft) / whiteboardZoom,
+                        cy: (mid.y + container.scrollTop) / whiteboardZoom
+                    };
                 }
             }, { passive: true });
 
             container.addEventListener('touchmove', (e) => {
-                if (e.touches.length === 2 && initialPinchDistance !== null) {
+                if (e.touches.length === 2 && pinch) {
                     e.preventDefault();
-                    const currentDistance = Math.hypot(
-                        e.touches[0].clientX - e.touches[1].clientX,
-                        e.touches[0].clientY - e.touches[1].clientY
-                    );
-                    const zoomFactor = currentDistance / initialPinchDistance;
-                    const oldZoom = whiteboardZoom;
-                    whiteboardZoom = Math.min(maxZoom, Math.max(minZoom, oldZoom * zoomFactor));
-                    initialPinchDistance = currentDistance;
+                    const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                    const mid = pinchMid(e);
+                    whiteboardZoom = Math.min(maxZoom, Math.max(minZoom, pinch.zoom * (dist / pinch.dist)));
                     zoomLayer.style.transform = `scale(${whiteboardZoom})`;
+                    // le point de la carte sous les doigts reste sous les doigts (zoom ciblé + déplacement à 2 doigts)
+                    container.scrollLeft = pinch.cx * whiteboardZoom - mid.x;
+                    container.scrollTop = pinch.cy * whiteboardZoom - mid.y;
                 } else if (isBoxSelecting && e.touches.length === 1) {
                     const touch = e.touches[0];
                     const rect = container.getBoundingClientRect();
@@ -1104,7 +1112,7 @@
 
             container.addEventListener('touchend', (e) => {
                 if (e.touches.length < 2) {
-                    initialPinchDistance = null;
+                    pinch = null;
                 }
                 if (isBoxSelecting) {
                     isBoxSelecting = false;
@@ -1173,6 +1181,7 @@
             }, { passive: true });
 
             let longPressTimer = null;
+            let isPanning = false, didPan = false, panStartX = 0, panStartY = 0, panScrollL = 0, panScrollT = 0;
             let touchStartClientX = 0;
             let touchStartClientY = 0;
 
@@ -1216,6 +1225,7 @@
             }, { passive: true });
 
             container.addEventListener('click', (e) => {
+                if (didPan) { didPan = false; return; }
                 if (e.target === container || e.target.id === 'links-svg' || e.target.id === 'nodes-layer' || e.target.id === 'canvas-zoom-layer') {
                     selectedNodeIds = [];
                     renderCanvasNodes();
@@ -1256,7 +1266,18 @@
                 if (e.target.closest('.anchor-handle')) return;
                 contextMenu.classList.add('hidden');
 
-                if (e.button === 0 && (e.target === container || e.target.id === 'links-svg' || e.target.id === 'nodes-layer' || e.target.id === 'canvas-zoom-layer')) {
+                const onEmpty = (e.target === container || e.target.id === 'links-svg' || e.target.id === 'nodes-layer' || e.target.id === 'canvas-zoom-layer');
+                if (onEmpty && (e.button === 1 || (e.button === 0 && !e.shiftKey))) {
+                    // glisser sur une zone vide = se déplacer dans la carte
+                    e.preventDefault();
+                    isPanning = true;
+                    didPan = false;
+                    panStartX = e.clientX;
+                    panStartY = e.clientY;
+                    panScrollL = container.scrollLeft;
+                    panScrollT = container.scrollTop;
+                    container.style.cursor = 'grabbing';
+                } else if (e.button === 0 && onEmpty) {
                     isBoxSelecting = true;
                     const rect = container.getBoundingClientRect();
                     boxStartX = (e.clientX - rect.left + container.scrollLeft) / whiteboardZoom;
@@ -1271,6 +1292,14 @@
             });
 
             window.addEventListener('mousemove', (e) => {
+                if (isPanning) {
+                    const dx = e.clientX - panStartX;
+                    const dy = e.clientY - panStartY;
+                    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didPan = true;
+                    container.scrollLeft = panScrollL - dx;
+                    container.scrollTop = panScrollT - dy;
+                }
+
                 if (isBoxSelecting) {
                     const rect = container.getBoundingClientRect();
                     const currentX = (e.clientX - rect.left + container.scrollLeft) / whiteboardZoom;
@@ -1358,6 +1387,11 @@
             });
 
             window.addEventListener('mouseup', (e) => {
+                if (isPanning) {
+                    isPanning = false;
+                    container.style.cursor = '';
+                }
+
                 if (isBoxSelecting) {
                     isBoxSelecting = false;
                     selectionBox.classList.add('hidden');
