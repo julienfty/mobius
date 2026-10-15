@@ -170,6 +170,17 @@
             </div>
         </aside>
 
+        <!-- Sélection multiple sur téléphone -->
+        <button id="select-mode-btn" onclick="toggleSelectMode()" class="hidden md:hidden absolute top-3 right-3 z-30 items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-semibold shadow-lg border bg-white/95 dark:bg-slate-900/95 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 backdrop-blur-md transition-all">
+            <i data-lucide="box-select" class="w-4 h-4"></i>
+            <span id="select-mode-label">Sélection</span>
+        </button>
+        <div id="multi-select-bar" class="hidden md:hidden absolute bottom-3 left-1/2 -translate-x-1/2 z-30 items-center gap-3 px-4 py-2.5 rounded-2xl bg-slate-900 text-white text-xs shadow-2xl">
+            <span id="multi-select-count" class="font-semibold"></span>
+            <button onclick="selectedNodeIds = []; renderCanvasNodes(); renderInspector();" class="text-slate-300 hover:underline">Désélectionner</button>
+            <button onclick="deleteSelectedNodes()" class="text-rose-400 font-semibold hover:underline">Supprimer</button>
+        </div>
+
         <!-- 3. TABLEAU BLANC / CANVAS (Page Map Centrale) -->
         <div id="canvas-container" class="flex-1 relative whiteboard-grid overflow-auto cursor-grab select-none">
             <div id="canvas-zoom-layer" class="absolute inset-0 origin-top-left" style="width: 6000px; height: 6000px; transform: scale(1);">
@@ -614,6 +625,41 @@
             }
         }
 
+        // ---- Mode sélection (téléphone) ----
+        let selectMode = false;
+        let currentMobilePageName = 'map';
+        const _baseSwitchMobilePage = window.switchMobilePage;
+        window.switchMobilePage = function(pageName, ...rest) {
+            _baseSwitchMobilePage(pageName, ...rest);
+            currentMobilePageName = pageName;
+            updateSelectUi();
+        };
+
+        window.toggleSelectMode = function(force) {
+            selectMode = typeof force === 'boolean' ? force : !selectMode;
+            // en mode sélection, un doigt sur le vide trace un rectangle au lieu de faire défiler la carte
+            document.getElementById('canvas-container').style.touchAction = selectMode ? 'none' : '';
+            updateSelectUi();
+            if (selectMode) showToast("Glisse pour tracer un rectangle, touche une personne pour l'ajouter ou la retirer.");
+        };
+
+        function updateSelectUi() {
+            const btn = document.getElementById('select-mode-btn');
+            const bar = document.getElementById('multi-select-bar');
+            if (!btn || !bar) return;
+            const onMap = window.innerWidth >= 768 || currentMobilePageName === 'map';
+            const show = onMap && canEdit();
+            btn.classList.toggle('hidden', !show);
+            btn.classList.toggle('flex', show);
+            btn.classList.toggle('!bg-[#5246EE]', selectMode);
+            btn.classList.toggle('!text-white', selectMode);
+            document.getElementById('select-mode-label').textContent = selectMode ? 'Terminer' : 'Sélection';
+            const showBar = show && selectMode && selectedNodeIds.length > 0;
+            bar.classList.toggle('hidden', !showBar);
+            bar.classList.toggle('flex', showBar);
+            document.getElementById('multi-select-count').textContent = `${selectedNodeIds.length} sélectionnée${selectedNodeIds.length > 1 ? 's' : ''}`;
+        }
+
         function setupKeyboardListeners() {
             window.addEventListener('keydown', (e) => {
                 if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
@@ -1020,6 +1066,25 @@
             return false;
         }
 
+        // Sélection en rectangle : tailles réelles des cartes, mise à jour visuelle sans tout reconstruire
+        function applyBoxSelection(left, top, width, height) {
+            const ids = [];
+            (currentCard.nodes || []).forEach(node => {
+                const el = document.getElementById(`card-${node.id}`);
+                const nw = el ? el.offsetWidth : 160;
+                const nh = el ? el.offsetHeight : 100;
+                const nx = node.x || 0;
+                const ny = node.y || 0;
+                const hit = nx < left + width && nx + nw > left && ny < top + height && ny + nh > top;
+                if (hit) ids.push(node.id);
+                if (el) {
+                    ['border-[#5246EE]', 'ring-4', 'ring-[#5246EE]/20', 'shadow-xl'].forEach(c => el.classList.toggle(c, hit));
+                    ['border-slate-200', 'dark:border-slate-800', 'shadow-md'].forEach(c => el.classList.toggle(c, !hit));
+                }
+            });
+            selectedNodeIds = ids;
+        }
+
         function setupCanvasGlobalInteractivity() {
             const container = document.getElementById('canvas-container');
             const contextMenu = document.getElementById('context-menu');
@@ -1096,17 +1161,8 @@
                     selectionBox.style.width = `${width * whiteboardZoom}px`;
                     selectionBox.style.height = `${height * whiteboardZoom}px`;
 
-                    selectedNodeIds = [];
-                    (currentCard.nodes || []).forEach(node => {
-                        const nx = node.x || 0;
-                        const ny = node.y || 0;
-                        const nw = 160;
-                        const nh = 90;
-                        if (nx < left + width && nx + nw > left && ny < top + height && ny + nh > top) {
-                            selectedNodeIds.push(node.id);
-                        }
-                    });
-                    renderCanvasNodes();
+                    if (width > 3 || height > 3) didPan = true;
+                    applyBoxSelection(left, top, width, height);
                 }
             }, { passive: false });
 
@@ -1117,6 +1173,7 @@
                 if (isBoxSelecting) {
                     isBoxSelecting = false;
                     selectionBox.classList.add('hidden');
+                    renderCanvasNodes();
                     renderInspector();
                 }
             }, { passive: true });
@@ -1180,13 +1237,27 @@
                 }
             }, { passive: true });
 
+container.addEventListener('touchstart', (e) => {
+                if (!selectMode || e.touches.length !== 1) return;
+                if (!(e.target === container || e.target.id === 'links-svg' || e.target.id === 'nodes-layer' || e.target.id === 'canvas-zoom-layer')) return;
+                const rect = container.getBoundingClientRect();
+                boxStartX = (e.touches[0].clientX - rect.left + container.scrollLeft) / whiteboardZoom;
+                boxStartY = (e.touches[0].clientY - rect.top + container.scrollTop) / whiteboardZoom;
+                isBoxSelecting = true;
+                selectionBox.style.left = `${boxStartX * whiteboardZoom}px`;
+                selectionBox.style.top = `${boxStartY * whiteboardZoom}px`;
+                selectionBox.style.width = '0px';
+                selectionBox.style.height = '0px';
+                selectionBox.classList.remove('hidden');
+            }, { passive: true });
+
             let longPressTimer = null;
             let isPanning = false, didPan = false, panStartX = 0, panStartY = 0, panScrollL = 0, panScrollT = 0;
             let touchStartClientX = 0;
             let touchStartClientY = 0;
 
             container.addEventListener('touchstart', (e) => {
-                if (e.touches.length === 1 && (e.target === container || e.target.id === 'links-svg' || e.target.id === 'nodes-layer' || e.target.id === 'canvas-zoom-layer')) {
+                if (!selectMode && e.touches.length === 1 && (e.target === container || e.target.id === 'links-svg' || e.target.id === 'nodes-layer' || e.target.id === 'canvas-zoom-layer')) {
                     const touch = e.touches[0];
                     touchStartClientX = touch.clientX;
                     touchStartClientY = touch.clientY;
@@ -1264,6 +1335,7 @@
 
             container.addEventListener('mousedown', (e) => {
                 if (e.target.closest('.anchor-handle')) return;
+                didPan = false;
                 contextMenu.classList.add('hidden');
 
                 const onEmpty = (e.target === container || e.target.id === 'links-svg' || e.target.id === 'nodes-layer' || e.target.id === 'canvas-zoom-layer');
@@ -1315,23 +1387,8 @@
                     selectionBox.style.width = `${width * whiteboardZoom}px`;
                     selectionBox.style.height = `${height * whiteboardZoom}px`;
 
-                    selectedNodeIds = [];
-                    (currentCard.nodes || []).forEach(node => {
-                        const nx = node.x || 0;
-                        const ny = node.y || 0;
-                        const nw = 160;
-                        const nh = 90;
-
-                        if (
-                            nx < left + width &&
-                            nx + nw > left &&
-                            ny < top + height &&
-                            ny + nh > top
-                        ) {
-                            selectedNodeIds.push(node.id);
-                        }
-                    });
-                    renderCanvasNodes();
+                    if (width > 3 || height > 3) didPan = true;
+                    applyBoxSelection(left, top, width, height);
                 }
 
                 if (isDraggingNode && draggedNodeId) {
@@ -1395,6 +1452,7 @@
                 if (isBoxSelecting) {
                     isBoxSelecting = false;
                     selectionBox.classList.add('hidden');
+                    renderCanvasNodes();
                     renderInspector();
                 }
 
@@ -1582,6 +1640,7 @@
         }
 
         function renderCanvasNodes() {
+            updateSelectUi();
             const nodesLayer = document.getElementById('nodes-layer');
             nodesLayer.innerHTML = '';
 
@@ -1709,13 +1768,22 @@
                     if (e.target.closest('.anchor-handle')) return;
                     e.stopPropagation();
                     clearTimeout(nodeLongPress);
+                    if (selectMode && !isMoving) {
+                        e.preventDefault(); // évite le faux clic souris qui réinitialiserait la sélection
+                        selectedNodeIds = selectedNodeIds.includes(node.id)
+                            ? selectedNodeIds.filter(id => id !== node.id)
+                            : [...selectedNodeIds, node.id];
+                        renderCanvasNodes();
+                        renderInspector();
+                        return;
+                    }
                     if (!isMoving) {
                         if (isNodeDoubleTap(node.id) && validCrossLinks(node).length) { goToLinkedPerson(node.id); return; }
                         selectNode(node.id);
                     } else {
                         saveCurrentMapState();
                     }
-                }, { passive: true });
+                }, { passive: false });
 
                 nodesLayer.appendChild(card);
             });
@@ -1819,15 +1887,18 @@
             container.innerHTML = '';
 
             if (selectedNodeIds.length !== 1) {
-                const nodes = (currentCard.nodes || []).filter(n => 
+                const isMulti = selectedNodeIds.length > 1;
+                let nodes = (currentCard.nodes || []).filter(n => 
+                    selectedNodeIds.includes(n.id) ||
                     `${n.firstname} ${n.lastname}`.toLowerCase().includes(searchQuery) || 
                     (n.location && n.location.toLowerCase().includes(searchQuery))
                 );
+                if (isMulti) nodes = [...nodes.filter(n => selectedNodeIds.includes(n.id)), ...nodes.filter(n => !selectedNodeIds.includes(n.id))];
 
                 if (selectedNodeIds.length > 1 && canEdit()) {
                     const multiInfo = document.createElement('div');
                     multiInfo.className = "mb-3 p-2.5 bg-[#5246EE]/10 rounded-xl text-xs font-semibold text-[#5246EE] flex items-center justify-between";
-                    multiInfo.innerHTML = `<span>${selectedNodeIds.length} personnes sélectionnées</span> <button onclick="deleteSelectedNodes()" class="text-rose-600 hover:underline">Tout supprimer</button>`;
+                    multiInfo.innerHTML = `<span>${selectedNodeIds.length} personnes sélectionnées</span> <span class="flex items-center gap-3"><button onclick="selectedNodeIds = []; renderInspector(); renderCanvasNodes();" class="text-slate-500 hover:underline">Désélectionner</button><button onclick="deleteSelectedNodes()" class="text-rose-600 hover:underline">Tout supprimer</button></span>`;
                     container.appendChild(multiInfo);
                 }
 
@@ -1843,7 +1914,10 @@
                 listDiv.className = "space-y-2";
                 nodes.forEach(node => {
                     const item = document.createElement('div');
-                    item.className = "flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-all text-xs";
+                    const isSel = selectedNodeIds.includes(node.id);
+                    item.className = "flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all text-xs " + (isSel
+                        ? "bg-[#5246EE]/10 border-2 border-[#5246EE] ring-2 ring-[#5246EE]/20"
+                        : "bg-slate-50 dark:bg-slate-800 border-2 border-transparent hover:bg-slate-100 dark:hover:bg-slate-700");
                     item.innerHTML = `
                         <div class="flex items-center space-x-2.5">
                             <div class="w-7 h-7 rounded-full bg-[#5246EE]/10 text-[#5246EE] flex items-center justify-center font-bold text-[10px]">
@@ -1854,9 +1928,20 @@
                                 <div class="text-[10px] text-slate-400">${escapeHtml(node.location || 'Aucun lieu')}</div>
                             </div>
                         </div>
-                        <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
+                        ${isSel && isMulti && canEdit()
+                            ? `<button data-del="${node.id}" class="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition" title="Supprimer"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`
+                            : `<i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>`}
                     `;
-                    item.onclick = () => selectNode(node.id);
+                    item.onclick = (ev) => {
+                        const del = ev.target.closest('[data-del]');
+                        if (del) {
+                            ev.stopPropagation();
+                            selectedNodeIds = [del.getAttribute('data-del')];
+                            deleteSelectedNodes();
+                            return;
+                        }
+                        selectNode(node.id);
+                    };
                     listDiv.appendChild(item);
                 });
                 container.appendChild(listDiv);
