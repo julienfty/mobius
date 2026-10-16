@@ -132,7 +132,7 @@
                 <button data-create="txt" class="tree-create px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-lines text-emerald-500"></i> Fichier .txt</button>
                 <button data-create="card" class="tree-create px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-note-sticky text-indigo-500"></i> Nouvelle Carte</button>
                 <button id="import-btn" class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-arrow-down text-[#5246EE]"></i> Importer</button>
-                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx" multiple>
+                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx,.mobtext,.mobscen" multiple>
             </div>
             <div class="text-[11px] text-gray-400 font-medium" id="selected-folder-indicator">📁 Destination : Racine du projet</div>
         </div>
@@ -1301,8 +1301,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function importFiles(files, dest) {
         if (!requireEditTree()) return;
         let t = (dest && typeof dest === 'object') ? dest : { folderId: dest };
-        const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx)$/i.test(f.name));
-        if (accepted.length < files.length) toast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx et .mobius.', 'info');
+        const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx|mobtext|mobscen)$/i.test(f.name));
+        if (accepted.length < files.length) toast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx, .mobius, .mobtext et .mobscen.', 'info');
         let added = 0;
         const put = (item) => {
             item.isNewDrop = true;
@@ -1311,6 +1311,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
         for (const file of accepted) {
             try {
+                if (/\.(mobtext|mobscen)$/i.test(file.name)) {
+                    const d = JSON.parse(await file.text());
+                    if (!d || typeof d !== 'object') { toast(`« ${file.name} » n'est pas un fichier Mobius valide.`, 'error'); continue; }
+                    put({ id: newItemId(), type: 'txt', name: d.name || file.name.replace(/\.[^.]+$/, ''), content: d.content || '', docType: d.type, doc: d.doc });
+                    continue;
+                }
                 if (/\.mobius$/i.test(file.name)) {
                     const card = parseMobiusCard(await file.text(), file.name);
                     if (!card) { toast(`« ${file.name} » n'est pas une carte Mobius valide.`, 'error'); continue; }
@@ -1341,7 +1347,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function renderTree() {
         const c = $('tree');
         if (!tree().length) {
-            c.innerHTML = `<div class="text-center py-12 text-gray-400 text-xs">Arborescence vide. Utilisez les boutons ci-dessus ou glissez-déposez des fichiers (.txt, .fountain, .page, .pdf, .docx, .mobius) ici.</div>`;
+            c.innerHTML = `<div class="text-center py-12 text-gray-400 text-xs">Arborescence vide. Utilisez les boutons ci-dessus ou glissez-déposez des fichiers (.txt, .fountain, .page, .pdf, .docx, .mobius, .mobtext, .mobscen) ici.</div>`;
             return;
         }
         c.innerHTML = '';
