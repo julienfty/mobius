@@ -182,7 +182,7 @@
                     <button id="tree-import-btn" title="Importer un fichier" class="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-medium flex items-center gap-1"><i data-lucide="file-up" class="w-3.5 h-3.5 text-[#5246EE]"></i>Importer</button>
                 </div>
                 <div id="tree-dest" class="mt-1.5 text-[10px] text-slate-400 truncate"></div>
-                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx,.mobtext,.mobscen,.mql,.sql,.csv,.xlsx,.xls" multiple>
+                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx,.mobtext,.mobscen,.mobql,.mql,.sql,.csv,.xlsx,.xls" multiple>
             </div>
             <div id="tree-sidebar-content" class="flex-1 p-3 overflow-y-auto space-y-1 text-xs"></div>
             <div class="p-3 border-t border-slate-200 dark:border-slate-800 relative">
@@ -1373,7 +1373,7 @@
                 const out = { tables: tables.map(t => ({ table: t.name, title: t.title, relationTypes: (t.card && t.card.relationTypes) || [], links: (t.card && t.card.links) || [], columns: [{ name: 'id', label: 'id', type: 'text' }, ...t.cols.map(c => ({ name: c.name, label: c.label, type: c.type === 'line' ? 'text' : c.type }))], rows: t.rows.map(r => ({ id: r.id, _x: r.x, _y: r.y, ...Object.fromEntries(t.cols.map((c, i) => [c.name, r.vals[i]])) })) })) };
                 dlBlob(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }), base + '.json');
             } else if (format === 'mql') {
-                dlBlob(new Blob([MT.emit(tables, { mobius: true, head: '-- MQL (Mobius Query Language) : SQL compatible + commandes de relations Mobius' })], { type: 'text/plain;charset=utf-8' }), base + '.mql');
+                dlBlob(new Blob([MT.emit(tables, { mobius: true, head: '-- MQL (Mobius Query Language) : SQL compatible + commandes de relations Mobius' })], { type: 'text/plain;charset=utf-8' }), base + '.mobql');
             } else if (format === 'sql') {
                 const ty = { line: 'TEXT', text: 'TEXT', number: 'NUMERIC', bool: 'BOOLEAN', date: 'DATE' };
                 const sql = ['-- Export Mobius : une carte = une table', ...tables.map(t =>
@@ -1407,7 +1407,7 @@
             xlsx: { label: 'Excel', ext: '.xlsx', icon: 'file-spreadsheet', desc: "Classeur Excel natif : une feuille par carte, une colonne par champ de l'inspecteur, avec les nombres et les cases oui/non gardés comme tels.", use: "Idéal pour trier, filtrer, faire des calculs ou des graphiques dans Excel, LibreOffice ou Google Sheets." },
             csv:  { label: 'CSV', ext: '.csv', icon: 'file-text', desc: "Texte brut en UTF-8, séparateur « ; », une ligne d'en-tête avec le nom des champs. Un fichier par carte (regroupés dans un .zip s'il y en a plusieurs).", use: "Format universel pour importer dans une base de données, Notion, Airtable, Python/pandas ou n'importe quel tableur." },
             json: { label: 'JSON', ext: '.json', icon: 'braces', desc: "Fichier structuré : pour chaque carte, la description des colonnes (nom, type) puis les lignes sous forme d'objets typés (nombres, booléens, dates).", use: "Pensé pour les développeurs : API, scripts, applications web, échanges entre logiciels." },
-            mql: { label: 'MQL', ext: '.mql', icon: 'terminal', desc: "Format natif Mobius Query Language : tables, champs, personnes, positions, types de relations et liens (createLink / newLink).", use: "À importer et exécuter dans la console MQL de Mobius. Compatible avec les instructions SQL prises en charge par Mobius." },
+            mql: { label: 'MQL', ext: '.mobql', icon: 'terminal', desc: "Format natif Mobius Query Language : tables, champs, personnes, positions, types de relations et liens (createLink / newLink).", use: "À importer et exécuter dans la console MQL de Mobius. Compatible avec les instructions SQL prises en charge par Mobius." },
             sql:  { label: 'SQL', ext: '.sql', icon: 'database', desc: "Script SQL standard : un CREATE TABLE par carte (colonnes typées TEXT, NUMERIC, BOOLEAN, DATE) suivi des INSERT de chaque personne.", use: "À exécuter tel quel dans PostgreSQL, SQLite, MySQL/MariaDB pour recréer vos cartes comme tables dans une vraie base." }
         };
         let EX = null;
@@ -3512,7 +3512,7 @@ container.addEventListener('touchstart', (e) => {
         async function treeImport(files, dest) {
             if (!requireEdit()) return;
             const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx|mobtext|mobscen|mql|sql|csv|xlsx|xls)$/i.test(f.name));
-            if (accepted.length < files.length) showToast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx, .mobius, .mobtext, .mobscen, .mql, .sql, .csv et .xlsx.');
+            if (accepted.length < files.length) showToast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx, .mobius, .mobtext, .mobscen, .mobql, .sql, .csv et .xlsx.');
             let t = dest, added = 0;
             const put = (item) => {
                 treeInsert(item, t); added++;
@@ -4207,9 +4207,9 @@ newLink: (typeLink: "Mentor", from a with b to c);
 <p class="mt-2"><code>and</code> = lien normal (dans les deux sens). <code>to</code> = lien à sens unique : <code>from x to y</code> trace une flèche de x vers y. Si tu crées <code>from x to y</code> puis <code>from y to x</code> avec le même type, les deux fusionnent en un lien normal. Les parenthèses sont facultatives.</p>
 <p class="mt-2"><b>Raccourcis</b> : <code>with</code> ajoute des sources, on peut enchaîner des cibles, et chaque source est reliée à chaque cible (jamais entre elles). <code>from a with b to c</code> = a→c, b→c. <code>from a with b,c to d,e</code> = a→d, a→e, b→d, b→e, c→d, c→e. Les formes longues (<code>with b with c</code>, <code>to d to e</code>, <code>and d and e</code>), courtes (<code>with b,c</code>, <code>to d,e</code>, <code>and d,e</code>) et mixtes (<code>with b,c with d</code>, <code>to e,f to g</code>) sont toutes équivalentes et restent acceptées. Pareil avec <code>and</code>, mais <b>sans</b> <code>from</code> : <code>a with b and c</code> = a–c, b–c. <code>from</code> est obligatoire avec <code>to</code> et interdit avec <code>and</code>. On ne mélange pas <code>to</code> et <code>and</code> dans une même clause : sépare-les par une virgule.</p>
 <p class="mt-2"><b>link: (typeLink: "Nom", a and b);</b> <b>modifie</b> le lien déjà existant entre a et b (type et sens) au lieu d'en créer un, avec la même syntaxe que newLink : <code>link: (typeLink: "Ami", a and b)</code> le rend normal et de type Ami, <code>link: (typeLink: "Mentor", from a to b)</code> le rend à sens unique a→b (même avec <code>with</code> / plusieurs cibles). S'il n'y a aucun lien, rien n'est créé (un avertissement t'invite à utiliser newLink). S'il y en a plusieurs entre les deux personnes, <code>and</code> vise le lien normal et <code>from a to b</code> le lien a→b ; sinon une erreur te demande de préciser.</p>
-<p class="mt-2">Les instructions finissent par « ; » (ou à la fin de la ligne pour createLink / newLink). Tout est exécuté ou rien : en cas d'erreur, rien n'est modifié. Annulable avec Ctrl+Z pour la carte courante.</p>
-<p class="mt-2">Dépose un fichier <b>.mql, .sql, .csv, .xlsx, .json</b> : il est converti en MQL dans l'éditeur (donc il s'ajoute à la carte ouverte, sauf si tu écris CREATE CARD), tu relis puis tu exécutes. Importé dans l'arborescence, il crée une nouvelle carte. Seuls le MQL, le JSON et le .mobius gardent les liens, leurs types et leurs noms.</p>`;
-const HLRE = /(--[^\n]*)|("(?:[^"]|"")*"|'(?:[^']|'')*'|«[^»]*»|“[^”]*”)|\b(createLink|newLink|link)\b|\b(name|color|typeLink|to)\b|\b(CREATE|TABLE|CARD|USE|INSERT|INTO|VALUES|UPDATE|SET|DELETE|FROM|WITH|WHERE|SELECT|ORDER|BY|LIMIT|AND|OR|NOT|NULL|LIKE|IS|ALTER|ADD|COLUMN|PRIMARY|KEY|IF|EXISTS|ASC|DESC|TRUE|FALSE)\b|\b(TEXT|NUMERIC|BOOLEAN|DATE|INTEGER|INT)\b|(\b\d+(?:\.\d+)?\b)/gi;
+<p class="mt-2">Les instructions finissent par « ; » (ou à la fin de la ligne pour createLink / newLink). Tab indente, Maj+Tab désindente et Entrée applique une indentation contextuelle. Tout est exécuté ou rien : en cas d'erreur, rien n'est modifié. Annulable avec Ctrl+Z pour la carte courante.</p>
+<p class="mt-2">Dépose un fichier <b>.mobql, .sql, .csv, .xlsx, .json</b> : il est converti en MQL dans l'éditeur (donc il s'ajoute à la carte ouverte, sauf si tu écris CREATE CARD), tu relis puis tu exécutes. Importé dans l'arborescence, il crée une nouvelle carte. Seuls le MQL, le JSON et le .mobius gardent les liens, leurs types et leurs noms.</p>`;
+const HLRE = /(--[^\n]*)|("(?:[^"]|"")*"|'(?:[^']|'')*'|«[^»]*»|“[^”]*”)|\b(createLink|newLink|interLink|link)\b|\b(name|color|typeLink|to)\b|\b(CREATE|TABLE|CARD|USE|INSERT|INTO|VALUES|UPDATE|SET|DELETE|FROM|WITH|WHERE|SELECT|ORDER|BY|LIMIT|AND|OR|NOT|NULL|LIKE|IS|ALTER|ADD|COLUMN|PRIMARY|KEY|IF|EXISTS|ASC|DESC|TRUE|FALSE)\b|\b(TEXT|NUMERIC|BOOLEAN|DATE|INTEGER|INT)\b|(\b\d+(?:\.\d+)?\b)/gi;
             const HLC = ['text-slate-400', 'text-emerald-600 dark:text-emerald-400', 'text-pink-600 dark:text-pink-400 font-bold', 'text-sky-600 dark:text-sky-400', 'text-[#5246EE] dark:text-indigo-400 font-semibold', 'text-violet-500', 'text-amber-600 dark:text-amber-400'];
             const hl = (t, nl = true) => {
                 let o = '', i = 0, m; HLRE.lastIndex = 0;
@@ -4231,7 +4231,7 @@ const HLRE = /(--[^\n]*)|("(?:[^"]|"")*"|'(?:[^']|'')*'|«[^»]*»|“[^”]*”
                     <div class="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 p-4 lg:p-5">
                         <section id="mt-drop" class="flex-1 min-w-0 flex flex-col gap-2 relative">
                             <div class="flex flex-wrap gap-2">
-                                <label class="${bt} cursor-pointer"><i data-lucide="file-up" class="w-3.5 h-3.5"></i> Importer un fichier<input id="mt-file" type="file" multiple accept=".mql,.sql,.csv,.xlsx,.xls,.json,.mobius" class="hidden"></label>
+                                <label class="${bt} cursor-pointer"><i data-lucide="file-up" class="w-3.5 h-3.5"></i> Importer un fichier<input id="mt-file" type="file" multiple accept=".mobql,.mql,.sql,.csv,.xlsx,.xls,.json,.mobius" class="hidden"></label>
                                 <button id="mt-ex" class="${bt}"><i data-lucide="lightbulb" class="w-3.5 h-3.5"></i> Exemple</button>
                                 <button id="mt-clear" class="${bt}"><i data-lucide="eraser" class="w-3.5 h-3.5"></i> Effacer</button>
                                 <span class="flex-1"></span>
@@ -4239,7 +4239,7 @@ const HLRE = /(--[^\n]*)|("(?:[^"]|"")*"|'(?:[^']|'')*'|«[^»]*»|“[^”]*”
                             </div>
                             <div class="relative flex-1 min-h-[220px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 focus-within:ring-1 focus-within:ring-[#5246EE]">
                                 <pre id="mt-hl" aria-hidden="true" class="absolute inset-0 m-0 p-3 overflow-x-hidden overflow-y-scroll pointer-events-none font-mono text-[12px] leading-relaxed whitespace-pre-wrap break-words text-slate-700 dark:text-slate-200" style="tab-size:2"></pre>
-                                <textarea id="mt-src" spellcheck="false" placeholder="Écris du MQL ou du SQL, ou importe un fichier .mql / .sql / .csv / .xlsx / .json" class="absolute inset-0 w-full h-full m-0 p-3 bg-transparent font-mono text-[12px] leading-relaxed whitespace-pre-wrap break-words resize-none focus:outline-none caret-slate-800 dark:caret-white" style="color:transparent;tab-size:2"></textarea>
+                                <textarea id="mt-src" spellcheck="false" placeholder="Écris du MQL ou du SQL (Tab et indentation automatique), ou importe un fichier .mobql / .sql / .csv / .xlsx / .json" class="absolute inset-0 w-full h-full m-0 p-3 bg-transparent font-mono text-[12px] leading-relaxed whitespace-pre-wrap break-words resize-none focus:outline-none caret-slate-800 dark:caret-white" style="color:transparent;tab-size:2"></textarea>
                                 <div id="mt-ac" class="hidden absolute z-10 max-w-[90%] flex flex-wrap gap-1.5 p-2 rounded-xl shadow-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></div>
                             </div>
                             <div id="mt-dz" class="hidden absolute inset-0 rounded-2xl border-2 border-dashed border-[#5246EE] bg-[#5246EE]/10 flex items-center justify-center font-semibold text-[#5246EE] pointer-events-none">Dépose ton fichier ici</div>
@@ -4342,7 +4342,43 @@ const HLRE = /(--[^\n]*)|("(?:[^"]|"")*"|'(?:[^']|'')*'|«[^»]*»|“[^”]*”
                 $('mt-ex').onclick = () => { src.value = EXAMPLE; upd(); };
                 $('mt-clear').onclick = () => { src.value = ''; upd(); };
                 $('mt-file').onchange = ev => { load([...ev.target.files]); ev.target.value = ''; };
-                                src.addEventListener('keydown', ev => { if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); runIt(); } });
+                                // Éditeur MQL : indentation intelligente, Tab et Maj+Tab (y compris sur une sélection).
+                const indentUnit = '  ';
+                const replaceSelection = (a, b, value, cursorStart, cursorEnd = cursorStart) => {
+                    src.setRangeText(value, a, b, 'start');
+                    src.setSelectionRange(cursorStart, cursorEnd);
+                    upd();
+                };
+                src.addEventListener('keydown', ev => {
+                    if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); runIt(); return; }
+                    if (ev.key !== 'Tab' && ev.key !== 'Enter') return;
+                    if (ev.ctrlKey || ev.metaKey || ev.altKey || ev.isComposing) return;
+                    const a = src.selectionStart, b = src.selectionEnd, value = src.value;
+                    if (ev.key === 'Tab') {
+                        ev.preventDefault();
+                        const lineStart = value.lastIndexOf('\n', a - 1) + 1;
+                        if (a === b && !ev.shiftKey) {
+                            replaceSelection(a, b, indentUnit, a + indentUnit.length);
+                            return;
+                        }
+                        const lastLine = value.lastIndexOf('\n', Math.max(a, b - 1)) + 1;
+                        const stop = value.indexOf('\n', lastLine);
+                        const lineEnd = stop === -1 ? value.length : stop;
+                        const block = value.slice(lineStart, lineEnd);
+                        const lines = block.split('\n');
+                        const adjusted = lines.map(line => ev.shiftKey ? line.replace(/^(?: {1,2}|\t)/, '') : indentUnit + line).join('\n');
+                        replaceSelection(lineStart, lineEnd, adjusted, lineStart, lineStart + adjusted.length);
+                        return;
+                    }
+                    ev.preventDefault();
+                    const before = value.slice(value.lastIndexOf('\n', a - 1) + 1, a);
+                    const leading = (before.match(/^[ \t]*/) || [''])[0];
+                    const opens = /(?:\(|,)\s*$/.test(before) || /\b(?:CREATE\s+(?:TABLE|CARD)|INSERT\s+INTO|UPDATE|SELECT|SET|VALUES|WHERE|ORDER\s+BY|from|to|with|and)\s*$/i.test(before);
+                    const closes = /^\s*\)/.test(value.slice(b));
+                    const indent = leading + (opens ? indentUnit : '');
+                    const extra = opens && closes ? '\n' + leading : '';
+                    replaceSelection(a, b, '\n' + indent + extra, a + 1 + indent.length);
+                });
                 const ac = $('mt-ac');
                 const names = before => { const l = [], re = /createLink\s*:\s*\(?\s*name\s*[:=]\s*["«“'‘]([^"»”'’]+)["»”'’]/gi; let m; while ((m = re.exec(before))) l.push(m[1]); (currentCard.relationTypes || []).forEach(r => l.push(r.name)); return [...new Set(l)]; };
                 const pre = $('mt-hl');
