@@ -100,6 +100,8 @@
 .pm-seg{display:flex;border-radius:.6rem;background:#eef0f4;padding:2px;gap:2px;flex-shrink:0}.dark .pm-seg{background:#1e293b}
 .pm-seg button{padding:.25rem .55rem;font-size:.7rem;border-radius:.5rem;color:#64748b}.pm-seg button.on{background:#5246EE;color:#fff}
 .ed-prop .ed-mini{max-height:22rem;overflow-y:auto;min-height:5rem}
+.side-item.ed-full{position:fixed!important;z-index:50;margin:0!important;display:flex;flex-direction:column;box-sizing:border-box;border-radius:0;overflow:hidden;box-shadow:none;border-style:solid}
+.side-item.ed-full .ed-mini{flex:1 1 auto;min-height:0;max-height:none!important;overflow-y:auto;font-size:15px}
 </style>
 </head>
 <body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col antialiased selection:bg-[#5246EE] selection:text-white">
@@ -1210,7 +1212,9 @@ function bindEditor(){
 }
 
 /* --- Bulles & propositions : à côté de la page, une seule ouverte à la fois --- */
-let openNote=null;
+let openNote=null,noteFull=false;
+function toggleFull(){noteFull=!noteFull;renderSide();}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&noteFull){noteFull=false;renderSide();}});
 function addBubble(){
   if(!requireEdit())return;const s=getSelection();
   if(!s.rangeCount||s.isCollapsed){showToast('Sélectionne un mot ou une phrase.');return;}
@@ -1221,7 +1225,7 @@ function addBubble(){
   s.removeAllRanges();openNote={k:'b',id};afterEdit();
 }
 const openBubble=id=>{openNote={k:'b',id};renderSide();};
-const closeBubble=()=>{openNote=null;renderSide();};
+const closeBubble=()=>{openNote=null;noteFull=false;renderSide();};
 function delBubble(id){const sp=edPage().querySelector(`[data-bubble="${id}"]`);if(sp)sp.replaceWith(...sp.childNodes);delete doc.bubbles[id];openNote=null;afterEdit();}
 let miniCur=null;
 function miniEditor(el,obj){
@@ -1242,8 +1246,8 @@ function miniEditor(el,obj){
   });
 }
 function bubbleCard(id,d){
-  const el=document.createElement('div');el.className='ed-bub side-item';
-  el.innerHTML=`<div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>💬 ${escapeHtml(d.by)}</span><span>${canEdit()?`<button onclick="delBubble('${id}')">🗑</button> `:''}<button onclick="closeBubble()">✕</button></span></div><div class="ed-mini ${docType==='script'?'script':''}" contenteditable="${canEdit()}">${d.html}</div>`;
+  const el=document.createElement('div');el.className='ed-bub side-item'+(noteFull?' ed-full':'');
+  el.innerHTML=`<div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>💬 ${escapeHtml(d.by)}</span><span><button onclick="toggleFull()" title="${noteFull?'Réduire':'Agrandir'}">${noteFull?'⤡':'⤢'}</button> ${canEdit()?`<button onclick="delBubble('${id}')">🗑</button> `:''}<button onclick="closeBubble()">✕</button></span></div><div class="ed-mini ${docType==='script'?'script':''}" contenteditable="${canEdit()}">${d.html}</div>`;
   miniEditor(el,d);return el;
 }
 const q=id=>id?edPage().querySelector('[data-id="'+id+'"]'):null;
@@ -1265,17 +1269,17 @@ function propInfo(p){
 }
 function propCard(id,p,open){
   const v=Object.values(p.votes||{}),y=v.filter(x=>x===1).length,n=v.filter(x=>x===0).length,mine=(p.votes||{})[currentUser.id],el=document.createElement('div');
-  el.className='side-item '+(open?'ed-prop':'');
+  el.className='side-item '+(open?'ed-prop':'')+(open&&noteFull?' ed-full':'');
   if(!open){el.innerHTML=`<button class="ed-chip" onclick="openNote={k:'p',id:'${id}'};renderSide()">💡 ${escapeHtml(p.by)} · 👍 ${y} 👎 ${n}</button>`;return el;}
   const mode=p.mode||'add',kind=p.kind||'free',ed=canEdit(),dis=ed?'':'disabled',sh=sceneHead(p),sel=sh?sh.dataset.id:'';
-  el.innerHTML=`<div class="flex justify-between items-center text-[10px] text-slate-400 mb-2"><span>💡 ${escapeHtml(p.by)} · ${propInfo(p)}</span><span class="flex gap-2">${canDelProp(p)?`<button title="Supprimer la proposition" onclick="delProp('${id}')">🗑</button>`:''}<button onclick="closeBubble()">✕</button></span></div>`
+  el.innerHTML=`<div class="flex justify-between items-center text-[10px] text-slate-400 mb-2"><span>💡 ${escapeHtml(p.by)} · ${propInfo(p)}</span><span class="flex gap-2"><button onclick="toggleFull()" title="${noteFull?'Réduire':'Agrandir'}">${noteFull?'⤡':'⤢'}</button> ${canDelProp(p)?`<button title="Supprimer la proposition" onclick="delProp('${id}')">🗑</button>`:''}<button onclick="closeBubble()">✕</button></span></div>`
   +`<div class="pm-row"><select class="pm-sel" title="Scène concernée" ${dis} onchange="propPickScene('${id}',this.value)">${sceneOptions(sel)}</select><div class="pm-seg"><button class="${mode==='edit'?'on':''}" ${dis} onclick="propMode('${id}','edit')">Modifier</button><button class="${mode==='add'?'on':''}" ${dis} onclick="propMode('${id}','add')">Ajouter</button></div></div>`
   +(mode==='add'?`<div class="pm-row"><select class="pm-sel" ${dis} onchange="propKind('${id}',this.value)">${[['free','Bloc libre (au clic)'],['act','Un acte'],['scene','Une en-tête de scène']].map(([k,l])=>`<option value="${k}" ${k===kind?'selected':''}>${l}</option>`).join('')}</select>${kind!=='free'?`<input class="pm-num" type="number" min="1" placeholder="N°" ${dis} value="${escapeHtml(String(p.num||''))}" oninput="propNum('${id}',this.value)">`:''}</div>`:'')
   +`<div class="ed-mini script" contenteditable="${ed}">${p.html}</div><div class="flex items-center gap-2 mt-3 text-xs flex-wrap"><button class="vote ${mine===1?'on':''}" onclick="vote('${id}',1)">👍 Oui ${y}</button><button class="vote ${mine===0?'on':''}" onclick="vote('${id}',0)">👎 Non ${n}</button></div>${canEdit()?`<button class="w-full mt-3 py-2 rounded-xl bg-[#5246EE] text-white text-xs font-semibold" onclick="resolveProp('${id}',true)">✓ Valider et ajouter au scénario</button>`:''}`;
   miniEditor(el,p);return el;
 }
 function renderSide(){
-  miniCur=null;
+  miniCur=null;if(!openNote)noteFull=false;
   const side=E('ed-side');if(!side||!docReady)return;side.innerHTML='';const items=[];
   if(openNote&&openNote.k==='b'){
     const d=doc.bubbles[openNote.id],sp=edPage().querySelector(`[data-bubble="${openNote.id}"]`);
@@ -1289,10 +1293,13 @@ function renderSide(){
   side.parentElement.classList.toggle('stack',E('ed-scroll').clientWidth<1140);
   items.forEach(it=>{it.el._top=it.top;side.appendChild(it.el);});
   layoutSide();
+  E('ed-scroll').style.overflow=(noteFull&&openNote)?'hidden':'';
 }
 function layoutSide(){   // empile les cartes sans qu'elles se chevauchent (rappelé quand une carte change de taille)
   const side=E('ed-side');if(!side)return;const wide=E('ed-scroll').clientWidth>=1140;let y=0;
+  const fr=E('ed-work').getBoundingClientRect();
   [...side.children].forEach(el=>{
+    if(el.classList.contains('ed-full')){Object.assign(el.style,{position:'fixed',left:fr.left+'px',top:fr.top+'px',width:fr.width+'px',height:fr.height+'px',right:'auto',marginBottom:''});return;}
     if(wide){const t=Math.max(el._top||0,y);Object.assign(el.style,{position:'absolute',left:0,right:0,top:t+'px',marginBottom:''});y=t+el.offsetHeight+8;}
     else Object.assign(el.style,{position:'',left:'',right:'',top:'',marginBottom:'.5rem'});
   });
