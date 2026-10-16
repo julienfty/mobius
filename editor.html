@@ -92,6 +92,15 @@
 .ed-page:not(.script) [data-i]{margin-left:calc(var(--i,0)*2rem)}
 .segbar{display:flex;background:#eef0f4;border-radius:10px;padding:2px;gap:2px}.dark .segbar{background:#1e293b}
 .segbar .seg{background:transparent;border-radius:8px}.segbar .seg:hover{background:rgba(0,0,0,.06)}.segbar .seg.on{background:#5246EE;color:#fff}.dark .segbar .seg:hover{background:rgba(255,255,255,.08)}</style>
+<style>
+.pm-row{display:flex;gap:.4rem;align-items:center;margin-bottom:.5rem;flex-wrap:wrap}
+.pm-sel{flex:1;min-width:0;padding:.3rem .5rem;border-radius:.6rem;border:1px solid #e2e8f0;background:transparent;font-size:.72rem;color:inherit;outline:none}.pm-sel:focus{border-color:#5246EE}.pm-sel option{color:#0f172a}
+.dark .pm-sel{border-color:#334155}.dark .pm-sel option{background:#0f172a;color:#e2e8f0}
+.pm-num{width:4rem;padding:.3rem .5rem;border-radius:.6rem;border:1px solid #e2e8f0;background:transparent;font-size:.72rem;outline:none}.dark .pm-num{border-color:#334155}
+.pm-seg{display:flex;border-radius:.6rem;background:#eef0f4;padding:2px;gap:2px;flex-shrink:0}.dark .pm-seg{background:#1e293b}
+.pm-seg button{padding:.25rem .55rem;font-size:.7rem;border-radius:.5rem;color:#64748b}.pm-seg button.on{background:#5246EE;color:#fff}
+.ed-prop .ed-mini{max-height:22rem;overflow-y:auto;min-height:5rem}
+</style>
 </head>
 <body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col antialiased selection:bg-[#5246EE] selection:text-white">
 
@@ -1136,7 +1145,12 @@ function indent(d){
 }
 function pickStyle(k){E('sty-menu').classList.add('hidden');restoreSel();setStyle(k);}
 function afterEdit(){
-  if(!canEdit())return;normalizeRoot(edPage());const b=curBlock();
+  if(!canEdit())return;
+  const sl=getSelection(),an=sl.rangeCount&&sl.anchorNode,ae=an&&(an.nodeType===1?an:an.parentElement),mini=ae&&ae.closest&&ae.closest('.ed-mini');
+  if(mini&&miniCur&&miniCur.m===mini){   // outils utilisés dans une bulle / une proposition : on ne touche pas à la page
+    normalizeRoot(mini);miniCur.obj.html=mini.innerHTML;miniCur.obj.dirty=true;recordHistory();scheduleSave();layoutSide();return;
+  }
+  normalizeRoot(edPage());const b=curBlock();
   if(b&&edPage().contains(b)){b.dataset.by=me();b.style.setProperty('--c',colorOf(me()));b.title='Écrit par '+me();}
   const seen=new Set();edPage().querySelectorAll('[data-s]').forEach(x=>{if(!x.dataset.id||seen.has(x.dataset.id))x.dataset.id=rid();seen.add(x.dataset.id);});
   recordHistory();scheduleSave();pageNo();renderSide();
@@ -1184,7 +1198,7 @@ function bindEditor(){
   });
   p.addEventListener('click',e=>{const sp=e.target.closest('[data-bubble]');if(sp){const open=openNote&&openNote.k==='b'&&openNote.id===sp.dataset.bubble;open?closeBubble():openBubble(sp.dataset.bubble);}});
   p.addEventListener('contextmenu',e=>{
-    if(!canEdit())return;e.preventDefault();
+    if(!canEdit())return;e.preventDefault();window.ctxBlock=e.target.closest?e.target.closest('[data-s]'):null;
     const m=E('ed-menu')||Object.assign(document.createElement('div'),{id:'ed-menu'});document.body.appendChild(m);
     const b=(t,fn)=>`<button class="tb" onmousedown="event.preventDefault()" onclick="${fn};E('ed-menu').style.display='none'">${t}</button>`;
     m.innerHTML=b('<b>G</b> Gras',"cmd('bold')")+b('<i>I</i> Italique',"cmd('italic')")+b('<u>S</u> Souligné',"cmd('underline')")+'<hr>'
@@ -1209,37 +1223,78 @@ function addBubble(){
 const openBubble=id=>{openNote={k:'b',id};renderSide();};
 const closeBubble=()=>{openNote=null;renderSide();};
 function delBubble(id){const sp=edPage().querySelector(`[data-bubble="${id}"]`);if(sp)sp.replaceWith(...sp.childNodes);delete doc.bubbles[id];openNote=null;afterEdit();}
+let miniCur=null;
 function miniEditor(el,obj){
-  const m=el.querySelector('.ed-mini');
-  m.addEventListener('input',()=>{obj.html=m.innerHTML;obj.editors=obj.editors||{};obj.editors[me()]=Date.now();recordHistory();scheduleSave();});
+  const m=el.querySelector('.ed-mini');miniCur={m,obj};
+  const sync=()=>{obj.html=m.innerHTML;obj.dirty=true;obj.editors=obj.editors||{};obj.editors[me()]=Date.now();};
+  m.addEventListener('input',()=>{normalizeRoot(m);sync();recordHistory();scheduleSave();layoutSide();});
+  if(!canEdit())return;
+  m.addEventListener('keydown',e=>{
+    if((e.ctrlKey||e.metaKey)&&!e.altKey){const k=e.key.toLowerCase();if(k==='z'){e.preventDefault();e.shiftKey?redoAction():undoAction();}else if(k==='y'){e.preventDefault();redoAction();}return;}
+    if(docType!=='script')return;
+    if(e.key==='Enter'&&!e.shiftKey){
+      const cur=curBlock(),prev=cur&&cur.dataset.s;
+      setTimeout(()=>{const n=curBlock();if(!n||n===cur||!m.contains(n))return;const nx={scene:'action',char:'dial',paren:'dial',dial:'char',act:'scene',desc:'action'}[prev];if(nx){n.dataset.s=nx;sync();}},0);
+    }else if(e.key==='Tab'){
+      e.preventDefault();const b=curBlock();
+      if(b&&m.contains(b)){const k=SCRIPT_STYLES.map(s=>s[0]),x=k.indexOf(b.dataset.s);b.dataset.s=k[(x+(e.shiftKey?k.length-1:1))%k.length];sync();syncTools();}
+    }
+  });
 }
 function bubbleCard(id,d){
   const el=document.createElement('div');el.className='ed-bub side-item';
   el.innerHTML=`<div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>💬 ${escapeHtml(d.by)}</span><span>${canEdit()?`<button onclick="delBubble('${id}')">🗑</button> `:''}<button onclick="closeBubble()">✕</button></span></div><div class="ed-mini ${docType==='script'?'script':''}" contenteditable="${canEdit()}">${d.html}</div>`;
   miniEditor(el,d);return el;
 }
+const q=id=>id?edPage().querySelector('[data-id="'+id+'"]'):null;
+const headerText=b=>(b.innerText||b.textContent||'').replace(/\u200b/g,'').trim();
+function sceneOf(b){let n=b;while(n){const s=n.dataset&&n.dataset.s;if(s==='scene')return n;if(s==='act')return null;n=n.previousElementSibling;}return null;}
+function sceneExtent(h){const out=[h];let n=h.nextElementSibling;while(n&&!(n.dataset&&(n.dataset.s==='scene'||n.dataset.s==='act'))){out.push(n);n=n.nextElementSibling;}return out;}
+const sceneHead=p=>q(p.scene)||sceneOf(q(p.after));
+const canDelProp=p=>myRole==='admin'||isOwner()||(p.uid?p.uid===currentUser.id:p.by===me());
+function sceneOptions(sel){
+  const hs=[...edPage().children].filter(e=>e.dataset.s==='scene');
+  const blank=sel?'':'<option value="" selected>(hors scène)</option>';
+  return blank+hs.map((h,i)=>`<option value="${h.dataset.id}" ${h.dataset.id===sel?'selected':''}>${i+1}. ${escapeHtml(headerText(h).slice(0,36)||'(sans titre)')}</option>`).join('');
+}
+function propInfo(p){
+  const mode=p.mode||'add',kind=p.kind||'free';
+  if(mode==='edit'){const h=sceneHead(p);return 'remplace « '+escapeHtml(h?headerText(h).slice(0,34):'?')+' »';}
+  if(kind==='free')return 'après « '+escapeHtml(p.excerpt||'le début')+' »';
+  return (kind==='act'?'nouvel acte':'nouvelle scène')+(p.num?' n°'+escapeHtml(String(p.num)):'');
+}
 function propCard(id,p,open){
-  const v=Object.values(p.votes),y=v.filter(x=>x===1).length,n=v.filter(x=>x===0).length,mine=p.votes[currentUser.id],el=document.createElement('div');
+  const v=Object.values(p.votes||{}),y=v.filter(x=>x===1).length,n=v.filter(x=>x===0).length,mine=(p.votes||{})[currentUser.id],el=document.createElement('div');
   el.className='side-item '+(open?'ed-prop':'');
   if(!open){el.innerHTML=`<button class="ed-chip" onclick="openNote={k:'p',id:'${id}'};renderSide()">💡 ${escapeHtml(p.by)} · 👍 ${y} 👎 ${n}</button>`;return el;}
-  el.innerHTML=`<div class="flex justify-between text-[10px] text-slate-400 mb-2"><span>💡 ${escapeHtml(p.by)} · après « ${escapeHtml(p.excerpt||'le début')} »</span><button onclick="closeBubble()">✕</button></div><div class="ed-mini script" contenteditable="${canEdit()}">${p.html}</div><div class="flex items-center gap-2 mt-3 text-xs flex-wrap"><button class="vote ${mine===1?'on':''}" onclick="vote('${id}',1)">👍 Oui ${y}</button><button class="vote ${mine===0?'on':''}" onclick="vote('${id}',0)">👎 Non ${n}</button>${myRole==='admin'?`<span class="flex-1"></span><button class="vote" onclick="resolveProp('${id}',true)">✓ Accepter</button><button class="vote" onclick="resolveProp('${id}',false)">✕ Refuser</button>`:''}</div>`;
+  const mode=p.mode||'add',kind=p.kind||'free',ed=canEdit(),dis=ed?'':'disabled',sh=sceneHead(p),sel=sh?sh.dataset.id:'';
+  el.innerHTML=`<div class="flex justify-between items-center text-[10px] text-slate-400 mb-2"><span>💡 ${escapeHtml(p.by)} · ${propInfo(p)}</span><span class="flex gap-2">${canDelProp(p)?`<button title="Supprimer la proposition" onclick="delProp('${id}')">🗑</button>`:''}<button onclick="closeBubble()">✕</button></span></div>`
+  +`<div class="pm-row"><select class="pm-sel" title="Scène concernée" ${dis} onchange="propPickScene('${id}',this.value)">${sceneOptions(sel)}</select><div class="pm-seg"><button class="${mode==='edit'?'on':''}" ${dis} onclick="propMode('${id}','edit')">Modifier</button><button class="${mode==='add'?'on':''}" ${dis} onclick="propMode('${id}','add')">Ajouter</button></div></div>`
+  +(mode==='add'?`<div class="pm-row"><select class="pm-sel" ${dis} onchange="propKind('${id}',this.value)">${[['free','Bloc libre (au clic)'],['act','Un acte'],['scene','Une en-tête de scène']].map(([k,l])=>`<option value="${k}" ${k===kind?'selected':''}>${l}</option>`).join('')}</select>${kind!=='free'?`<input class="pm-num" type="number" min="1" placeholder="N°" ${dis} value="${escapeHtml(String(p.num||''))}" oninput="propNum('${id}',this.value)">`:''}</div>`:'')
+  +`<div class="ed-mini script" contenteditable="${ed}">${p.html}</div><div class="flex items-center gap-2 mt-3 text-xs flex-wrap"><button class="vote ${mine===1?'on':''}" onclick="vote('${id}',1)">👍 Oui ${y}</button><button class="vote ${mine===0?'on':''}" onclick="vote('${id}',0)">👎 Non ${n}</button>${myRole==='admin'?`<span class="flex-1"></span><button class="vote" onclick="resolveProp('${id}',true)">✓ Valider</button>`:''}</div>`;
   miniEditor(el,p);return el;
 }
 function renderSide(){
+  miniCur=null;
   const side=E('ed-side');if(!side||!docReady)return;side.innerHTML='';const items=[];
   if(openNote&&openNote.k==='b'){
     const d=doc.bubbles[openNote.id],sp=edPage().querySelector(`[data-bubble="${openNote.id}"]`);
     if(d&&sp)items.push({top:sp.offsetTop,el:bubbleCard(openNote.id,d)});else openNote=null;
   }
   if(docType==='script')Object.entries(doc.proposals||{}).forEach(([id,p])=>{
-    const a=p.after&&edPage().querySelector(`[data-id="${p.after}"]`);
+    const a=(p.mode==='edit')?sceneHead(p):q(p.after);
     items.push({top:a?a.offsetTop:Math.max(0,edPage().scrollHeight-80),el:propCard(id,p,openNote&&openNote.k==='p'&&openNote.id===id)});
   });
-  items.sort((a,b)=>a.top-b.top);const wide=E('ed-scroll').clientWidth>=1140;side.parentElement.classList.toggle('stack',!wide);let y=0;
-  items.forEach(it=>{
-    side.appendChild(it.el);
-    if(wide){const t=Math.max(it.top,y);Object.assign(it.el.style,{position:'absolute',left:0,right:0,top:t+'px'});y=t+it.el.offsetHeight+8;}
-    else it.el.style.marginBottom='.5rem';
+  items.sort((a,b)=>a.top-b.top);
+  side.parentElement.classList.toggle('stack',E('ed-scroll').clientWidth<1140);
+  items.forEach(it=>{it.el._top=it.top;side.appendChild(it.el);});
+  layoutSide();
+}
+function layoutSide(){   // empile les cartes sans qu'elles se chevauchent (rappelé quand une carte change de taille)
+  const side=E('ed-side');if(!side)return;const wide=E('ed-scroll').clientWidth>=1140;let y=0;
+  [...side.children].forEach(el=>{
+    if(wide){const t=Math.max(el._top||0,y);Object.assign(el.style,{position:'absolute',left:0,right:0,top:t+'px',marginBottom:''});y=t+el.offsetHeight+8;}
+    else Object.assign(el.style,{position:'',left:'',right:'',top:'',marginBottom:'.5rem'});
   });
 }
 
@@ -1251,21 +1306,92 @@ function toggleAuthors(){
 }
 
 /* --- Propositions (scénario) + sondage --- */
+const kindStyle=k=>k==='act'?'act':k==='scene'?'scene':'action';
 function propose(){
   if(!getCollabs().length){showToast('Les propositions sont réservées aux projets collaboratifs.');return;}
-  const b=curBlock(),id=rid();
-  doc.proposals[id]={after:b?b.dataset.id:null,excerpt:b?b.innerText.slice(0,50):'',html:blk('action'),by:me(),at:Date.now(),votes:{}};
+  let b=window.ctxBlock&&edPage().contains(window.ctxBlock)?window.ctxBlock:null;window.ctxBlock=null;
+  b=b||curBlock();if(b&&!edPage().contains(b))b=null;
+  const id=rid(),sc=sceneOf(b);
+  doc.proposals[id]={mode:'add',kind:'free',num:'',scene:sc?sc.dataset.id:null,after:b?b.dataset.id:null,excerpt:b?headerText(b).slice(0,50):'',html:blk('action'),by:me(),uid:currentUser.id,at:Date.now(),votes:{}};
   openNote={k:'p',id};renderSide();recordHistory();scheduleSave();
 }
 function vote(id,val){const p=doc.proposals[id];if(!p)return;if(p.votes[currentUser.id]===val)delete p.votes[currentUser.id];else p.votes[currentUser.id]=val;renderSide();scheduleSave();}
+const propChanged=()=>{recordHistory();scheduleSave();renderSide();};
+function loadScene(p){   // recopie toute la scène dans la proposition
+  const h=q(p.scene);if(!h)return false;
+  p.html=sceneExtent(h).map(n=>{const c=n.cloneNode(true);['data-id','data-by','title'].forEach(a=>c.removeAttribute(a));c.style.removeProperty('--c');return c.outerHTML;}).join('');
+  p.dirty=false;return true;
+}
+function propPickScene(id,val){
+  const p=doc.proposals[id];if(!p||!requireEdit())return;
+  if(p.mode==='edit'){
+    if(!val){showToast('Choisis la scène à modifier.');renderSide();return;}
+    if(p.dirty&&!confirm('Remplacer le texte de la proposition par la scène choisie ?')){renderSide();return;}
+    p.scene=val;loadScene(p);
+  }else{
+    p.scene=val||null;const h=q(val);
+    if(h){const ext=sceneExtent(h),last=ext[ext.length-1];p.after=last.dataset.id;p.excerpt=headerText(last).slice(0,50);}
+  }
+  propChanged();
+}
+function propMode(id,m){
+  const p=doc.proposals[id];if(!p||!requireEdit()||(p.mode||'add')===m)return;
+  if(p.dirty&&!confirm('Changer de mode remplace le texte de la proposition. Continuer ?'))return;
+  if(m==='edit'){
+    if(!sceneHead(p)){showToast("Choisis d'abord une scène dans le menu.");return;}
+    p.scene=sceneHead(p).dataset.id;p.mode='edit';loadScene(p);
+  }else{p.mode='add';p.html=blk(kindStyle(p.kind||'free'));p.dirty=false;}
+  propChanged();
+}
+function propKind(id,k){
+  const p=doc.proposals[id];if(!p||!requireEdit())return;const prev=p.kind||'free';p.kind=k;
+  if(k!=='free'||prev!=='free'){
+    const t=document.createElement('div');t.innerHTML=p.html;let f=t.firstElementChild;
+    if(!f){t.innerHTML=blk('action');f=t.firstElementChild;}
+    f.dataset.s=kindStyle(k);p.html=t.innerHTML;
+  }
+  propChanged();
+}
+function propNum(id,v){const p=doc.proposals[id];if(!p)return;p.num=v;scheduleSave();}
+function delProp(id){
+  const p=doc.proposals[id];if(!p)return;
+  if(!canDelProp(p)){showToast("Seuls l'auteur, un admin ou le propriétaire peuvent supprimer cette proposition.");return;}
+  if(!confirm('Supprimer cette proposition ?'))return;
+  delete doc.proposals[id];openNote=null;propChanged();
+}
+// Place des blocs selon le numéro d'un acte / d'une scène (numéro écrit en tête de l'en-tête, sinon ordre d'apparition)
+const headNum=(h,i)=>{const m=headerText(h).match(/^(?:(?:sc[èe]ne|acte?|act)\s*)?(\d+)/i);return m?+m[1]:i+1;};
+function placeByNumber(nodes,kind,num){
+  const heads=[...edPage().children].filter(e=>e.dataset.s===kind);
+  const nxt=heads.find((h,i)=>headNum(h,i)>=num);
+  if(nxt){nxt.before(...nodes);return;}
+  if(kind==='act'||!heads.length){edPage().append(...nodes);return;}
+  const ext=sceneExtent(heads[heads.length-1]);ext[ext.length-1].after(...nodes);   // dernière scène : on s'ajoute à sa suite
+}
+function commitDoc(){
+  normalizeRoot(edPage());const seen=new Set();
+  edPage().querySelectorAll('[data-s]').forEach(x=>{if(!x.dataset.id||seen.has(x.dataset.id))x.dataset.id=rid();seen.add(x.dataset.id);});
+  recordHistory();scheduleSave();pageNo();renderSide();
+}
 function resolveProp(id,ok){
   const p=doc.proposals[id];if(!p||myRole!=='admin')return;
-  if(ok){
-    const t=document.createElement('div');t.innerHTML=p.html;
-    const nodes=[...t.children].map(n=>{if(!n.dataset.s)n.dataset.s='action';n.dataset.id=rid();n.dataset.by=p.by;n.style.setProperty('--c',colorOf(p.by));return n;});
-    const a=p.after&&edPage().querySelector(`[data-id="${p.after}"]`);a?a.after(...nodes):edPage().append(...nodes);
-  }
-  delete doc.proposals[id];openNote=null;afterEdit();showToast(ok?'Proposition ajoutée au scénario.':'Proposition refusée.');
+  if(miniCur&&miniCur.obj===p&&miniCur.m.isConnected)p.html=miniCur.m.innerHTML;
+  const t=document.createElement('div');t.innerHTML=p.html;normalizeRoot(t);
+  if(!t.textContent.replace(/\u200b/g,'').trim()){showToast('La proposition est vide.');return;}
+  const nodes=[...t.children].map(n=>{if(!n.dataset.s)n.dataset.s='action';n.dataset.id=rid();n.dataset.by=p.by;n.style.setProperty('--c',colorOf(p.by));return n;});
+  const mode=p.mode||'add',kind=p.kind||'free';
+  if(mode==='edit'){
+    const h=sceneHead(p);if(!h){showToast("La scène d'origine n'existe plus : choisis-en une autre.");return;}
+    if(!confirm('Remplacer la scène « '+headerText(h).slice(0,40)+' » par cette version ?'))return;
+    const ext=sceneExtent(h);ext[0].before(...nodes);ext.forEach(n=>n.remove());
+  }else if(kind!=='free'){
+    const num=parseInt(p.num);if(!(num>0)){showToast("Indique le numéro "+(kind==='act'?"de l'acte":"de la scène")+" pour le placer.");return;}
+    placeByNumber(nodes,kind,num);
+  }else{const a=q(p.after);a?a.after(...nodes):edPage().append(...nodes);}
+  getSelection().removeAllRanges();miniCur=null;
+  delete doc.proposals[id];openNote=null;commitDoc();
+  nodes[0].scrollIntoView({block:'center',behavior:'smooth'});
+  showToast(mode==='edit'?'Scène modifiée.':'Proposition ajoutée au scénario.');
 }
 
 /* --- Export .mobtext / .mobscen (JSON : lisible, versionné, bulles et propositions rattachées par id) --- */
