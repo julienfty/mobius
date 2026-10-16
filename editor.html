@@ -282,6 +282,7 @@
             if (error) ({ error } = await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId));
             lastTreeSave = Date.now();
             if (error) { console.error(error); showToast("Erreur d'enregistrement."); return false; }
+            flushEdit();   // fichier enregistré après des modifications : on prévient les autres membres
             return true;
         }
 
@@ -1315,15 +1316,15 @@ function toggleAuthors(){
 }
 
 /* --- Activité : prévient les autres membres (notifications du dashboard) --- */
-const IDLE_MS=5*60*1000;   // inactivité avant d'annoncer « x a modifié … »
-let actDirty=false,actTimer=null;
+let actDirty=false,lastNotif=0;   // actDirty : modifications pas encore annoncées
 const hasOthers=()=>getCollabs().length>0||(getOwnerId()&&getOwnerId()!==currentUser.id);
 function notifyActivity(kind,anchor){
   if(!projectId||!currentCard||!hasOthers())return;
+  if(kind==='edit'){const t=Date.now();if(t-lastNotif<10000)return;lastNotif=t;}   // au plus une par 10 s ; le dashboard fusionne de toute façon par fichier
   try{supabaseClient.rpc('notify_collaborators',{p_table:'projects',p_id:String(projectId),p_kind:kind,p_file_id:String(currentCard.id),p_file_name:currentCard.name||'',p_file_type:docType||'text',p_anchor:anchor||null}).then(()=>{},()=>{});}catch(e){}
 }
-function markEdited(){if(!canEdit())return;actDirty=true;clearTimeout(actTimer);actTimer=setTimeout(flushEdit,IDLE_MS);}
-function flushEdit(){clearTimeout(actTimer);if(!actDirty)return;actDirty=false;notifyActivity('edit');}
+function markEdited(){if(canEdit())actDirty=true;}
+function flushEdit(){if(!actDirty)return;actDirty=false;notifyActivity('edit');}
 document.addEventListener('visibilitychange',()=>{if(document.hidden)flushEdit();});
 addEventListener('pagehide',flushEdit);
 // lien direct depuis une notification : editor.html?...&focus=prop:ID ou bub:ID
@@ -1450,33 +1451,39 @@ function renderCollaboratorsList(){
   E('collab-count-label').textContent=`Collaborateurs (${collabs.length+1})`;
   E('collab-add-section').classList.toggle('hidden',!admin);
   const ao=document.querySelector('#new-collab-role option[value="admin"]');
-  if(ao){ao.hidden=ao.disabled=!isOwner();if(!isOwner()&&ao.parentNode.value==='admin')ao.parentNode.value='editor';}
+  if(ao){ao.textContent=isOwner()?'Admin':'Admin (à confirmer)';}
   listEl.innerHTML=`<div class="flex items-center justify-between gap-2 text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded-lg"><span class="font-medium text-slate-700 dark:text-slate-300 truncate">${escapeHtml(currentUser.email)} (vous)</span><span class="text-[10px] font-semibold text-[#5246EE] shrink-0">${isOwner()?'Propriétaire':ROLE_LABELS[myRole]}</span></div>`;
   collabs.forEach((c,idx)=>{
     const acc=c.status==='accepted',manage=canManageCollab(c);
-    const roleCtl=manage?`<select onchange="setCollaboratorRole(${idx},this.value)" class="px-1.5 py-1 text-[10px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none">${Object.entries(ROLE_LABELS).filter(([k])=>isOwner()||k!=='admin').map(([k,l])=>`<option value="${k}" ${c.role===k?'selected':''}>${l}</option>`).join('')}</select>`:`<span class="text-[10px] font-semibold text-slate-500">${ROLE_LABELS[c.role]||c.role}</span>`;
+    const roleCtl=manage?`<select onchange="setCollaboratorRole(${idx},this.value)" class="px-1.5 py-1 text-[10px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none">${Object.entries(ROLE_LABELS).map(([k,l])=>`<option value="${k}" ${c.role===k?'selected':''}>${k==='admin'&&!isOwner()?'Admin (à confirmer)':l}</option>`).join('')}</select>`:`<span class="text-[10px] font-semibold text-slate-500">${ROLE_LABELS[c.role]||c.role}</span>`;
     const row=document.createElement('div');row.className='flex items-center justify-between gap-2 text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded-lg';
     row.innerHTML=`<div class="min-w-0"><div class="truncate text-slate-700 dark:text-slate-300">${escapeHtml(c.email)}</div><div class="text-[10px] ${acc?'text-emerald-500':'text-amber-500'}">${acc?'Accepté':'Invitation envoyée'}</div></div><div class="flex items-center gap-1 shrink-0">${roleCtl}${manage?`<button onclick="removeCollaborator(${idx})" class="text-rose-500 hover:text-rose-700 p-1" title="Retirer"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>`:''}</div>`;
     listEl.appendChild(row);
   });
   lucide.createIcons();
 }
+async function requestAdmin(email){
+  const{error}=await supabaseClient.rpc('request_admin_role',{p_table:'projects',p_id:String(projectId),p_email:email});
+  showToast(error?"Demande impossible : "+error.message:"Demande envoyée au propriétaire pour nommer "+email+" admin.");
+}
 async function addCollaborator(){
   if(!requireAdmin())return;const input=E('new-collab-email'),email=input.value.trim().toLowerCase();
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){showToast("Adresse e-mail invalide.");return;}
   if(email===myEmail()){showToast("Vous ne pouvez pas vous inviter vous-même.");return;}
-  const role=E('new-collab-role').value,collabs=getCollabs();
+  let role=E('new-collab-role').value,wantAdmin=false;const collabs=getCollabs();
   if(email===ownerEmail()){showToast("Le propriétaire ne peut pas être invité.");return;}
-  if(role==='admin'&&!isOwner()){showToast("Seul le propriétaire peut nommer un admin.");return;}
+  if(role==='admin'&&!isOwner()){wantAdmin=true;role='editor';}
   const ex=collabs.find(c=>(c.email||'').toLowerCase()===email);
   if(ex&&!canManageCollab(ex)){showToast("Vous ne pouvez pas modifier ce collaborateur.");return;}
   if(ex){Object.assign(ex,{role,status:'pending',invitedBy:currentUser.email,invitedAt:new Date().toISOString()});delete ex.acceptedAt;}
   else collabs.push({email,role,status:'pending',invitedBy:currentUser.email,invitedAt:new Date().toISOString()});
   await saveCurrentMapState(true);renderCollaboratorsList();input.value='';showToast("Invitation envoyée !");
+  if(wantAdmin)await requestAdmin(email);
 }
 window.setCollaboratorRole=async function(idx,role){
   if(!requireAdmin())return;const t=getCollabs()[idx];
-  if(!t||!canManageCollab(t)||(role==='admin'&&!isOwner())){showToast("Seul le propriétaire peut modifier le rôle d'un admin ou nommer un admin.");renderCollaboratorsList();return;}
+  if(!t||!canManageCollab(t)){showToast("Seul le propriétaire peut modifier le rôle d'un admin.");renderCollaboratorsList();return;}
+  if(role==='admin'&&!isOwner()){await requestAdmin(t.email);renderCollaboratorsList();return;}
   t.role=role;await saveCurrentMapState(true);renderCollaboratorsList();showToast("Rôle mis à jour.");
 };
 async function removeCollaborator(idx){
