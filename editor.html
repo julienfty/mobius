@@ -406,6 +406,7 @@
             setupTreeSidebarVisibility();
             renderBreadcrumb();
             initEditor();
+            focusFromUrl();
 
             window.addEventListener('resize', () => {
                 applyTreeSidebarState();
@@ -933,7 +934,7 @@ const colorOf=n=>{let h=0;for(const c of n)h=(h*31+c.charCodeAt(0))%360;return `
 const blk=(s,h)=>`<div data-s="${s}" data-id="${rid()}">${h||'<br>'}</div>`;
 function show(id){['ed-choose','ed-title','ed-work'].forEach(x=>E(x).style.display=x===id?'flex':'none');}
 function curBlock(){const n=getRange().startContainer,el=n.nodeType===1?n:n.parentElement;let b=el&&el.closest('[data-s]');if(!b&&el&&el.closest&&el.closest('#ed-page')){normalizeRoot(edPage());b=el.closest('[data-s]');}return b;}
-function scheduleSave(){if(!canEdit())return;clearTimeout(saveTimer);saveTimer=setTimeout(()=>{saveTimer=null;saveCurrentMapState();},1000);}
+function scheduleSave(){if(!canEdit())return;markEdited();clearTimeout(saveTimer);saveTimer=setTimeout(()=>{saveTimer=null;saveCurrentMapState();},1000);}
 function syncDoc(){if(!docReady)return;doc.html=edPage().innerHTML;currentCard.doc=doc;currentCard.docType=docType;currentCard.content=edPage().innerText.replace(/\u200b/g,'');}
 
 /* --- Fountain : conserve la mise en page du fichier d'origine (stocké en .txt) --- */
@@ -1223,6 +1224,7 @@ function addBubble(){
   const sp=document.createElement('span');sp.dataset.bubble=id;sp.appendChild(r.extractContents());r.insertNode(sp);
   doc.bubbles[id]={html:blk(docType==='script'?'action':'body'),by:me(),at:Date.now()};
   s.removeAllRanges();openNote={k:'b',id};afterEdit();
+  notifyActivity('bubble','bub:'+id);
 }
 const openBubble=id=>{openNote={k:'b',id};renderSide();};
 const closeBubble=()=>{openNote=null;noteFull=false;renderSide();};
@@ -1312,15 +1314,40 @@ function toggleAuthors(){
   E('ed-legend').innerHTML=p.classList.contains('show-by')?[...names].map(n=>`<span><i style="background:${colorOf(n)}" class="inline-block w-2 h-2 rounded-full"></i> ${escapeHtml(n)}</span>`).join(''):'';
 }
 
+/* --- Activité : prévient les autres membres (notifications du dashboard) --- */
+const IDLE_MS=5*60*1000;   // inactivité avant d'annoncer « x a modifié … »
+let actDirty=false,actTimer=null;
+const hasOthers=()=>getCollabs().length>0||(getOwnerId()&&getOwnerId()!==currentUser.id);
+function notifyActivity(kind,anchor){
+  if(!projectId||!currentCard||!hasOthers())return;
+  try{supabaseClient.rpc('notify_collaborators',{p_table:'projects',p_id:String(projectId),p_kind:kind,p_file_id:String(currentCard.id),p_file_name:currentCard.name||'',p_file_type:docType||'text',p_anchor:anchor||null}).then(()=>{},()=>{});}catch(e){}
+}
+function markEdited(){if(!canEdit())return;actDirty=true;clearTimeout(actTimer);actTimer=setTimeout(flushEdit,IDLE_MS);}
+function flushEdit(){clearTimeout(actTimer);if(!actDirty)return;actDirty=false;notifyActivity('edit');}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)flushEdit();});
+addEventListener('pagehide',flushEdit);
+// lien direct depuis une notification : editor.html?...&focus=prop:ID ou bub:ID
+function focusFromUrl(){
+  const u=new URL(location.href),f=u.searchParams.get('focus');if(!f||!docReady)return;
+  const k=f.slice(0,f.indexOf(':')),id=f.slice(f.indexOf(':')+1);let target=null;
+  if(k==='prop'&&doc.proposals&&doc.proposals[id]){const p=doc.proposals[id];openNote={k:'p',id};target=(p.mode==='edit'?sceneHead(p):q(p.after))||edPage().lastElementChild;}
+  else if(k==='bub'&&doc.bubbles&&doc.bubbles[id]){openNote={k:'b',id};target=edPage().querySelector(`[data-bubble="${id}"]`);}
+  else showToast("Cet élément n'existe plus.");
+  u.searchParams.delete('focus');history.replaceState(null,'',u);
+  if(!target)return;
+  renderSide();setTimeout(()=>target.scrollIntoView({block:'center',behavior:'smooth'}),150);
+}
+
 /* --- Propositions (scénario) + sondage --- */
 const kindStyle=k=>k==='act'?'act':k==='scene'?'scene':'action';
 function propose(){
   if(!getCollabs().length){showToast('Les propositions sont réservées aux projets collaboratifs.');return;}
   let b=window.ctxBlock&&edPage().contains(window.ctxBlock)?window.ctxBlock:null;window.ctxBlock=null;
   b=b||curBlock();if(b&&!edPage().contains(b))b=null;
-  const id=rid(),sc=sceneOf(b);
+  const id=rid(),sc=sceneOf(b),wasDirty=actDirty;
   doc.proposals[id]={mode:'add',kind:'free',num:'',scene:sc?sc.dataset.id:null,after:b?b.dataset.id:null,excerpt:b?headerText(b).slice(0,50):'',html:blk('action'),by:me(),uid:currentUser.id,at:Date.now(),votes:{}};
   openNote={k:'p',id};renderSide();recordHistory();scheduleSave();
+  notifyActivity('proposal','prop:'+id);actDirty=wasDirty;
 }
 function vote(id,val){const p=doc.proposals[id];if(!p)return;if(p.votes[currentUser.id]===val)delete p.votes[currentUser.id];else p.votes[currentUser.id]=val;renderSide();scheduleSave();}
 const propChanged=()=>{recordHistory();scheduleSave();renderSide();};
