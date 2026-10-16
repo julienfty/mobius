@@ -70,6 +70,21 @@
 #ed-menu{position:fixed;z-index:60;width:13rem;padding:.4rem;font-size:.75rem}#ed-menu .tb{width:100%}#ed-menu hr{margin:.3rem 0;border-color:#e2e8f0}
 .vote{padding:.3rem .6rem;border-radius:.6rem;border:1px solid #e2e8f0}.vote.on{background:#5246EE;color:#fff;border-color:#5246EE}
 </style>
+    <style>.ed-row{display:flex;gap:1.25rem;align-items:stretch}.ed-row .ed-page{flex:1;min-width:0;position:relative}.ed-side{width:18rem;position:relative;flex-shrink:0}
+@media(max-width:1023px){.ed-row{flex-direction:column}.ed-side{width:100%}}
+.ed-fab{display:flex}@media(min-width:768px) and (orientation:landscape){.ed-fab{display:none}}
+@media not all and (min-width:768px) and (orientation:landscape){#ed-scroll{padding-top:3.75rem!important}}
+.ed-tools{gap:.5rem;width:12.5rem;background:#fbfbfd}.dark .ed-tools{background:#0b1120}
+.sec{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;margin-top:.6rem}
+.seg{flex:1;height:30px;border-radius:8px;background:#eef0f4;color:#475569;font-size:12px;transition:.12s}.seg:hover{background:#e2e5ec}.seg.on{background:#5246EE;color:#fff}.dark .seg{background:#1e293b;color:#cbd5e1}.dark .seg.on{background:#5246EE;color:#fff}
+.dd{width:100%;display:flex;justify-content:space-between;align-items:center;padding:.45rem .7rem;border-radius:.6rem;background:#eef0f4;font-size:.78rem}.dark .dd{background:#1e293b}
+.dd-menu{position:absolute;left:0;right:0;top:110%;z-index:5;background:#fff;border:1px solid #e2e8f0;border-radius:.75rem;box-shadow:0 10px 30px rgba(0,0,0,.15);padding:.25rem}.dark .dd-menu{background:#0f172a;border-color:#334155}
+.dd-menu button{display:flex;width:100%;justify-content:space-between;align-items:center;padding:.4rem .6rem;font-size:.78rem;border-radius:.5rem;text-align:left}.dd-menu button:hover{background:#eef0f4}.dark .dd-menu button:hover{background:#1e293b}
+.stepper{display:flex;flex-direction:column;align-items:center;width:3.4rem;border-radius:.75rem;background:#eef0f4;padding:.15rem}.dark .stepper{background:#1e293b}
+.stepper button{height:24px;width:100%;font-size:10px;color:#64748b}.stepper button:hover{color:#5246EE}
+.stepper input{width:100%;text-align:center;background:transparent;font-size:.85rem;font-weight:600;outline:none;-moz-appearance:textfield}.stepper input::-webkit-inner-spin-button{display:none}
+.ed-chip{font-size:.72rem;padding:.35rem .7rem;border-radius:999px;border:1px dashed #5246EE;background:#fff;color:#5246EE}.dark .ed-chip{background:#0f172a}
+</style>
 </head>
 <body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col antialiased selection:bg-[#5246EE] selection:text-white">
 
@@ -87,7 +102,28 @@
         <div class="flex items-center gap-2 shrink-0">
             <span id="role-badge" class="hidden sm:inline-flex px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500"></span>
             <button id="ed-authors-btn" onclick="toggleAuthors()" title="Voir qui a écrit quoi" class="hdrbtn hidden"><i class="fa-solid fa-user-pen"></i></button>
-            <button id="ed-collab-btn" onclick="openCollab()" title="Collaborateurs" class="hdrbtn hidden"><i class="fa-solid fa-user-plus"></i></button>
+            <div class="relative">
+                <button onclick="toggleCollaboratorsDropdown()" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition">
+                    <i data-lucide="users" class="w-3.5 h-3.5 text-[#5246EE]"></i>
+                    <span id="collab-count-label" class="hidden sm:inline">Collaborateurs (1)</span>
+                    <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                </button>
+                <div id="collab-dropdown" class="hidden absolute right-0 mt-2 w-[24rem] max-w-[92vw] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-50">
+                    <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Gestion des collaborateurs</h4>
+                    <div id="collaborators-list" class="space-y-2 max-h-56 overflow-y-auto mb-3"></div>
+                    <div id="collab-add-section" class="pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <div class="flex space-x-2">
+                            <input type="email" id="new-collab-email" placeholder="email@membre.com" class="flex-1 min-w-0 px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#5246EE]">
+                            <select id="new-collab-role" class="px-2 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none">
+                                <option value="viewer">Observateur</option>
+                                <option value="editor" selected>Peut modifier</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                            <button onclick="addCollaborator()" class="px-3 py-1.5 bg-[#5246EE] hover:bg-[#4538d8] text-white text-xs font-medium rounded-lg">Ajouter</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <button id="ed-export-btn" onclick="exportDoc()" title="Exporter (.mobtext / .mobscen)" class="hdrbtn hidden"><i class="fa-solid fa-file-export"></i></button>
             <button onclick="toggleDarkMode()" class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
                 <i class="fa-solid fa-moon dark:hidden"></i>
@@ -139,12 +175,15 @@
       <button onclick="submitTitle()" class="w-full bg-[#5246EE] text-white rounded-xl py-2.5 text-xs font-semibold">Commencer à écrire</button>
     </div>
   </div>
-  <div id="ed-work" style="display:none" class="flex-1 min-w-0 overflow-hidden">
+  <div id="ed-work" style="display:none" class="flex-1 min-w-0 overflow-hidden relative">
+    <div id="ed-fab" class="ed-fab absolute top-3 left-3 z-[45] items-center gap-2">
+      <button id="fab-undo" onclick="undoAction()" title="Retour arrière" aria-label="Retour arrière" class="flex items-center justify-center px-3 py-2 rounded-2xl text-xs font-semibold shadow-lg border bg-white/95 dark:bg-slate-900/95 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 backdrop-blur-md transition-all"><i data-lucide="undo-2" class="w-4 h-4"></i></button>
+      <button id="fab-redo" onclick="redoAction()" title="Retour avant" aria-label="Retour avant" class="flex items-center justify-center px-3 py-2 rounded-2xl text-xs font-semibold shadow-lg border bg-white/95 dark:bg-slate-900/95 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 backdrop-blur-md transition-all"><i data-lucide="redo-2" class="w-4 h-4"></i></button>
+    </div>
     <div id="ed-scroll" class="flex-1 min-w-0 overflow-y-auto p-4 sm:p-8" onscroll="pageNo()">
-      <div class="max-w-3xl mx-auto">
+      <div class="max-w-6xl mx-auto">
         <div class="flex justify-between text-[11px] text-slate-400 mb-2"><span id="ed-pageno"></span><span id="ed-legend" class="flex gap-2"></span></div>
-        <div id="ed-page" class="ed-page" contenteditable="true" spellcheck="false"></div>
-        <div id="ed-props" class="mt-8 space-y-3"></div>
+        <div class="ed-row"><div id="ed-page" class="ed-page" contenteditable="true" spellcheck="false"></div><div id="ed-side" class="ed-side"></div></div>
       </div>
     </div>
     <aside id="ed-tools" class="ed-tools"></aside>
@@ -216,12 +255,13 @@
             return true;
         }
 
-        async function saveCurrentMapState() {
-            if (!canEdit()) return false;
+        async function saveCurrentMapState(force = false) {
+            if (!force && !canEdit()) return false;
             clearTimeout(saveTimer); saveTimer = null;
             updateCardInTree(projectData.tree, currentCard);
             lastTreeSave = Date.now();
-            const { error } = await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId);
+            let { error } = await supabaseClient.from('projects').update({ tree: projectData.tree, collaborators: projectData.collaborators || [] }).eq('id', projectId);
+            if (error) ({ error } = await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId));
             lastTreeSave = Date.now();
             if (error) { console.error(error); showToast("Erreur d'enregistrement."); return false; }
             return true;
@@ -905,6 +945,7 @@ function parseFountain(t){
 /* --- Démarrage : contenu existant ? type déjà choisi ? --- */
 function initEditor(){
   document.execCommand('defaultParagraphSeparator',false,'div');
+  renderCollaboratorsList();
   doc=currentCard.doc||null;docType=currentCard.docType||null;
   const txt=currentCard.content||'';
   if(!docType){
@@ -932,53 +973,100 @@ function openDoc(){
   const p=edPage();p.innerHTML=doc.html||blk(docType==='script'?'action':'body');
   p.classList.toggle('script',docType==='script');p.contentEditable=canEdit();
   E('ed-tools').style.visibility=canEdit()?'':'hidden';
-  buildTools();renderProps();pageNo();bindEditor();
+  hist={u:[],r:[],base:snap(),t:0};buildTools();renderSide();pageNo();bindEditor();updHist();
   ['ed-export-btn','ed-authors-btn'].forEach(id=>E(id).classList.remove('hidden'));
-  E('ed-collab-btn').classList.toggle('hidden',myRole!=='admin');
+  E('ed-fab').style.visibility=canEdit()?'':'hidden';
   lucide.createIcons();
 }
 
-/* --- Outils de mise en forme --- */
+/* --- Outils de mise en forme (style « Pages ») --- */
+let lastSel=null,hist={u:[],r:[],base:null,t:0};
+const selRoot=r=>{const n=r.commonAncestorContainer,el=n.nodeType===1?n:n.parentElement;return el&&el.closest&&el.closest('[contenteditable=true]');};
+document.addEventListener('selectionchange',()=>{const s=getSelection();if(!s.rangeCount)return;const r=s.getRangeAt(0);if(selRoot(r)){lastSel=r.cloneRange();syncTools();}});
+function restoreSel(){
+  if(!lastSel||!document.contains(lastSel.commonAncestorContainer))return false;
+  const root=selRoot(lastSel);if(root&&document.activeElement!==root)root.focus({preventScroll:true});
+  const s=getSelection();s.removeAllRanges();s.addRange(lastSel);return true;
+}
 function buildTools(){
-  const b=(ic,t,fn)=>`<button class="tb" onmousedown="event.preventDefault()" onclick="${fn}"><i class="fa-solid ${ic} w-4"></i>${t}</button>`;
-  E('ed-tools').innerHTML=`<div class="text-[10px] font-bold uppercase text-slate-400 px-1">Format</div>`
-   +b('fa-bold','Gras',"cmd('bold')")+b('fa-italic','Italique',"cmd('italic')")+b('fa-underline','Souligné',"cmd('underline')")
-   +(docType==='text'?b('fa-highlighter','Surligner',"hilite()")+b('fa-text-height','Agrandir',"sizeBump(2)")+b('fa-text-height fa-flip-vertical','Réduire',"sizeBump(-2)")+b('fa-comment-dots','Ajouter une bulle',"addBubble()"):'')
-   +`<div class="text-[10px] font-bold uppercase text-slate-400 px-1 mt-3">Style</div>`
-   +edStyles().map(([k,l])=>`<button class="tb" onmousedown="event.preventDefault()" onclick="setStyle('${k}')">${l}</button>`).join('');
+  const seg=(ic,t,fn,id)=>`<button id="${id}" class="seg" title="${t}" onmousedown="event.preventDefault()" onclick="${fn}"><i class="fa-solid ${ic}"></i></button>`;
+  E('ed-tools').innerHTML=
+   `<div class="flex gap-1">${seg('fa-rotate-left','Retour arrière','undoAction()','t-undo')}${seg('fa-rotate-right','Retour avant','redoAction()','t-redo')}</div>`
+  +`<div class="sec">Style</div><div class="relative"><button id="sty-btn" class="dd" onmousedown="event.preventDefault()" onclick="E('sty-menu').classList.toggle('hidden')"><span id="sty-label">—</span><i class="fa-solid fa-chevron-down text-[10px]"></i></button><div id="sty-menu" class="hidden dd-menu">${edStyles().map(([k,l])=>`<button data-k="${k}" onmousedown="event.preventDefault()" onclick="pickStyle('${k}')"><span>${l}</span><i class="fa-solid fa-check text-[10px]" style="opacity:0"></i></button>`).join('')}</div></div>`
+  +`<div class="sec">Police</div><div class="flex gap-1">${seg('fa-bold','Gras',"cmd('bold')",'t-bold')}${seg('fa-italic','Italique',"cmd('italic')",'t-italic')}${seg('fa-underline','Souligné',"cmd('underline')",'t-underline')}${docType==='text'?seg('fa-highlighter','Surligner','hilite()','t-hl'):''}</div>`
+  +(docType==='text'?`<div class="sec">Taille</div><div class="stepper"><button title="Agrandir" onmousedown="event.preventDefault()" onclick="sizeBump(2)"><i class="fa-solid fa-chevron-up"></i></button><input id="size-in" type="number" min="8" max="120" onchange="setSize(this.value)"><button title="Réduire" onmousedown="event.preventDefault()" onclick="sizeBump(-2)"><i class="fa-solid fa-chevron-down"></i></button></div>`:'');
+  syncTools();
 }
-function cmd(c){if(!requireEdit())return;document.execCommand(c);afterEdit();}
-function hilite(){if(!requireEdit())return;const on=/rgb\(253, 224, 71\)|#fde047/i.test(document.queryCommandValue('hiliteColor'));document.execCommand('hiliteColor',false,on?'transparent':'#fde047');afterEdit();}
-function sizeBump(d){
-  if(!requireEdit())return;const el=curBlock();if(!el)return;
-  const cur=parseFloat(getComputedStyle(el).fontSize)||16;document.execCommand('fontSize',false,'7');
-  edPage().querySelectorAll('font[size="7"]').forEach(f=>{const s=document.createElement('span');s.style.fontSize=Math.max(8,cur+d)+'px';s.innerHTML=f.innerHTML;f.replaceWith(s);});
-  afterEdit();
+function syncTools(){
+  if(!E('t-bold'))return;
+  const on=(id,c)=>{const b=E(id);if(b)b.classList.toggle('on',!!c);},q=c=>{try{return document.queryCommandState(c);}catch(e){return false;}};
+  on('t-bold',q('bold'));on('t-italic',q('italic'));on('t-underline',q('underline'));
+  let hv='';try{hv=document.queryCommandValue('hiliteColor')||document.queryCommandValue('backColor');}catch(e){}
+  on('t-hl',/253, 224, 71/.test(hv));
+  const b=curBlock();
+  if(b){const k=b.dataset.s;E('sty-label').textContent=(edStyles().find(x=>x[0]===k)||['','—'])[1];E('sty-menu').querySelectorAll('button').forEach(x=>x.lastChild.style.opacity=x.dataset.k===k?1:0);}
+  const si=E('size-in'),s=getSelection();
+  if(si&&s.anchorNode&&document.activeElement!==si){const el=s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentElement;si.value=Math.round(parseFloat(getComputedStyle(el).fontSize));}
 }
+function cmd(c){if(!requireEdit())return;restoreSel();document.execCommand(c);afterEdit();syncTools();}
+function hilite(){
+  if(!requireEdit())return;restoreSel();let v='';try{v=document.queryCommandValue('hiliteColor');}catch(e){}
+  document.execCommand('hiliteColor',false,/253, 224, 71/.test(v)?'transparent':'#fde047');afterEdit();syncTools();
+}
+function setSize(v){
+  if(!requireEdit())return;v=Math.max(8,Math.min(120,parseInt(v)||16));if(!restoreSel())return;
+  const s=getSelection();if(s.isCollapsed){const b=curBlock();if(!b)return;s.selectAllChildren(b);}
+  document.execCommand('fontSize',false,'7');
+  const made=[];document.querySelectorAll('[contenteditable=true] font[size="7"]').forEach(f=>{const sp=document.createElement('span');sp.style.fontSize=v+'px';sp.innerHTML=f.innerHTML;f.replaceWith(sp);made.push(sp);});
+  if(made.length){const r=document.createRange();r.setStartBefore(made[0]);r.setEndAfter(made[made.length-1]);s.removeAllRanges();s.addRange(r);lastSel=r.cloneRange();}
+  afterEdit();syncTools();
+}
+function sizeBump(d){const si=E('size-in');setSize((parseInt(si&&si.value)||16)+d);}
 function selBlocks(){
-  const s=getSelection();if(!s.rangeCount)return[];const r=s.getRangeAt(0);
-  const el=r.commonAncestorContainer.nodeType===1?r.commonAncestorContainer:r.commonAncestorContainer.parentElement;
-  const root=el&&el.closest('[contenteditable=true]');if(!root)return[];
+  const s=getSelection();if(!s.rangeCount)return[];const r=s.getRangeAt(0),root=selRoot(r);if(!root)return[];
   const kids=[...root.children].filter(e=>e.dataset.s);
   return kids.length?kids.filter(e=>r.intersectsNode(e)):[curBlock()].filter(Boolean);
 }
 function setStyle(k){
-  if(!requireEdit())return;const bs=selBlocks();
-  if(k==='box'&&bs.length&&bs.every(b=>b.dataset.s==='box'))k='body';
-  bs.forEach(b=>b.dataset.s=k);afterEdit();
+  if(!requireEdit())return;const bs=selBlocks(),def=docType==='script'?'action':'body';
+  if(bs.length&&bs.every(b=>b.dataset.s===k))k=def;   // re-cliquer sur un style le retire
+  bs.forEach(b=>b.dataset.s=k);afterEdit();syncTools();
 }
+function pickStyle(k){E('sty-menu').classList.add('hidden');restoreSel();setStyle(k);}
 function afterEdit(){
   if(!canEdit())return;const b=curBlock();
   if(b&&edPage().contains(b)){b.dataset.by=me();b.style.setProperty('--c',colorOf(me()));b.title='Écrit par '+me();}
   const seen=new Set();edPage().querySelectorAll('[data-s]').forEach(x=>{if(!x.dataset.id||seen.has(x.dataset.id))x.dataset.id=rid();seen.add(x.dataset.id);});
-  scheduleSave();pageNo();
+  recordHistory();scheduleSave();pageNo();renderSide();
 }
 function pageNo(){const n=Math.max(1,Math.ceil(edPage().scrollHeight/1056)),c=Math.min(n,Math.floor(E('ed-scroll').scrollTop/1056)+1);E('ed-pageno').textContent=`Page ${c} / ${n}`;}
+
+/* --- Retour arrière / retour avant --- */
+const snap=()=>JSON.stringify({h:edPage().innerHTML,b:doc.bubbles,p:doc.proposals});
+function recordHistory(){
+  if(!hist.base){hist.base=snap();return;}
+  const now=snap();if(now===hist.base)return;
+  const t=Date.now();if(!hist.u.length||t-hist.t>1000){hist.u.push(hist.base);if(hist.u.length>50)hist.u.shift();}
+  hist.t=t;hist.base=now;hist.r=[];updHist();
+}
+function stepHist(from,to,empty){
+  if(!requireEdit())return;recordHistory();
+  if(!from.length){showToast(empty);return;}
+  to.push(hist.base);hist.base=from.pop();const s=JSON.parse(hist.base);
+  edPage().innerHTML=s.h;doc.bubbles=s.b;doc.proposals=s.p;hist.t=0;openNote=null;
+  renderSide();scheduleSave();pageNo();updHist();
+}
+window.undoAction=()=>stepHist(hist.u,hist.r,'Rien à annuler');
+window.redoAction=()=>stepHist(hist.r,hist.u,'Rien à rétablir');
+function updHist(){[['t-undo',hist.u],['fab-undo',hist.u],['t-redo',hist.r],['fab-redo',hist.r]].forEach(([id,st])=>{const b=E(id);if(b)b.style.opacity=st.length?'':'.4';});}
 
 /* --- Événements de l'éditeur + menu clic droit --- */
 function bindEditor(){
   if(edBound)return;edBound=true;const p=edPage();
   p.addEventListener('input',afterEdit);
+  p.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&!e.altKey){const k=e.key.toLowerCase();if(k==='z'){e.preventDefault();e.shiftKey?redoAction():undoAction();}else if(k==='y'){e.preventDefault();redoAction();}}});
+  addEventListener('resize',renderSide);
+  document.addEventListener('click',ev=>{const m=E('sty-menu');if(m&&!ev.target.closest('#sty-btn'))m.classList.add('hidden');});
   p.addEventListener('keydown',e=>{
     if(e.key==='Enter'&&!e.shiftKey&&docType==='script'){
       const cur=curBlock(),prev=cur&&cur.dataset.s;
@@ -990,39 +1078,66 @@ function bindEditor(){
       else{const b=curBlock();if(b){const k=SCRIPT_STYLES.map(s=>s[0]),i=k.indexOf(b.dataset.s);b.dataset.s=k[(i+(e.shiftKey?k.length-1:1))%k.length];afterEdit();}}
     }
   });
-  p.addEventListener('click',e=>{const sp=e.target.closest('[data-bubble]');if(sp){const open=E('ed-bubble')&&E('ed-bubble').dataset.id===sp.dataset.bubble;open?closeBubble():openBubble(sp.dataset.bubble);}});
+  p.addEventListener('click',e=>{const sp=e.target.closest('[data-bubble]');if(sp){const open=openNote&&openNote.k==='b'&&openNote.id===sp.dataset.bubble;open?closeBubble():openBubble(sp.dataset.bubble);}});
   p.addEventListener('contextmenu',e=>{
     if(!canEdit())return;e.preventDefault();
     const m=E('ed-menu')||Object.assign(document.createElement('div'),{id:'ed-menu'});document.body.appendChild(m);
     const b=(t,fn)=>`<button class="tb" onmousedown="event.preventDefault()" onclick="${fn};E('ed-menu').style.display='none'">${t}</button>`;
     m.innerHTML=b('<b>G</b> Gras',"cmd('bold')")+b('<i>I</i> Italique',"cmd('italic')")+b('<u>S</u> Souligné',"cmd('underline')")+'<hr>'
       +edStyles().map(([k,l])=>b(l,`setStyle('${k}')`)).join('')+'<hr>'
-      +(docType==='text'?b('💬 Ajouter une bulle','addBubble()'):b('💡 Proposer une idée ici','propose()'));
+      +(docType==='text'?(getSelection().isCollapsed?'':b('💬 Ajouter une bulle','addBubble()')):b('💡 Proposer une idée ici','propose()'));
     m.style.display='block';m.style.left=Math.min(e.clientX,innerWidth-220)+'px';m.style.top=Math.min(e.clientY,innerHeight-m.offsetHeight-8)+'px';
   });
   document.addEventListener('click',()=>{const m=E('ed-menu');if(m)m.style.display='none';});
 }
 
-/* --- Bulles rattachées à une sélection --- */
+/* --- Bulles & propositions : à côté de la page, une seule ouverte à la fois --- */
+let openNote=null;
 function addBubble(){
   if(!requireEdit())return;const s=getSelection();
   if(!s.rangeCount||s.isCollapsed){showToast('Sélectionne un mot ou une phrase.');return;}
   const r=s.getRangeAt(0),id=rid(),f=n=>(n.nodeType===1?n:n.parentElement).closest('[data-s]');
   if(f(r.startContainer)!==f(r.endContainer)){showToast('Une bulle doit rester dans un seul paragraphe.');return;}
   const sp=document.createElement('span');sp.dataset.bubble=id;sp.appendChild(r.extractContents());r.insertNode(sp);
-  doc.bubbles[id]={html:'<div data-s="body"><br></div>',by:me(),at:Date.now()};
-  s.removeAllRanges();afterEdit();openBubble(id);
+  doc.bubbles[id]={html:blk(docType==='script'?'action':'body'),by:me(),at:Date.now()};
+  s.removeAllRanges();openNote={k:'b',id};afterEdit();
 }
-function openBubble(id){
-  closeBubble();const sp=edPage().querySelector(`[data-bubble="${id}"]`),d=doc.bubbles[id];if(!sp||!d)return;
-  const r=sp.getBoundingClientRect(),el=document.createElement('div');el.id='ed-bubble';el.dataset.id=id;el.className='ed-bub';
-  el.style.cssText=`position:fixed;left:${Math.max(8,Math.min(r.left,innerWidth-300))}px;top:${Math.min(r.bottom+8,innerHeight-160)}px;width:280px;z-index:45`;
+const openBubble=id=>{openNote={k:'b',id};renderSide();};
+const closeBubble=()=>{openNote=null;renderSide();};
+function delBubble(id){const sp=edPage().querySelector(`[data-bubble="${id}"]`);if(sp)sp.replaceWith(...sp.childNodes);delete doc.bubbles[id];openNote=null;afterEdit();}
+function miniEditor(el,obj){
+  const m=el.querySelector('.ed-mini');
+  m.addEventListener('input',()=>{obj.html=m.innerHTML;obj.editors=obj.editors||{};obj.editors[me()]=Date.now();recordHistory();scheduleSave();});
+}
+function bubbleCard(id,d){
+  const el=document.createElement('div');el.className='ed-bub side-item';
   el.innerHTML=`<div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>💬 ${escapeHtml(d.by)}</span><span>${canEdit()?`<button onclick="delBubble('${id}')">🗑</button> `:''}<button onclick="closeBubble()">✕</button></span></div><div class="ed-mini ${docType==='script'?'script':''}" contenteditable="${canEdit()}">${d.html}</div>`;
-  document.body.appendChild(el);const m=el.querySelector('.ed-mini');
-  m.addEventListener('input',()=>{d.html=m.innerHTML;d.editors=d.editors||{};d.editors[me()]=Date.now();scheduleSave();});
+  miniEditor(el,d);return el;
 }
-function closeBubble(){const b=E('ed-bubble');if(b)b.remove();}
-function delBubble(id){const sp=edPage().querySelector(`[data-bubble="${id}"]`);if(sp)sp.replaceWith(...sp.childNodes);delete doc.bubbles[id];closeBubble();afterEdit();}
+function propCard(id,p,open){
+  const v=Object.values(p.votes),y=v.filter(x=>x===1).length,n=v.filter(x=>x===0).length,mine=p.votes[currentUser.id],el=document.createElement('div');
+  el.className='side-item '+(open?'ed-prop':'');
+  if(!open){el.innerHTML=`<button class="ed-chip" onclick="openNote={k:'p',id:'${id}'};renderSide()">💡 ${escapeHtml(p.by)} · 👍 ${y} 👎 ${n}</button>`;return el;}
+  el.innerHTML=`<div class="flex justify-between text-[10px] text-slate-400 mb-2"><span>💡 ${escapeHtml(p.by)} · après « ${escapeHtml(p.excerpt||'le début')} »</span><button onclick="closeBubble()">✕</button></div><div class="ed-mini script" contenteditable="${canEdit()}">${p.html}</div><div class="flex items-center gap-2 mt-3 text-xs flex-wrap"><button class="vote ${mine===1?'on':''}" onclick="vote('${id}',1)">👍 Oui ${y}</button><button class="vote ${mine===0?'on':''}" onclick="vote('${id}',0)">👎 Non ${n}</button>${myRole==='admin'?`<span class="flex-1"></span><button class="vote" onclick="resolveProp('${id}',true)">✓ Accepter</button><button class="vote" onclick="resolveProp('${id}',false)">✕ Refuser</button>`:''}</div>`;
+  miniEditor(el,p);return el;
+}
+function renderSide(){
+  const side=E('ed-side');if(!side||!docReady)return;side.innerHTML='';const items=[];
+  if(openNote&&openNote.k==='b'){
+    const d=doc.bubbles[openNote.id],sp=edPage().querySelector(`[data-bubble="${openNote.id}"]`);
+    if(d&&sp)items.push({top:sp.offsetTop,el:bubbleCard(openNote.id,d)});else openNote=null;
+  }
+  if(docType==='script')Object.entries(doc.proposals||{}).forEach(([id,p])=>{
+    const a=p.after&&edPage().querySelector(`[data-id="${p.after}"]`);
+    items.push({top:a?a.offsetTop:Math.max(0,edPage().scrollHeight-80),el:propCard(id,p,openNote&&openNote.k==='p'&&openNote.id===id)});
+  });
+  items.sort((a,b)=>a.top-b.top);const wide=matchMedia('(min-width:1024px)').matches;let y=0;
+  items.forEach(it=>{
+    side.appendChild(it.el);
+    if(wide){const t=Math.max(it.top,y);Object.assign(it.el.style,{position:'absolute',left:0,right:0,top:t+'px'});y=t+it.el.offsetHeight+8;}
+    else it.el.style.marginBottom='.5rem';
+  });
+}
 
 /* --- Qui a écrit quoi --- */
 function toggleAuthors(){
@@ -1034,21 +1149,11 @@ function toggleAuthors(){
 /* --- Propositions (scénario) + sondage --- */
 function propose(){
   if(!getCollabs().length){showToast('Les propositions sont réservées aux projets collaboratifs.');return;}
-  const b=curBlock();
-  doc.proposals[rid()]={after:b?b.dataset.id:null,excerpt:b?b.innerText.slice(0,50):'',html:blk('action'),by:me(),at:Date.now(),votes:{}};
-  renderProps();scheduleSave();E('ed-props').scrollIntoView({behavior:'smooth'});
+  const b=curBlock(),id=rid();
+  doc.proposals[id]={after:b?b.dataset.id:null,excerpt:b?b.innerText.slice(0,50):'',html:blk('action'),by:me(),at:Date.now(),votes:{}};
+  openNote={k:'p',id};renderSide();recordHistory();scheduleSave();
 }
-function renderProps(){
-  const box=E('ed-props'),list=Object.entries(doc.proposals||{});
-  if(docType!=='script'||!list.length){box.innerHTML='';return;}
-  box.innerHTML=`<div class="text-xs font-bold text-slate-500">Propositions (${list.length})</div>`;
-  list.forEach(([id,p])=>{
-    const v=Object.values(p.votes),y=v.filter(x=>x===1).length,n=v.filter(x=>x===0).length,mine=p.votes[currentUser.id],c=document.createElement('div');c.className='ed-prop';
-    c.innerHTML=`<div class="text-[10px] text-slate-400 mb-2">💡 ${escapeHtml(p.by)} · après « ${escapeHtml(p.excerpt||'le début')} »</div><div class="ed-mini script" contenteditable="${canEdit()}">${p.html}</div><div class="flex items-center gap-2 mt-3 text-xs flex-wrap"><button class="vote ${mine===1?'on':''}" onclick="vote('${id}',1)">👍 Oui ${y}</button><button class="vote ${mine===0?'on':''}" onclick="vote('${id}',0)">👎 Non ${n}</button>${myRole==='admin'?`<span class="flex-1"></span><button class="vote" onclick="resolveProp('${id}',true)">✓ Accepter</button><button class="vote" onclick="resolveProp('${id}',false)">✕ Refuser</button>`:''}</div>`;
-    const m=c.querySelector('.ed-mini');m.addEventListener('input',()=>{p.html=m.innerHTML;scheduleSave();});box.appendChild(c);
-  });
-}
-function vote(id,val){const p=doc.proposals[id];if(!p)return;if(p.votes[currentUser.id]===val)delete p.votes[currentUser.id];else p.votes[currentUser.id]=val;renderProps();scheduleSave();}
+function vote(id,val){const p=doc.proposals[id];if(!p)return;if(p.votes[currentUser.id]===val)delete p.votes[currentUser.id];else p.votes[currentUser.id]=val;renderSide();scheduleSave();}
 function resolveProp(id,ok){
   const p=doc.proposals[id];if(!p||myRole!=='admin')return;
   if(ok){
@@ -1056,7 +1161,7 @@ function resolveProp(id,ok){
     const nodes=[...t.children].map(n=>{if(!n.dataset.s)n.dataset.s='action';n.dataset.id=rid();n.dataset.by=p.by;n.style.setProperty('--c',colorOf(p.by));return n;});
     const a=p.after&&edPage().querySelector(`[data-id="${p.after}"]`);a?a.after(...nodes):edPage().append(...nodes);
   }
-  delete doc.proposals[id];renderProps();afterEdit();showToast(ok?'Proposition ajoutée au scénario.':'Proposition refusée.');
+  delete doc.proposals[id];openNote=null;afterEdit();showToast(ok?'Proposition ajoutée au scénario.':'Proposition refusée.');
 }
 
 /* --- Export .mobtext / .mobscen (JSON : lisible, versionné, bulles et propositions rattachées par id) --- */
@@ -1068,20 +1173,53 @@ function exportDoc(){
   showToast(`Exporté en .${ext} !`);
 }
 
-/* --- Collaborateurs (propriétaire / admin uniquement) --- */
-function openCollab(){
-  if(myRole!=='admin')return;
-  const ov=document.createElement('div');ov.className='fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4';ov.onclick=e=>{if(e.target===ov)ov.remove();};
-  const opts=sel=>Object.entries(ROLE_LABELS).map(([k,l])=>`<option value="${k}" ${sel===k?'selected':''}>${l}</option>`).join('');
-  const save=async()=>{const{error}=await supabaseClient.from('projects').update({collaborators:getCollabs()}).eq('id',projectId);showToast(error?"Erreur d'enregistrement.":'Collaborateurs mis à jour.');};
-  const paint=()=>{
-    ov.innerHTML=`<div class="bg-white dark:bg-slate-900 rounded-2xl p-5 w-full max-w-md space-y-3 shadow-2xl"><div class="flex justify-between"><b class="text-sm">Collaborateurs</b><button id="cb-x">✕</button></div>${getCollabs().map((c,i)=>`<div class="flex items-center gap-2 text-xs"><span class="flex-1 truncate">${escapeHtml(c.email)}${c.status==='pending'?' (invité)':''}</span><select data-i="${i}" class="ed-in !w-auto !py-1">${opts(c.role)}</select><button data-rm="${i}">🗑</button></div>`).join('')}<div class="flex gap-2"><input id="cb-mail" class="ed-in" placeholder="email@exemple.com"><select id="cb-role" class="ed-in !w-auto">${opts('editor')}</select><button id="cb-add" class="bg-[#5246EE] text-white rounded-xl px-3 text-xs">Ajouter</button></div></div>`;
-    ov.querySelector('#cb-x').onclick=()=>ov.remove();
-    ov.querySelectorAll('select[data-i]').forEach(s=>s.onchange=()=>{getCollabs()[s.dataset.i].role=s.value;save();});
-    ov.querySelectorAll('[data-rm]').forEach(x=>x.onclick=()=>{getCollabs().splice(+x.dataset.rm,1);save();paint();});
-    ov.querySelector('#cb-add').onclick=()=>{const em=ov.querySelector('#cb-mail').value.trim().toLowerCase();if(!/^\S+@\S+\.\S+$/.test(em))return showToast('Email invalide.');if(getCollabs().some(c=>c.email.toLowerCase()===em))return showToast('Déjà collaborateur.');getCollabs().push({email:em,role:ov.querySelector('#cb-role').value,status:'pending'});save();paint();};
-  };
-  paint();document.body.appendChild(ov);
+/* --- Collaborateurs (repris de map.html) --- */
+const myEmail=()=>(currentUser.email||'').toLowerCase();
+const isOwner=()=>{const o=getOwnerId();return !o||o===currentUser.id;};
+const ownerEmail=()=>(projectData.owner_email||'').toLowerCase();
+function canManageCollab(c){if(myRole!=='admin')return false;if(isOwner())return true;return (c.role||'editor')!=='admin'&&(c.email||'').toLowerCase()!==myEmail();}
+function requireAdmin(){if(myRole==='admin')return true;showToast("Seul un admin peut gérer les collaborateurs.");return false;}
+window.toggleCollaboratorsDropdown=()=>E('collab-dropdown').classList.toggle('hidden');
+document.addEventListener('click',e=>{if(!e.target.closest('#collab-dropdown')&&!e.target.closest('[onclick="toggleCollaboratorsDropdown()"]'))E('collab-dropdown').classList.add('hidden');});
+function renderCollaboratorsList(){
+  const listEl=E('collaborators-list'),collabs=getCollabs(),admin=myRole==='admin';
+  E('collab-count-label').textContent=`Collaborateurs (${collabs.length+1})`;
+  E('collab-add-section').classList.toggle('hidden',!admin);
+  const ao=document.querySelector('#new-collab-role option[value="admin"]');
+  if(ao){ao.hidden=ao.disabled=!isOwner();if(!isOwner()&&ao.parentNode.value==='admin')ao.parentNode.value='editor';}
+  listEl.innerHTML=`<div class="flex items-center justify-between gap-2 text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded-lg"><span class="font-medium text-slate-700 dark:text-slate-300 truncate">${escapeHtml(currentUser.email)} (vous)</span><span class="text-[10px] font-semibold text-[#5246EE] shrink-0">${isOwner()?'Propriétaire':ROLE_LABELS[myRole]}</span></div>`;
+  collabs.forEach((c,idx)=>{
+    const acc=c.status==='accepted',manage=canManageCollab(c);
+    const roleCtl=manage?`<select onchange="setCollaboratorRole(${idx},this.value)" class="px-1.5 py-1 text-[10px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none">${Object.entries(ROLE_LABELS).filter(([k])=>isOwner()||k!=='admin').map(([k,l])=>`<option value="${k}" ${c.role===k?'selected':''}>${l}</option>`).join('')}</select>`:`<span class="text-[10px] font-semibold text-slate-500">${ROLE_LABELS[c.role]||c.role}</span>`;
+    const row=document.createElement('div');row.className='flex items-center justify-between gap-2 text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded-lg';
+    row.innerHTML=`<div class="min-w-0"><div class="truncate text-slate-700 dark:text-slate-300">${escapeHtml(c.email)}</div><div class="text-[10px] ${acc?'text-emerald-500':'text-amber-500'}">${acc?'Accepté':'Invitation envoyée'}</div></div><div class="flex items-center gap-1 shrink-0">${roleCtl}${manage?`<button onclick="removeCollaborator(${idx})" class="text-rose-500 hover:text-rose-700 p-1" title="Retirer"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>`:''}</div>`;
+    listEl.appendChild(row);
+  });
+  lucide.createIcons();
+}
+async function addCollaborator(){
+  if(!requireAdmin())return;const input=E('new-collab-email'),email=input.value.trim().toLowerCase();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){showToast("Adresse e-mail invalide.");return;}
+  if(email===myEmail()){showToast("Vous ne pouvez pas vous inviter vous-même.");return;}
+  const role=E('new-collab-role').value,collabs=getCollabs();
+  if(email===ownerEmail()){showToast("Le propriétaire ne peut pas être invité.");return;}
+  if(role==='admin'&&!isOwner()){showToast("Seul le propriétaire peut nommer un admin.");return;}
+  const ex=collabs.find(c=>(c.email||'').toLowerCase()===email);
+  if(ex&&!canManageCollab(ex)){showToast("Vous ne pouvez pas modifier ce collaborateur.");return;}
+  if(ex){Object.assign(ex,{role,status:'pending',invitedBy:currentUser.email,invitedAt:new Date().toISOString()});delete ex.acceptedAt;}
+  else collabs.push({email,role,status:'pending',invitedBy:currentUser.email,invitedAt:new Date().toISOString()});
+  await saveCurrentMapState(true);renderCollaboratorsList();input.value='';showToast("Invitation envoyée !");
+}
+window.setCollaboratorRole=async function(idx,role){
+  if(!requireAdmin())return;const t=getCollabs()[idx];
+  if(!t||!canManageCollab(t)||(role==='admin'&&!isOwner())){showToast("Seul le propriétaire peut modifier le rôle d'un admin ou nommer un admin.");renderCollaboratorsList();return;}
+  t.role=role;await saveCurrentMapState(true);renderCollaboratorsList();showToast("Rôle mis à jour.");
+};
+async function removeCollaborator(idx){
+  if(!requireAdmin())return;const c=getCollabs()[idx];
+  if(c&&!canManageCollab(c)){showToast("Seul le propriétaire peut retirer un admin.");return;}
+  if(!c||!confirm(`Retirer ${c.email} ?`))return;
+  getCollabs().splice(idx,1);await saveCurrentMapState(true);renderCollaboratorsList();
 }
 
     </script>
