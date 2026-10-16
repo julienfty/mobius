@@ -103,6 +103,7 @@
 .side-item.ed-full{position:fixed!important;z-index:50;margin:0!important;display:flex;flex-direction:column;box-sizing:border-box;border-radius:0;overflow:hidden;box-shadow:none;border-style:solid}
 .side-item.ed-full .ed-mini{flex:1 1 auto;min-height:0;max-height:none!important;overflow-y:auto;font-size:15px}
 </style>
+<style>.ed-page [data-a=left]{text-align:left}.ed-page [data-a=center]{text-align:center}.ed-page [data-a=right]{text-align:right}.ed-page [data-a=justify]{text-align:justify}</style>
 </head>
 <body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col antialiased selection:bg-[#5246EE] selection:text-white">
 
@@ -1098,7 +1099,7 @@ function buildTools(){
    `<div class="flex gap-1">${seg('fa-rotate-left','Retour arrière','undoAction()','t-undo')}${seg('fa-rotate-right','Retour avant','redoAction()','t-redo')}</div>`
   +`<div class="sec">Style</div><div class="relative"><button id="sty-btn" class="dd" onmousedown="event.preventDefault()" onclick="E('sty-menu').classList.toggle('hidden')"><span id="sty-label">—</span><i class="fa-solid fa-chevron-down text-[10px]"></i></button><div id="sty-menu" class="hidden dd-menu">${edStyles().map(([k,l])=>`<button data-k="${k}" onmousedown="event.preventDefault()" onclick="pickStyle('${k}')"><span>${l}</span><i class="fa-solid fa-check text-[10px]" style="opacity:0"></i></button>`).join('')}</div></div>`
   +`<div class="sec">Police</div><div class="flex gap-1">${seg('fa-bold','Gras',"cmd('bold')",'t-bold')}${seg('fa-italic','Italique',"cmd('italic')",'t-italic')}${seg('fa-underline','Souligné',"cmd('underline')",'t-underline')}${docType==='text'?seg('fa-highlighter','Surligner','hilite()','t-hl'):''}</div>`
-  +(docType==='text'?`<div class="sec">Alignement</div><div class="segbar">${seg('fa-align-left','Aligner à gauche',"setAlign('left')",'t-a-left')}${seg('fa-align-center','Centrer',"setAlign('center')",'t-a-center')}${seg('fa-align-right','Aligner à droite',"setAlign('right')",'t-a-right')}${seg('fa-align-justify','Justifier',"setAlign('justify')",'t-a-justify')}</div><div class="segbar">${seg('fa-outdent','Diminuer le retrait  (Ctrl/Cmd + [)',"indent(-1)",'t-outdent')}${seg('fa-indent','Augmenter le retrait  (Ctrl/Cmd + ])',"indent(1)",'t-indent')}</div>`:'')
+  +`<div class="sec">Alignement</div><div class="segbar">${seg('fa-align-left','Aligner à gauche',"setAlign('left')",'t-a-left')}${seg('fa-align-center','Centrer',"setAlign('center')",'t-a-center')}${seg('fa-align-right','Aligner à droite',"setAlign('right')",'t-a-right')}${seg('fa-align-justify','Justifier',"setAlign('justify')",'t-a-justify')}</div>${docType==='text'?`<div class="segbar">${seg('fa-outdent','Diminuer le retrait  (Ctrl/Cmd + [)',"indent(-1)",'t-outdent')}${seg('fa-indent','Augmenter le retrait  (Ctrl/Cmd + ])',"indent(1)",'t-indent')}</div>`:''}`
   +(docType==='text'?`<div class="sec">Taille</div><div class="stepper"><button title="Agrandir" onmousedown="event.preventDefault()" onclick="sizeBump(2)"><i class="fa-solid fa-chevron-up"></i></button><input id="size-in" type="number" min="8" max="120" onchange="setSize(this.value)"><button title="Réduire" onmousedown="event.preventDefault()" onclick="sizeBump(-2)"><i class="fa-solid fa-chevron-down"></i></button></div>`:'');
   syncTools();
 }
@@ -1110,7 +1111,7 @@ function syncTools(){
   on('t-bold',q('bold'));on('t-italic',q('italic'));on('t-underline',q('underline'));
   const r0=getRange();on('t-hl',r0.collapsed?inHl(r0.startContainer):allHl(r0));
   const b=curBlock();
-  if(b&&docType==='text'){const a=b.dataset.a||(b.dataset.s==='title'?'center':'left');['left','center','right','justify'].forEach(x=>on('t-a-'+x,a===x));const o=E('t-outdent');if(o)o.style.opacity=+b.dataset.i?'':'.4';}
+  if(b){const a=b.dataset.a||((docType==='script'?['title','sub','act']:['title']).includes(b.dataset.s)?'center':'left');['left','center','right','justify'].forEach(x=>on('t-a-'+x,a===x));const o=E('t-outdent');if(o)o.style.opacity=+b.dataset.i?'':'.4';}
   if(b){const k=b.dataset.s;E('sty-label').textContent=(edStyles().find(x=>x[0]===k)||['','—'])[1];E('sty-menu').querySelectorAll('button').forEach(x=>x.lastChild.style.opacity=x.dataset.k===k?1:0);}
   const si=E('size-in');
   if(si&&s.anchorNode&&document.activeElement!==si){const el=s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentElement;if(el&&el.closest('#ed-page'))si.value=Math.round(parseFloat(getComputedStyle(el).fontSize));}
