@@ -208,7 +208,7 @@
         </div>
         <div id="multi-select-bar" class="hidden md:hidden absolute bottom-3 left-1/2 -translate-x-1/2 z-[45] items-center gap-3 px-4 py-2.5 rounded-2xl bg-slate-900 text-white text-xs shadow-2xl">
             <span id="multi-select-count" class="font-semibold"></span>
-            <button onclick="selectedNodeIds = []; renderCanvasNodes(); renderInspector();" class="text-slate-300 hover:underline">Désélectionner</button>
+            <button onclick="selectedNodeIds = []; selectedLinkIds = []; renderCanvasNodes(); renderInspector();" class="text-slate-300 hover:underline">Désélectionner</button>
             <button onclick="deleteSelectedNodes()" class="text-rose-400 font-semibold hover:underline">Supprimer</button>
         </div>
 
@@ -373,6 +373,7 @@
         let supabaseClient = null;
 
         let selectedNodeIds = [];
+        let selectedLinkIds = [];
         let searchQuery = '';
         let isDraggingNode = false;
         let draggedNodeId = null;
@@ -697,10 +698,10 @@
             btn.classList.toggle('!bg-[#5246EE]', selectMode);
             btn.classList.toggle('!text-white', selectMode);
             document.getElementById('select-mode-label').textContent = selectMode ? 'Terminer' : 'Sélection';
-            const showBar = show && selectMode && selectedNodeIds.length > 0;
+            const showBar = show && selectMode && (selectedNodeIds.length + selectedLinkIds.length) > 0;
             bar.classList.toggle('hidden', !showBar);
             bar.classList.toggle('flex', showBar);
-            document.getElementById('multi-select-count').textContent = `${selectedNodeIds.length} sélectionnée${selectedNodeIds.length > 1 ? 's' : ''}`;
+            { const nn = selectedNodeIds.length, nl = selectedLinkIds.length; document.getElementById('multi-select-count').textContent = [nn ? `${nn} personne${nn > 1 ? 's' : ''}` : '', nl ? `${nl} lien${nl > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · '); }
         }
 
         // ---- Historique annuler / rétablir ----
@@ -835,7 +836,7 @@
                 }
 
                 if (e.key === 'Backspace' || e.key === 'Delete') {
-                    if (selectedNodeIds && selectedNodeIds.length > 0) {
+                    if ((selectedNodeIds && selectedNodeIds.length > 0) || selectedLinkIds.length > 0) {
                         e.preventDefault();
                         deleteSelectedNodes();
                     }
@@ -845,14 +846,14 @@
 
         function deleteSelectedNodes() {
             if (!requireEdit()) return;
-            if (!selectedNodeIds || selectedNodeIds.length === 0) return;
+            if ((!selectedNodeIds || selectedNodeIds.length === 0) && !selectedLinkIds.length) return;
             (currentCard.nodes || []).filter(n => selectedNodeIds.includes(n.id)).forEach(n => (n.crossLinks || []).slice().forEach(l => {
                 const oc = projectData && getCardById(l.cardId), on = oc && (oc.nodes || []).find(x => x.id === l.nodeId);
                 if (on) on.crossLinks = (on.crossLinks || []).filter(x => !(x.cardId === currentCard.id && x.nodeId === n.id));
             }));
-            currentCard.links = (currentCard.links || []).filter(l => !selectedNodeIds.includes(l.sourceId) && !selectedNodeIds.includes(l.targetId));
+            currentCard.links = (currentCard.links || []).filter(l => !selectedLinkIds.includes(l.id) && !selectedNodeIds.includes(l.sourceId) && !selectedNodeIds.includes(l.targetId));
             currentCard.nodes = (currentCard.nodes || []).filter(n => !selectedNodeIds.includes(n.id));
-            selectedNodeIds = [];
+            selectedNodeIds = []; selectedLinkIds = [];
 
             saveCurrentMapState();
             renderInspector();
@@ -1514,7 +1515,7 @@
                         currentCard.name = importedData.name;
                     }
                     currentCard.type = 'card';
-                    selectedNodeIds = [];
+                    selectedNodeIds = []; selectedLinkIds = [];
 
                     await saveCurrentMapState();
 
@@ -1568,6 +1569,9 @@
                 }
             });
             selectedNodeIds = ids;
+            const nd = id => (currentCard.nodes || []).find(n => n.id === id);
+            const lk = (currentCard.links || []).filter(l => { const a = nd(l.sourceId), b = nd(l.targetId); if (!a || !b) return false; const mx = (a.x + b.x) / 2 + 80, my = (a.y + b.y) / 2 + 40; return mx >= left && mx <= left + width && my >= top && my <= top + height; }).map(l => l.id);
+            if (lk.join() !== selectedLinkIds.join()) { selectedLinkIds = lk; renderSvgLinks(); }
         }
 
         function setupCanvasGlobalInteractivity() {
@@ -1783,7 +1787,7 @@ container.addEventListener('touchstart', (e) => {
             container.addEventListener('click', (e) => {
                 if (didPan) { didPan = false; return; }
                 if (e.target === container || e.target.id === 'links-svg' || e.target.id === 'nodes-layer' || e.target.id === 'canvas-zoom-layer') {
-                    selectedNodeIds = [];
+                    selectedNodeIds = []; selectedLinkIds = [];
                     renderCanvasNodes();
                     renderInspector();
                 }
@@ -2326,9 +2330,20 @@ container.addEventListener('touchstart', (e) => {
                     openEditLinkModal(link.id);
                 };
 
-                g.addEventListener('click', openModal);
-                g.addEventListener('contextmenu', openModal);
+                g.addEventListener('click', (e) => {
+                    if (!selectMode) return openModal(e);
+                    e.preventDefault(); e.stopPropagation();
+                    selectedLinkIds = selectedLinkIds.includes(link.id) ? selectedLinkIds.filter(id => id !== link.id) : [...selectedLinkIds, link.id];
+                    renderSvgLinks(); updateSelectUi();
+                });
+                g.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); openLinkMenu(e.clientX, e.clientY, link.id); });
 
+                if (selectedLinkIds.includes(link.id)) {
+                    const halo = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    ['x1', 'y1', 'x2', 'y2'].forEach((k, i) => halo.setAttribute(k, [x1, y1, x2, y2][i]));
+                    halo.setAttribute("stroke", "#5246EE"); halo.setAttribute("stroke-opacity", "0.35"); halo.setAttribute("stroke-width", "11"); halo.setAttribute("stroke-linecap", "round");
+                    g.appendChild(halo);
+                }
                 g.appendChild(hit);
                 g.appendChild(line);
                 g.appendChild(textBg);
@@ -2338,6 +2353,7 @@ container.addEventListener('touchstart', (e) => {
         }
 
         function selectNode(nodeId) {
+            selectedLinkIds = [];
             selectedNodeIds = [nodeId];
             renderCanvasNodes();
             renderInspector();
@@ -2362,7 +2378,7 @@ container.addEventListener('touchstart', (e) => {
         window.handleInspectorSearch = function(query) {
             searchQuery = query.toLowerCase();
             if (searchQuery.trim().length > 0 && selectedNodeIds.length === 1) {
-                selectedNodeIds = [];
+                selectedNodeIds = []; selectedLinkIds = [];
             }
             renderInspector();
         }
@@ -2383,7 +2399,7 @@ container.addEventListener('touchstart', (e) => {
                 if (selectedNodeIds.length > 1 && canEdit()) {
                     const multiInfo = document.createElement('div');
                     multiInfo.className = "mb-3 p-2.5 bg-[#5246EE]/10 rounded-xl text-xs font-semibold text-[#5246EE] flex items-center justify-between";
-                    multiInfo.innerHTML = `<span>${selectedNodeIds.length} personnes sélectionnées</span> <span class="flex items-center gap-3"><button onclick="selectedNodeIds = []; renderInspector(); renderCanvasNodes();" class="text-slate-500 hover:underline">Désélectionner</button><button onclick="deleteSelectedNodes()" class="text-rose-600 hover:underline">Tout supprimer</button></span>`;
+                    multiInfo.innerHTML = `<span>${selectedNodeIds.length} personnes sélectionnées</span> <span class="flex items-center gap-3"><button onclick="selectedNodeIds = []; selectedLinkIds = []; renderInspector(); renderCanvasNodes();" class="text-slate-500 hover:underline">Désélectionner</button><button onclick="deleteSelectedNodes()" class="text-rose-600 hover:underline">Tout supprimer</button></span>`;
                     container.appendChild(multiInfo);
                 }
 
@@ -2437,7 +2453,7 @@ container.addEventListener('touchstart', (e) => {
             const selectedNodeId = selectedNodeIds[0];
             const node = (currentCard.nodes || []).find(n => n.id === selectedNodeId);
             if (!node) {
-                selectedNodeIds = [];
+                selectedNodeIds = []; selectedLinkIds = [];
                 renderInspector();
                 return;
             }
@@ -2447,7 +2463,7 @@ container.addEventListener('touchstart', (e) => {
                     <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                         <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Fiche Personne</span>
                         <div class="flex items-center space-x-1">
-                            <button onclick="selectedNodeIds = []; renderInspector(); renderCanvasNodes();" class="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-medium" title="Retour à la liste">Liste</button>
+                            <button onclick="selectedNodeIds = []; selectedLinkIds = []; renderInspector(); renderCanvasNodes();" class="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-medium" title="Retour à la liste">Liste</button>
                             ${canEdit() ? `<button onclick="deleteSelectedNodes()" class="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg transition" title="Supprimer"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
                         </div>
                     </div>
@@ -2796,6 +2812,40 @@ container.addEventListener('touchstart', (e) => {
             }
             closeEditLinkModal();
         }
+
+
+        // ===== MENU CLIC DROIT SUR UN LIEN : changer le type / supprimer =====
+        function closeLinkMenu() { const m = document.getElementById('link-context-menu'); if (m) m.remove(); }
+        function openLinkMenu(x, y, linkId) {
+            closeLinkMenu();
+            const link = (currentCard.links || []).find(l => l.id === linkId); if (!link) return;
+            const nm = id => { const n = (currentCard.nodes || []).find(v => v.id === id); return n ? `${n.firstname || ''} ${n.lastname || ''}`.trim() : '?'; };
+            const m = document.createElement('div');
+            m.id = 'link-context-menu';
+            m.className = 'fixed z-[60] w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-3 space-y-2 text-xs';
+            m.innerHTML = `<div class="font-semibold truncate">${escapeHtml(nm(link.sourceId))} ↔ ${escapeHtml(nm(link.targetId))}</div>
+                <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500">Type de lien</label>
+                <select id="lcm-type" class="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none">
+                    <option value="">Sans type</option>${(currentCard.relationTypes || []).map(r => `<option value="${escapeHtml(r.id)}" ${r.id === link.relationTypeId ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('')}
+                </select>
+                <button id="lcm-del" class="w-full px-3 py-2 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 font-medium flex items-center gap-2"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Supprimer le lien</button>`;
+            document.body.appendChild(m);
+            m.style.left = Math.max(8, Math.min(x, window.innerWidth - m.offsetWidth - 8)) + 'px';
+            m.style.top = Math.max(8, Math.min(y, window.innerHeight - m.offsetHeight - 8)) + 'px';
+            lucide.createIcons();
+            const refresh = () => { renderSvgLinks(); if (selectedNodeIds.length === 1) renderNodeLinksInInspector(selectedNodeIds[0]); };
+            m.querySelector('#lcm-type').addEventListener('change', async (e) => {
+                if (!requireEdit()) return;
+                link.relationTypeId = e.target.value; await saveCurrentMapState(); refresh(); closeLinkMenu(); showToast('Type du lien modifié.');
+            });
+            m.querySelector('#lcm-del').addEventListener('click', async () => {
+                if (!requireEdit()) return;
+                currentCard.links = (currentCard.links || []).filter(l => l.id !== linkId); selectedLinkIds = selectedLinkIds.filter(id => id !== linkId);
+                await saveCurrentMapState(); refresh(); closeLinkMenu(); showToast('Lien supprimé.');
+            });
+        }
+        document.addEventListener('mousedown', (e) => { if (!e.target.closest('#link-context-menu')) closeLinkMenu(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLinkMenu(); });
 
         async function deleteLinkFromModal() {
             if (!requireEdit()) return;
