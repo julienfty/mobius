@@ -56,6 +56,9 @@
             background-color: #5246EE;
         }
         .exp-sub.open .exp-flyout { display: block; }
+        #top-progress { position: absolute; left: 0; right: 0; top: 100%; height: 2px; pointer-events: none; opacity: 0; transition: opacity .25s ease; z-index: 41; }
+        #top-progress.active { opacity: 1; }
+        #top-progress > div { height: 100%; width: 0; background: #3b82f6; box-shadow: 0 0 6px rgba(59,130,246,.55); transition: width .3s ease; }
         .whiteboard-grid {
             background-image: radial-gradient(circle, rgba(100, 100, 100, 0.15) 1px, transparent 1px);
             background-size: 24px 24px;
@@ -136,7 +139,31 @@
                 <i data-lucide="sun" class="w-4 h-4 hidden dark:block text-amber-400"></i>
             </button>
         </div>
+    <div id="top-progress"><div></div></div>
     </header>
+    <script>
+        // Barre de chargement fine sous le menu du haut : visible seulement pendant l'ouverture d'un document
+        window.topProgress = (() => {
+            const el = document.getElementById('top-progress'), bar = el && el.firstElementChild;
+            let timer = null, w = 0;
+            return {
+                start() {
+                    if (!el) return;
+                    clearInterval(timer);
+                    bar.style.transition = 'none'; bar.style.width = '0%'; void bar.offsetWidth; bar.style.transition = '';
+                    el.classList.add('active'); w = 12; bar.style.width = w + '%';
+                    timer = setInterval(() => { w += (92 - w) * 0.1; bar.style.width = w + '%'; }, 250);
+                },
+                done() {
+                    if (!el) return;
+                    clearInterval(timer); bar.style.width = '100%';
+                    setTimeout(() => el.classList.remove('active'), 250);
+                    setTimeout(() => { bar.style.width = '0%'; }, 600);
+                }
+            };
+        })();
+        window.topProgress.start();
+    </script>
 
     <!-- MAIN WORKSPACE CONTAINER -->
     <div class="flex-1 flex overflow-hidden relative pb-16 md:pb-0">
@@ -470,6 +497,7 @@
             setupRealtimeSubscription();
             updateRoleBadge();
             handleInvitation();
+            topProgress.done();
 
             if (window.innerWidth < 768) {
                 switchMobilePage('map', false);
@@ -2052,6 +2080,7 @@ container.addEventListener('touchstart', (e) => {
                 if (!r || r.value < 0) return;
                 target = links[r.value];
             }
+            topProgress.start();
             if (saveTimer) await saveCurrentMapState();
             if (treeSaveTimer) { clearTimeout(treeSaveTimer); treeSaveTimer = null; updateCardInTree(projectData.tree, currentCard); await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId); }
             window.location.href = `map.html?cardId=${encodeURIComponent(target.cardId)}&projectId=${encodeURIComponent(projectId)}&node=${encodeURIComponent(target.nodeId)}`;
@@ -2302,7 +2331,7 @@ container.addEventListener('touchstart', (e) => {
                 const hit = document.createElementNS("http://www.w3.org/2000/svg", "line");
                 hit.setAttribute("x1", x1); hit.setAttribute("y1", y1);
                 hit.setAttribute("x2", x2); hit.setAttribute("y2", y2);
-                hit.setAttribute("stroke", "transparent"); hit.setAttribute("stroke-width", "18");
+                hit.setAttribute("stroke", "transparent"); hit.setAttribute("stroke-width", "30");
 
                 const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
                 line.setAttribute("x1", x1); line.setAttribute("y1", y1);
@@ -2846,6 +2875,42 @@ container.addEventListener('touchstart', (e) => {
         }
         document.addEventListener('mousedown', (e) => { if (!e.target.closest('#link-context-menu')) closeLinkMenu(); });
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLinkMenu(); });
+
+        // Les liens sont dans un SVG recouvert par la couche des personnes : on détecte donc le lien sous la souris par le calcul (distance au segment)
+        function linkAt(e) {
+            const c = document.getElementById('canvas-container'), r = c.getBoundingClientRect();
+            const px = (e.clientX - r.left + c.scrollLeft) / whiteboardZoom, py = (e.clientY - r.top + c.scrollTop) / whiteboardZoom;
+            let best = null, bd = 26 / whiteboardZoom;
+            (currentCard.links || []).forEach(l => {
+                const a = (currentCard.nodes || []).find(n => n.id === l.sourceId), b = (currentCard.nodes || []).find(n => n.id === l.targetId);
+                if (!a || !b) return;
+                const x1 = a.x + 80, y1 = a.y + 40, dx = b.x + 80 - x1, dy = b.y + 40 - y1, L = dx * dx + dy * dy;
+                const t = L ? Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / L)) : 0;
+                const d = Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+                if (d <= bd) { bd = d; best = l; }
+            });
+            return best;
+        }
+        (function () {
+            const c = document.getElementById('canvas-container'); if (!c) return;
+            const free = e => !e.target.closest('.node-card, button, input, select, textarea, #context-menu, #link-context-menu, #selection-box');
+            let down = null;
+            c.addEventListener('mousedown', e => { down = { x: e.clientX, y: e.clientY }; }, true);
+            c.addEventListener('contextmenu', e => {
+                if (!free(e)) return;
+                const l = linkAt(e); if (!l) return;
+                e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); openLinkMenu(e.clientX, e.clientY, l.id);
+            }, true);
+            c.addEventListener('click', e => {
+                if (!free(e) || (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4)) return;
+                const l = linkAt(e); if (!l) return;
+                e.preventDefault(); e.stopPropagation();
+                if (!selectMode) { openEditLinkModal(l.id); return; }
+                selectedLinkIds = selectedLinkIds.includes(l.id) ? selectedLinkIds.filter(id => id !== l.id) : [...selectedLinkIds, l.id];
+                renderSvgLinks(); updateSelectUi();
+            }, true);
+            c.addEventListener('mousemove', e => { if (e.buttons || !free(e)) return; c.style.cursor = linkAt(e) ? 'pointer' : ''; });
+        })();
 
         async function deleteLinkFromModal() {
             if (!requireEdit()) return;
@@ -3409,6 +3474,7 @@ container.addEventListener('touchstart', (e) => {
                     treeStoreUI(); return renderTreeSidebarContent();
                 }
                 if (it.id === cardId) return;
+                topProgress.start();
                 if (saveTimer) await saveCurrentMapState();
                 if (treeSaveTimer) { clearTimeout(treeSaveTimer); treeSaveTimer = null; updateCardInTree(projectData.tree, currentCard); await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId); }
                 window.location.href = it.type === 'card'
