@@ -1271,7 +1271,7 @@ function propCard(id,p,open){
   el.innerHTML=`<div class="flex justify-between items-center text-[10px] text-slate-400 mb-2"><span>💡 ${escapeHtml(p.by)} · ${propInfo(p)}</span><span class="flex gap-2">${canDelProp(p)?`<button title="Supprimer la proposition" onclick="delProp('${id}')">🗑</button>`:''}<button onclick="closeBubble()">✕</button></span></div>`
   +`<div class="pm-row"><select class="pm-sel" title="Scène concernée" ${dis} onchange="propPickScene('${id}',this.value)">${sceneOptions(sel)}</select><div class="pm-seg"><button class="${mode==='edit'?'on':''}" ${dis} onclick="propMode('${id}','edit')">Modifier</button><button class="${mode==='add'?'on':''}" ${dis} onclick="propMode('${id}','add')">Ajouter</button></div></div>`
   +(mode==='add'?`<div class="pm-row"><select class="pm-sel" ${dis} onchange="propKind('${id}',this.value)">${[['free','Bloc libre (au clic)'],['act','Un acte'],['scene','Une en-tête de scène']].map(([k,l])=>`<option value="${k}" ${k===kind?'selected':''}>${l}</option>`).join('')}</select>${kind!=='free'?`<input class="pm-num" type="number" min="1" placeholder="N°" ${dis} value="${escapeHtml(String(p.num||''))}" oninput="propNum('${id}',this.value)">`:''}</div>`:'')
-  +`<div class="ed-mini script" contenteditable="${ed}">${p.html}</div><div class="flex items-center gap-2 mt-3 text-xs flex-wrap"><button class="vote ${mine===1?'on':''}" onclick="vote('${id}',1)">👍 Oui ${y}</button><button class="vote ${mine===0?'on':''}" onclick="vote('${id}',0)">👎 Non ${n}</button>${myRole==='admin'?`<span class="flex-1"></span><button class="vote" onclick="resolveProp('${id}',true)">✓ Valider</button>`:''}</div>`;
+  +`<div class="ed-mini script" contenteditable="${ed}">${p.html}</div><div class="flex items-center gap-2 mt-3 text-xs flex-wrap"><button class="vote ${mine===1?'on':''}" onclick="vote('${id}',1)">👍 Oui ${y}</button><button class="vote ${mine===0?'on':''}" onclick="vote('${id}',0)">👎 Non ${n}</button></div>${canEdit()?`<button class="w-full mt-3 py-2 rounded-xl bg-[#5246EE] text-white text-xs font-semibold" onclick="resolveProp('${id}',true)">✓ Valider et ajouter au scénario</button>`:''}`;
   miniEditor(el,p);return el;
 }
 function renderSide(){
@@ -1374,7 +1374,7 @@ function commitDoc(){
   recordHistory();scheduleSave();pageNo();renderSide();
 }
 function resolveProp(id,ok){
-  const p=doc.proposals[id];if(!p||myRole!=='admin')return;
+  const p=doc.proposals[id];if(!p||!requireEdit())return;
   if(miniCur&&miniCur.obj===p&&miniCur.m.isConnected)p.html=miniCur.m.innerHTML;
   const t=document.createElement('div');t.innerHTML=p.html;normalizeRoot(t);
   if(!t.textContent.replace(/\u200b/g,'').trim()){showToast('La proposition est vide.');return;}
