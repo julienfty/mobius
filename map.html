@@ -3794,6 +3794,13 @@ newLink: typeLink: "Ami", from b to c;
 <p class="mt-2"><b>newLink: typeLink: "Nom", from x to y, from x to z</b> crée un ou plusieurs liens du type choisi (la liste des types apparaît pendant la saisie, Tab pour valider). x et y sont des id ou des « Prénom Nom ». <code>typeLink: none</code> : lien sans type.</p>
 <p class="mt-2">Les instructions finissent par « ; » (ou à la fin de la ligne pour createLink / newLink). Tout est exécuté ou rien : en cas d'erreur, rien n'est modifié. Annulable avec Ctrl+Z pour la carte courante.</p>
 <p class="mt-2">Dépose un fichier <b>.sql, .csv, .xlsx, .json</b> : il est converti en SQL dans l'éditeur (donc il s'ajoute à la carte ouverte, sauf si tu écris CREATE CARD), tu relis puis tu exécutes. Importé dans l'arborescence, il crée une nouvelle carte. Seuls le SQL format Mobius, le JSON et le .mobius gardent les liens, leurs types et leurs noms.</p>`;
+const HLRE = /(--[^\n]*)|("(?:[^"]|"")*"|'(?:[^']|'')*'|«[^»]*»|“[^”]*”)|\b(createLink|newLink)\b|\b(name|color|typeLink|to)\b|\b(CREATE|TABLE|CARD|USE|INSERT|INTO|VALUES|UPDATE|SET|DELETE|FROM|WHERE|SELECT|ORDER|BY|LIMIT|AND|OR|NOT|NULL|LIKE|IS|ALTER|ADD|COLUMN|PRIMARY|KEY|IF|EXISTS|ASC|DESC|TRUE|FALSE)\b|\b(TEXT|NUMERIC|BOOLEAN|DATE|INTEGER|INT)\b|(\b\d+(?:\.\d+)?\b)/gi;
+            const HLC = ['text-slate-400', 'text-emerald-600 dark:text-emerald-400', 'text-pink-600 dark:text-pink-400 font-bold', 'text-sky-600 dark:text-sky-400', 'text-[#5246EE] dark:text-indigo-400 font-semibold', 'text-violet-500', 'text-amber-600 dark:text-amber-400'];
+            const hl = (t, nl = true) => {
+                let o = '', i = 0, m; HLRE.lastIndex = 0;
+                while ((m = HLRE.exec(t))) { o += escapeHtml(t.slice(i, m.index)); o += `<span class="${HLC[m.slice(1).findIndex(Boolean)]}">${escapeHtml(m[0])}</span>`; i = m.index + m[0].length; }
+                return o + escapeHtml(t.slice(i)) + (nl ? '\n' : '');
+            };
             let keyH = null;
             function close() { const o = document.getElementById('mt-page'); if (o) o.remove(); if (keyH) document.removeEventListener('keydown', keyH); keyH = null; }
             function open() {
@@ -3815,8 +3822,11 @@ newLink: typeLink: "Ami", from b to c;
                                 <span class="flex-1"></span>
                                 <button id="mt-run" class="px-4 py-2 rounded-xl bg-[#5246EE] hover:bg-[#4538d8] text-white font-semibold flex items-center gap-1.5"><i data-lucide="play" class="w-3.5 h-3.5"></i> Exécuter <span class="opacity-60 font-normal hidden sm:inline">Ctrl+Entrée</span></button>
                             </div>
-                            <textarea id="mt-src" spellcheck="false" placeholder="Écris du SQL, ou dépose ici un fichier .sql / .csv / .xlsx / .json" class="flex-1 min-h-[220px] w-full font-mono text-[12px] leading-relaxed p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-[#5246EE] resize-none"></textarea>
-                            <div id="mt-ac" class="hidden absolute left-3 bottom-3 max-w-[90%] flex flex-wrap gap-1.5 p-2 rounded-xl shadow-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 z-10"></div>
+                            <div class="relative flex-1 min-h-[220px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 focus-within:ring-1 focus-within:ring-[#5246EE]">
+                                <pre id="mt-hl" aria-hidden="true" class="absolute inset-0 m-0 p-3 overflow-x-hidden overflow-y-scroll pointer-events-none font-mono text-[12px] leading-relaxed whitespace-pre-wrap break-words text-slate-700 dark:text-slate-200" style="tab-size:2"></pre>
+                                <textarea id="mt-src" spellcheck="false" placeholder="Écris du SQL, ou dépose ici un fichier .sql / .csv / .xlsx / .json" class="absolute inset-0 w-full h-full m-0 p-3 bg-transparent font-mono text-[12px] leading-relaxed whitespace-pre-wrap break-words resize-none focus:outline-none caret-slate-800 dark:caret-white" style="color:transparent;tab-size:2"></textarea>
+                                <div id="mt-ac" class="hidden absolute z-10 max-w-[90%] flex flex-wrap gap-1.5 p-2 rounded-xl shadow-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></div>
+                            </div>
                             <div id="mt-dz" class="hidden absolute inset-0 rounded-2xl border-2 border-dashed border-[#5246EE] bg-[#5246EE]/10 flex items-center justify-center font-semibold text-[#5246EE] pointer-events-none">Dépose ton fichier ici</div>
                         </section>
                         <aside class="lg:w-96 shrink-0 min-h-0 overflow-y-auto space-y-3">
@@ -3856,25 +3866,32 @@ newLink: typeLink: "Ami", from b to c;
                         try { parts.push(/\.(sql|txt)$/i.test(f.name) ? await f.text() : emit(await fileTables(f), { mobius: true, noCreate: true, head: `-- Importé depuis ${f.name}` })); }
                         catch (err) { msg('err', `« ${f.name} » : ${err.message}`); return; }
                     }
-                    src.value = parts.join('\n\n'); msg('info', 'Fichier converti en SQL : relis le script puis clique sur Exécuter.');
+                    src.value = parts.join('\n\n'); upd(); msg('info', 'Fichier converti en SQL : relis le script puis clique sur Exécuter.');
                 };
                 $('mt-close').onclick = close;
                 $('mt-run').onclick = runIt;
-                $('mt-ex').onclick = () => { src.value = EXAMPLE; };
-                $('mt-clear').onclick = () => { src.value = ''; };
+                $('mt-ex').onclick = () => { src.value = EXAMPLE; upd(); };
+                $('mt-clear').onclick = () => { src.value = ''; upd(); };
                 $('mt-file').onchange = ev => { load([...ev.target.files]); ev.target.value = ''; };
                                 src.addEventListener('keydown', ev => { if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); runIt(); } });
                 const ac = $('mt-ac');
                 const names = before => { const l = [], re = /createLink\s*:\s*name\s*[:=]\s*["«“'‘]([^"»”'’]+)["»”'’]/gi; let m; while ((m = re.exec(before))) l.push(m[1]); (currentCard.relationTypes || []).forEach(r => l.push(r.name)); return [...new Set(l)]; };
+                const pre = $('mt-hl');
                 const upd = () => {
-                    const p = src.selectionStart, before = src.value.slice(0, p), line = before.slice(before.lastIndexOf('\n') + 1);
+                    const p = src.selectionStart, v = src.value, before = v.slice(0, p), line = before.slice(before.lastIndexOf('\n') + 1);
                     const m = line.match(/^\s*newLink\s*:\s*typeLink\s*[:=]\s*(["«“'‘]?)([^"»”'’,;]*)$/i);
-                    if (!m) { ac.classList.add('hidden'); return; }
-                    const typed = m[2].toLowerCase(), list = names(before).filter(n => n.toLowerCase().includes(typed));
+                    const list = m ? names(before).filter(n => n.toLowerCase().includes(m[2].toLowerCase())) : [];
+                    if (!list.length) { ac.classList.add('hidden'); pre.innerHTML = hl(v); pre.scrollTop = src.scrollTop; return; }
+                    pre.innerHTML = hl(before, false) + '<span id="mt-caret"></span>' + hl(v.slice(p));
                     ac.innerHTML = list.map(n => `<button type="button" data-n="${e(n)}" class="px-2 py-1 rounded-lg bg-[#5246EE]/10 text-[#5246EE] font-semibold">${e(n)}</button>`).join('');
-                    ac.classList.toggle('hidden', !list.length); ac._c = { start: p - m[2].length, end: p, q: m[1] };
+                    ac.classList.remove('hidden'); ac._c = { start: p - m[2].length, end: p, q: m[1] };
+                    const c = pre.querySelector('#mt-caret');
+                    ac.style.left = Math.max(4, Math.min(c.offsetLeft, src.clientWidth - ac.offsetWidth - 8)) + 'px';
+                    ac.style.top = (c.offsetTop - src.scrollTop + 24) + 'px';
+                    pre.scrollTop = src.scrollTop;
                 };
-                const pick = n => { const c = ac._c; if (!c) return; const op = c.q || '"'; src.setRangeText((c.q ? '' : op) + n + (CL[op] || '"'), c.start, c.end, 'end'); ac.classList.add('hidden'); src.focus(); };
+                src.addEventListener('scroll', () => { pre.scrollTop = src.scrollTop; pre.scrollLeft = src.scrollLeft; });
+                const pick = n => { const c = ac._c; if (!c) return; const op = c.q || '"'; src.setRangeText((c.q ? '' : op) + n + (CL[op] || '"'), c.start, c.end, 'end'); ac.classList.add('hidden'); src.focus(); upd(); };
                 ac.addEventListener('mousedown', ev => { const b = ev.target.closest('button'); if (b) { ev.preventDefault(); pick(b.dataset.n); } });
                 ['input', 'click', 'keyup'].forEach(t => src.addEventListener(t, upd));
                 src.addEventListener('keydown', ev => { if (ev.key === 'Tab' && !ac.classList.contains('hidden') && ac.firstChild) { ev.preventDefault(); pick(ac.firstChild.dataset.n); } });
@@ -3885,7 +3902,7 @@ newLink: typeLink: "Ami", from b to c;
                 dr.addEventListener('drop', ev => { if (!isF(ev)) return; ev.preventDefault(); dz.classList.add('hidden'); load([...ev.dataTransfer.files]); });
                 keyH = ev => { if (ev.key === 'Escape' && !document.querySelector('.fixed.z-\\[100\\]')) close(); };
                 document.addEventListener('keydown', keyH);
-                src.focus();
+                src.focus(); upd();
             }
             return { open, close, run, runAll, tok, split, toCards, emit, fileTables, fileToCards, isTabularJson };
         })();
