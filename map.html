@@ -2066,7 +2066,7 @@ container.addEventListener('touchstart', (e) => {
 
         /* ================= LIENS ENTRE CARTES ================= */
         // Chaque personne peut porter node.crossLinks = [{ cardId, nodeId }] (liens réciproques).
-        // Règle : une personne peut être reliée à plusieurs cartes, mais à UNE SEULE personne par carte.
+        // Une personne peut avoir plusieurs liens vers une même carte, avec réciprocité.
         function getCardById(id) { return projectData ? findCardInTree(projectData.tree, id) : null; }
         function allOtherCards() {
             const out = [];
@@ -2088,8 +2088,10 @@ container.addEventListener('touchstart', (e) => {
             return dbl;
         }
         function linkNodes(cardA, nodeA, cardB, nodeB) {
-            nodeA.crossLinks = (nodeA.crossLinks || []).filter(l => l.cardId !== cardB.id).concat({ cardId: cardB.id, nodeId: nodeB.id });
-            nodeB.crossLinks = (nodeB.crossLinks || []).filter(l => l.cardId !== cardA.id).concat({ cardId: cardA.id, nodeId: nodeA.id });
+            nodeA.crossLinks ||= [];
+            if (!nodeA.crossLinks.some(l => l.cardId === cardB.id && l.nodeId === nodeB.id)) nodeA.crossLinks.push({ cardId: cardB.id, nodeId: nodeB.id });
+            nodeB.crossLinks ||= [];
+            if (!nodeB.crossLinks.some(l => l.cardId === cardA.id && l.nodeId === nodeA.id)) nodeB.crossLinks.push({ cardId: cardA.id, nodeId: nodeA.id });
         }
         function unlinkNodes(cardA, nodeA, cardB, nodeB) {
             nodeA.crossLinks = (nodeA.crossLinks || []).filter(l => !(l.cardId === cardB.id && l.nodeId === nodeB.id));
@@ -2158,16 +2160,16 @@ container.addEventListener('touchstart', (e) => {
 
             function showPeople(tc) {
                 box.innerHTML = '';
-                const existing = validCrossLinks(src).find(x => x.cardId === tc.id);
-                box.appendChild(head(`Carte « ${tc.name} »`, existing ? `${nm(src)} est déjà reliée à ${nm(existing.node)} dans cette carte.` : `Relier ${nm(src)} à quelle personne ?`, true));
+                const existing = validCrossLinks(src).filter(x => x.cardId === tc.id);
+                box.appendChild(head(`Carte « ${tc.name} »`, existing.length ? `${nm(src)} possède ${existing.length} lien(s) dans cette carte.` : `Relier ${nm(src)} à quelle personne ?`, true));
                 const list = document.createElement('div'); list.className = 'overflow-y-auto space-y-1.5 flex-1';
-                if (existing) {
-                    list.appendChild(mk(`Délier de ${escapeHtml(nm(existing.node))}`, 'w-full text-left px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/30 text-red-600 font-semibold hover:bg-red-100 transition', () => { unlinkNodes(currentCard, src, tc, existing.node); done('Lien supprimé.'); }));
+                if (false) {
+                    list.appendChild(mk(`Délier de ${escapeHtml(nm(existing[0].node))}`, 'w-full text-left px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-950/30 text-red-600 font-semibold hover:bg-red-100 transition', () => { unlinkNodes(currentCard, src, tc, existing.node); done('Lien supprimé.'); }));
                 }
                 (tc.nodes || []).forEach(n => {
-                    const takenBy = (n.crossLinks || []).find(l => l.cardId === currentCard.id && l.nodeId !== src.id && (currentCard.nodes || []).some(x => x.id === l.nodeId));
-                    const isCur = existing && existing.nodeId === n.id;
-                    const disabled = !!existing || !!takenBy;
+                    const takenBy = null;
+                    const isCur = existing.some(x => x.nodeId === n.id);
+                    const disabled = !!isCur;
                     list.appendChild(mk(`<span class="w-7 h-7 rounded-full bg-[#5246EE]/10 text-[#5246EE] flex items-center justify-center font-bold text-[10px] shrink-0">${escapeHtml(((n.firstname || 'P')[0] + ((n.lastname || '')[0] || '')).toUpperCase())}</span><span class="truncate flex-1 font-medium">${escapeHtml(nm(n))}</span>${isCur ? '<span class="text-[10px] text-[#5246EE] font-semibold">✓ reliée</span>' : takenBy ? '<span class="text-[10px] text-slate-400">déjà reliée à une autre personne ici</span>' : ''}`, btnCls, () => { linkNodes(currentCard, src, tc, n); done(`Reliée à ${nm(n)} (${tc.name}).`); }, disabled));
                 });
                 if (!(tc.nodes || []).length) { const p = document.createElement('p'); p.className = 'text-slate-400 py-2'; p.textContent = 'Cette carte ne contient encore aucune personne.'; list.appendChild(p); }
@@ -2180,7 +2182,7 @@ container.addEventListener('touchstart', (e) => {
                     (tc.nodes ||= []).push(copy);
                     linkNodes(currentCard, src, tc, copy);
                     done(`Personne dupliquée dans « ${tc.name} » et reliée.`);
-                }, !!existing));
+                }, false));
             }
 
             showCards();
@@ -4256,16 +4258,70 @@ const HLRE = /(--[^\n]*)|("(?:[^"]|"")*"|'(?:[^']|'')*'|«[^»]*»|“[^”]*”
                     out.innerHTML = (r.log.map(l => `<div class="${C[l.k]}">${l.k === 'ok' ? '✓' : '⚠'} ${e(l.m)}</div>`).join('') || '<div class="text-slate-400">Aucune instruction.</div>') +
                         r.results.map(t => `<div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800"><table class="w-full text-left"><thead class="bg-slate-50 dark:bg-slate-900"><tr>${t.cols.map(c => `<th class="px-2 py-1.5 font-semibold whitespace-nowrap">${e(String(c))}</th>`).join('')}</tr></thead><tbody>${t.rows.map(r => `<tr class="border-t border-slate-100 dark:border-slate-800">${r.map(v => `<td class="px-2 py-1.5 whitespace-nowrap">${v == null ? '<span class="text-slate-300">NULL</span>' : e(String(v))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`).join('');
                 };
+                // interLink: (from PERSON of "CARTE" to PERSON of "CARTE", PERSON of "CARTE");
+                const parseInterLink = st => {
+                    const word = (t, v) => t && t.t === 'w' && t.v.toLowerCase() === v;
+                    let i = 2;
+                    if (!sy(st[1], ':') || !sy(st[i++], '(') || !word(st[i++], 'from')) throw Error('interLink : syntaxe attendue (from personne of "Carte" to personne of "Carte")');
+                    const person = () => {
+                        const p = st[i++];
+                        if (!p || p.t === 'sym' || !word(st[i++], 'of')) throw Error('interLink : personne of "Carte" attendu');
+                        const c = st[i++];
+                        if (!c || c.t === 'sym') throw Error('interLink : nom de carte manquant');
+                        return { person: p.v, card: c.v };
+                    };
+                    const from = person();
+                    if (!word(st[i++], 'to')) throw Error('interLink : « to » attendu');
+                    const targets = [person()];
+                    while (sy(st[i], ',')) { i++; targets.push(person()); }
+                    if (!sy(st[i++], ')') || i !== st.length) throw Error('interLink : fermeture « ) » attendue');
+                    return { from, targets };
+                };
+                const resolveInterPerson = ({ person, card }) => {
+                    const cards = [];
+                    (function walk(items) { (items || []).forEach(c => { if (c.type === 'card') cards.push(c); if (c.children) walk(c.children); }); })(projectData.tree);
+                    const matches = cards.filter(c => c.id === card || c.name?.toLowerCase() === String(card).toLowerCase());
+                    if (matches.length !== 1) throw Error(`Carte « ${card} » ${matches.length ? 'ambiguë' : 'introuvable'}`);
+                    const c = matches[0];
+                    const found = (c.nodes || []).filter(n => n.id === person || `${n.firstname || ''} ${n.lastname || ''}`.trim().toLowerCase() === String(person).toLowerCase());
+                    if (found.length !== 1) throw Error(`Personne « ${person} » ${found.length ? 'ambiguë' : 'introuvable'} dans « ${card} »`);
+                    return { card: c, node: found[0] };
+                };
                 const runIt = async () => {
-                    let R;
-                    try { R = runAll(split(tok(src.value))); } catch (err) { msg('err', err.message); return; }
+                    let R, crossOps = [];
+                    try {
+                        const statements = split(tok(src.value));
+                        const standard = [];
+                        for (const st of statements) {
+                            if (st[0]?.t === 'w' && /^interlink$/i.test(st[0].v)) crossOps.push(parseInterLink(st));
+                            else standard.push(st);
+                        }
+                        if (crossOps.length && !projectData) throw Error('interLink nécessite un projet contenant les cartes.');
+                        R = runAll(standard);
+                        crossOps = crossOps.map(op => ({
+                            from: resolveInterPerson(op.from),
+                            targets: op.targets.map(resolveInterPerson)
+                        }));
+                        if (crossOps.some(op => op.targets.some(t => t.card.id === op.from.card.id))) throw Error('interLink : source et destination doivent appartenir à des cartes différentes.');
+                    } catch (err) { msg('err', err.message); return; }
                     if (R.news.length && !projectData) { msg('err', "Créer une carte nécessite d'être dans un projet (arborescence). Rien n'a été modifié."); return; }
-                    if ((R.cur.changed || R.news.length) && !requireEdit()) return;
+                    if ((R.cur.changed || R.news.length || crossOps.length) && !requireEdit()) return;
                     if (R.cur.changed) {
                         const D = R.cur.D;
                         currentCard.nodes = D.nodes; currentCard.links = D.links; currentCard.relationTypes = D.relationTypes; currentCard.fields = D.fields;
                         selectedNodeIds = selectedNodeIds.filter(id => currentCard.nodes.some(n => n.id === id));
                         await saveCurrentMapState(); renderCanvasNodes(); renderLegendList(); renderInspector();
+                    }
+                    if (crossOps.length) {
+                        let count = 0;
+                        crossOps.forEach(op => op.targets.forEach(target => {
+                            if (op.from.card.id === target.card.id) return;
+                            linkNodes(op.from.card, op.from.node, target.card, target.node);
+                            count++;
+                        }));
+                        await saveCurrentMapState();
+                        renderCanvasNodes(); renderInspector();
+                        R.log.push({ k: 'ok', m: `${count} interLink(s) créés entre cartes` });
                     }
                     if (R.news.length) {
                         R.news.forEach(g => treeInsert({ id: 'item_' + Date.now() + Math.random().toString(36).slice(2, 7), name: g.label, type: 'card', links: g.D.links, nodes: g.D.nodes, content: '', relationTypes: g.D.relationTypes, fields: g.D.fields }, { folderId: typeof treeSelectedId !== 'undefined' ? treeSelectedId : null }));
