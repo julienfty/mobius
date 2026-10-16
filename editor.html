@@ -13,6 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Import de fichiers dans l'arborescence (mêmes outils que la page map) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <style>.tree-row{user-select:none}.tree-drop-before{box-shadow:0 -2px 0 0 #5246EE}.tree-drop-after{box-shadow:0 2px 0 0 #5246EE}.tree-drop-inside{background:rgba(82,70,238,.12);box-shadow:inset 0 0 0 2px rgba(82,70,238,.5)}</style>
 
@@ -117,6 +118,12 @@
 .df-line{padding:.25rem .5rem;border-left:3px solid transparent;border-radius:.4rem;white-space:pre-wrap;font-size:12px}.df-line.i{border-color:#10b981;background:rgba(16,185,129,.08)}.df-line.d{border-color:#ef4444;background:rgba(239,68,68,.08)}.df-line.m{border-color:#f59e0b;background:rgba(245,158,11,.08)}
 .df-tag{font-size:9px;text-transform:uppercase;color:#94a3b8;margin-right:.4rem}
 </style>
+    <style>
+        /* Barre de chargement fine sous le menu du haut (visible seulement à l'ouverture d'un document) */
+        #top-progress { position: absolute; left: 0; right: 0; top: 100%; height: 2px; pointer-events: none; opacity: 0; transition: opacity .25s ease; z-index: 41; }
+        #top-progress.active { opacity: 1; }
+        #top-progress > div { height: 100%; width: 0; background: #3b82f6; box-shadow: 0 0 6px rgba(59,130,246,.55); transition: width .3s ease; }
+    </style>
 </head>
 <body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col antialiased selection:bg-[#5246EE] selection:text-white">
 
@@ -167,7 +174,33 @@
                 <span id="save-label" class="hidden sm:inline">Enregistré</span>
             </button>
         </div>
+    <div id="top-progress"><div></div></div>
     </header>
+    <script>
+        // Barre de chargement fine sous le menu du haut : visible seulement pendant l'ouverture d'un document
+        window.topProgress = (() => {
+            const el = document.getElementById('top-progress'), bar = el && el.firstElementChild;
+            let timer = null, w = 0;
+            return {
+                start() {
+                    if (!el) return;
+                    clearInterval(timer);
+                    bar.style.transition = 'none'; bar.style.width = '0%'; void bar.offsetWidth; bar.style.transition = '';
+                    el.classList.add('active'); w = 12; bar.style.width = w + '%';
+                    timer = setInterval(() => { w += (92 - w) * 0.1; bar.style.width = w + '%'; }, 250);
+                },
+                done() {
+                    if (!el) return;
+                    clearInterval(timer); bar.style.width = '100%';
+                    setTimeout(() => el.classList.remove('active'), 250);
+                    setTimeout(() => { bar.style.width = '0%'; }, 600);
+                }
+            };
+        })();
+        // retour arrière (page restaurée depuis le cache) : on ne garde pas une barre à moitié remplie
+        window.addEventListener('pageshow', (e) => { if (e.persisted) window.topProgress.done(); });
+        window.topProgress.start();
+    </script>
 
     <!-- ZONE PRINCIPALE : ARBORESCENCE + ÉDITEUR -->
     <div class="flex-1 flex overflow-hidden relative min-h-0">
@@ -185,7 +218,7 @@
                     <button id="tree-import-btn" title="Importer un fichier" class="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-medium flex items-center gap-1"><i data-lucide="file-up" class="w-3.5 h-3.5 text-[#5246EE]"></i>Importer</button>
                 </div>
                 <div id="tree-dest" class="mt-1.5 text-[10px] text-slate-400 truncate"></div>
-                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx,.mobtext,.mobscen" multiple>
+                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx,.mobtext,.mobscen,.sql,.csv,.xlsx,.xls" multiple>
             </div>
             <div id="tree-sidebar-content" class="flex-1 p-3 overflow-y-auto space-y-1 text-xs"></div>
             <div class="p-3 border-t border-slate-200 dark:border-slate-800">
@@ -515,6 +548,7 @@
             renderBreadcrumb();
             initEditor();
             focusFromUrl();
+            topProgress.done();
 
             window.addEventListener('resize', () => {
                 applyTreeSidebarState();
@@ -828,10 +862,439 @@
         }
 
         /* ---------- Import (mêmes formats / conversions que le dashboard) ---------- */
+/* ===== MOBIUS-TABULAR (import sql / csv / xlsx / json -> cartes ; même moteur que la page map) ===== */
+const MT = (() => {
+        const DEFAULT_FIELDS = () => [
+            { id: 'f_firstname', key: 'firstname', label: 'Prénom', type: 'line' },
+            { id: 'f_lastname', key: 'lastname', label: 'Nom', type: 'line' },
+            { id: 'f_nickname', key: 'nickname', label: 'Surnom', type: 'line' },
+            { id: 'f_birthdate', key: 'birthdate', label: 'Date de naissance', type: 'date' },
+            { id: 'f_location', key: 'location', label: 'Lieu de résidence', type: 'line' }
+        ];
+        function cardFields(c) { return Array.isArray(c.fields) ? c.fields : DEFAULT_FIELDS(); }
+        function fieldVal(node, f) { return f.key ? node[f.key] : (node.custom || {})[f.id]; }
+        function slug(s, fallback = 'carte') {
+            const r = String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+            return r || fallback;
+        }
+        function sqlIdent(s, fallback) { const r = slug(s, fallback); return /^\d/.test(r) ? 'c_' + r : r; }
+        function buildTables(entries) {
+            const usedT = new Set();
+            return entries.map(({ card: c, fieldIds }) => {
+                let tn = sqlIdent(c.name, 'carte'), base = tn, i = 2;
+                while (usedT.has(tn)) tn = base + '_' + i++;
+                usedT.add(tn);
+                const usedC = new Set(['id']);
+                const cols = cardFields(c).filter(f => !fieldIds || fieldIds.has(f.id)).map(f => {
+                    let n = sqlIdent(f.label, 'champ'), b = n, k = 2;
+                    while (usedC.has(n)) n = b + '_' + k++;
+                    usedC.add(n);
+                    return { name: n, label: f.label, type: f.type, f };
+                });
+                const rows = (c.nodes || []).map(node => ({
+                    id: node.id, x: node.x, y: node.y,
+                    vals: cols.map(col => {
+                        const v = fieldVal(node, col.f);
+                        if (col.type === 'bool') return v === true;
+                        if (v === undefined || v === null || v === '') return null;
+                        return col.type === 'number' ? Number(v) : String(v);
+                    })
+                }));
+                return { name: tn, title: c.name || tn, cols, rows, card: c };
+            });
+        }
+        function computeAge(birthdate) {
+            if (!birthdate) return '';
+            const b = new Date(birthdate), t = new Date();
+            if (isNaN(b)) return '';
+            let age = t.getFullYear() - b.getFullYear();
+            if (t.getMonth() < b.getMonth() || (t.getMonth() === b.getMonth() && t.getDate() < b.getDate())) age--;
+            return age >= 0 ? age : '';
+        }
+const currentCard = {};
+        const MT_core = (() => {
+            const CL = { "'": "'", '"': '"', '«': '»', '“': '”', '‘': '’' };
+            const PAL = ['#5246EE', '#ef4444', '#10b981', '#f59e0b', '#3b82f6', '#ec4899', '#14b8a6', '#8b5cf6'];
+            const ALIAS = { prenom: 'firstname', first_name: 'firstname', nom: 'lastname', last_name: 'lastname', surnom: 'nickname', date_de_naissance: 'birthdate', lieu_de_residence: 'location' };
+            const idn = s => sqlIdent(s, 'x');
+            const pretty = s => /[A-Z\s]|[^\x00-\x7f]/.test(s) ? String(s) : String(s).replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
+            const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+            const qi = s => '"' + String(s).replace(/"/g, '""') + '"';
+            const qs = s => '"' + String(s).replace(/"/g, "'") + '"';
+            const lit = v => v == null ? 'NULL' : typeof v === 'boolean' ? (v ? 'TRUE' : 'FALSE') : typeof v === 'number' ? (isFinite(v) ? String(v) : 'NULL') : "'" + String(v).replace(/'/g, "''") + "'";
+            const sy = (t, v) => !!t && t.t === 'sym' && t.v === v;
+            const tmap = t => /int|num|dec|float|real|doub/i.test(t) ? 'number' : /bool/i.test(t) ? 'bool' : /date|time/i.test(t) ? 'date' : 'line';
+            const isCmd = c => c.length > 1 && c[0].t === 'w' && /^(createlink|newlink)$/i.test(c[0].v) && sy(c[1], ':');
+
+            // ---------- analyse ----------
+            function tok(src) {
+                const T = [], n = src.length; let i = 0, ln = 1;
+                while (i < n) {
+                    const c = src[i];
+                    if (c === '\n') { ln++; i++; continue; }
+                    if (/\s/.test(c)) { i++; continue; }
+                    if (c === '-' && src[i + 1] === '-') {
+                        let j = i; while (j < n && src[j] !== '\n') j++;
+                        const m = src.slice(i, j).match(/^--\s*@card\s+(.+?)\s*$/);
+                        if (m) T.push({ t: 'meta', v: m[1].replace(/^["«“'](.*)["»”']$/, '$1'), ln });
+                        i = j; continue;
+                    }
+                    if (c === '/' && src[i + 1] === '*') { const e = src.indexOf('*/', i + 2), j = e < 0 ? n : e + 2; ln += (src.slice(i, j).match(/\n/g) || []).length; i = j; continue; }
+                    if (CL[c]) {
+                        const cl = CL[c], l0 = ln; let j = i + 1, s = '';
+                        for (;;) {
+                            if (j >= n) throw Error(`Ligne ${l0} : guillemet non fermé`);
+                            const d = src[j];
+                            if (d === cl) { if (cl === c && src[j + 1] === c) { s += c; j += 2; continue; } break; }
+                            if (d === '\n') ln++;
+                            s += d; j++;
+                        }
+                        T.push({ t: c === '"' ? 'qid' : 'str', v: s, ln: l0 }); i = j + 1; continue;
+                    }
+                    const m2 = src.substr(i, 2);
+                    if (m2 === '<=' || m2 === '>=' || m2 === '<>' || m2 === '!=') { T.push({ t: 'sym', v: m2, ln }); i += 2; continue; }
+                    if ('(),;:=<>*'.includes(c)) { T.push({ t: 'sym', v: c, ln }); i++; continue; }
+                    let j = i; while (j < n && !/[\s(),;:=<>*'"«»“”‘’]/.test(src[j])) j++;
+                    if (j === i) j++;
+                    T.push({ t: 'w', v: src.slice(i, j), ln }); i = j;
+                }
+                return T;
+            }
+            // une instruction se termine par « ; » ; une commande createLink / newLink peut aussi se terminer à la fin de la ligne
+            function split(T) {
+                const S = []; let cur = [];
+                const flush = () => { if (cur.length) S.push(cur); cur = []; };
+                for (const t of T) {
+                    if (t.t === 'meta') { flush(); S.push([t]); continue; }
+                    if (sy(t, ';')) { flush(); continue; }
+                    if (isCmd(cur)) { const p = cur[cur.length - 1]; if (t.ln > p.ln && !sy(p, ',')) flush(); }
+                    cur.push(t);
+                }
+                flush(); return S;
+            }
+
+            // ---------- exécution (sur une copie : tout ou rien) ----------
+            function run(S, base) {
+                const cp = x => JSON.parse(JSON.stringify(x));
+                const D = { nodes: cp(base.nodes || []), links: cp(base.links || []), relationTypes: cp(base.relationTypes || []), fields: cp(Array.isArray(base.fields) ? base.fields : DEFAULT_FIELDS()) };
+                const log = [], results = [], types = {}; let ins = 0, upd = 0, del = 0, lk = 0, changed = false;
+                const val = t => { if (!t) throw Error('valeur manquante'); if (t.t !== 'w') return t.v; const u = t.v.toUpperCase(); if (u === 'NULL') return null; if (u === 'TRUE') return true; if (u === 'FALSE') return false; return /^-?\d+(\.\d+)?$/.test(t.v) ? Number(t.v) : t.v; };
+                const findF = c => { const k = idn(c); return D.fields.find(f => idn(f.label) === k || f.key === k) || D.fields.find(f => f.key && f.key === ALIAS[k]); };
+                const getF = (c, type) => findF(c) || (() => { const f = { id: uid('f_'), label: pretty(c), type: type || 'line' }; D.fields.push(f); return f; })();
+                const setV = (n, f, v) => {
+                    if (v !== null && v !== '') {
+                        if (f.type === 'number') { v = Number(v); if (!isFinite(v)) throw Error(`« ${f.label} » attend un nombre`); }
+                        else if (f.type === 'bool') v = v === true || /^(true|1|oui|vrai)$/i.test(String(v));
+                        else v = String(v);
+                    }
+                    if (f.key) { n[f.key] = v == null ? '' : v; if (f.key === 'birthdate') n.age = computeAge(n.birthdate || ''); }
+                    else (n.custom ||= {})[f.id] = v;
+                };
+                const getV = (n, c) => { const u = c.toLowerCase(); if (u === 'id') return n.id; if (u === '_x') return n.x; if (u === '_y') return n.y; const f = findF(c); if (!f) throw Error(`colonne « ${c} » inconnue`); return fieldVal(n, f); };
+                const ref = r => {
+                    let n = D.nodes.find(x => x.id === r); if (n) return n;
+                    const k = String(r).toLowerCase().trim(), m = D.nodes.filter(x => `${x.firstname || ''} ${x.lastname || ''}`.trim().toLowerCase() === k);
+                    if (m.length === 1) return m[0];
+                    throw Error(m.length ? `« ${r} » est ambigu (${m.length} personnes) : utilise l'id` : `personne « ${r} » introuvable`);
+                };
+                const place = n => {
+                    if (isFinite(n.x) && isFinite(n.y)) return;
+                    for (let i = D.nodes.length; ; i++) { const x = 60 + (i % 6) * 200, y = 60 + Math.floor(i / 6) * 150; if (!D.nodes.some(o => Math.abs(o.x - x) < 180 && Math.abs(o.y - y) < 120)) { n.x = x; n.y = y; return; } }
+                };
+                const cmp = (a, op, b) => {
+                    if (op === 'LIKE') return new RegExp('^' + String(b).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.') + '$', 'i').test(String(a ?? ''));
+                    const na = Number(a), nb = Number(b), num = a !== null && a !== '' && b !== null && isFinite(na) && isFinite(nb);
+                    const x = num ? na : String(a ?? '').toLowerCase(), y = num ? nb : String(b ?? '').toLowerCase();
+                    switch (op) { case '=': return x === y; case '!=': case '<>': return x !== y; case '<': return x < y; case '>': return x > y; case '<=': return x <= y; case '>=': return x >= y; }
+                    throw Error(`opérateur « ${op} » non géré`);
+                };
+                const where = (tk, i) => {
+                    const ors = [[]];
+                    while (tk[i] && !/^(order|limit)$/i.test(tk[i].v)) {
+                        const col = tk[i++].v; let op = tk[i] && tk[i].v.toUpperCase(), neg = false, f;
+                        if (op === 'IS') { i++; if (tk[i] && /^not$/i.test(tk[i].v)) { neg = true; i++; } i++; f = n => { const v = getV(n, col); return (v == null || v === '') !== neg; }; }
+                        else { if (op === 'NOT') { neg = true; i++; op = tk[i].v.toUpperCase(); } i++; const v = val(tk[i++]); f = n => cmp(getV(n, col), op, v) !== neg; }
+                        ors[ors.length - 1].push(f);
+                        const nx = tk[i];
+                        if (nx && /^and$/i.test(nx.v)) i++; else if (nx && /^or$/i.test(nx.v)) { i++; ors.push([]); } else break;
+                    }
+                    return [n => ors.some(a => a.every(f => f(n))), i];
+                };
+                const link = (rel, a, b) => {
+                    const A = ref(a), B = ref(b);
+                    if (A === B) throw Error('une personne ne peut pas être reliée à elle-même');
+                    if (D.links.some(l => (l.sourceId === A.id && l.targetId === B.id) || (l.sourceId === B.id && l.targetId === A.id))) { log.push({ k: 'warn', m: `Lien déjà existant entre « ${a} » et « ${b} » : ignoré` }); return; }
+                    D.links.push({ id: uid('link-'), sourceId: A.id, targetId: B.id, relationTypeId: rel ? rel.id : '' }); lk++; changed = true;
+                };
+                // createLink: name: "Nom", color: "#hex"   |   newLink: typeLink: "Nom", from x to y, from x to z ...
+                const cmd = st => {
+                    const kind = st[0].v.toLowerCase(); let i = 2, name = null, color = null, tl = null; const pairs = [];
+                    while (i < st.length) {
+                        const t = st[i], w = t.v.toLowerCase();
+                        if (sy(t, ',')) { i++; continue; }
+                        if (t.t === 'w' && w === 'from') { const a = st[i + 1], to = st[i + 2], b = st[i + 3]; if (!a || !b || !to || to.v.toLowerCase() !== 'to') throw Error('syntaxe attendue : from X to Y'); pairs.push([a.v, b.v]); i += 4; continue; }
+                        if (t.t === 'w' && (w === 'name' || w === 'color' || w === 'typelink') && (sy(st[i + 1], ':') || sy(st[i + 1], '='))) { const v = st[i + 2]; if (!v || v.t === 'sym') throw Error(`valeur manquante après ${t.v}`); if (w === 'name') name = v.v; else if (w === 'color') color = v.v; else tl = v.v; i += 3; continue; }
+                        throw Error(`élément inattendu « ${t.v} »`);
+                    }
+                    if (kind === 'createlink') {
+                        if (!name) throw Error('createLink : name: "…" est obligatoire');
+                        if (!color) throw Error('createLink : color: "#……" est obligatoire');
+                        if (!/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(color)) throw Error(`couleur « ${color} » invalide (attendu : #RRGGBB)`);
+                        if (pairs.length) throw Error('createLink ne crée pas de lien : utilise newLink');
+                        let rel = D.relationTypes.find(r => r.name.toLowerCase() === name.toLowerCase());
+                        if (rel) { rel.color = color; log.push({ k: 'warn', m: `Le type « ${rel.name} » existait déjà : couleur mise à jour` }); }
+                        else { rel = { id: uid('rel-'), name, color }; D.relationTypes.push(rel); log.push({ k: 'ok', m: `Type de lien « ${name} » ajouté à la légende` }); }
+                        changed = true; return;
+                    }
+                    if (!tl) throw Error('newLink : typeLink: "…" est obligatoire');
+                    if (!pairs.length) throw Error('newLink : from X to Y attendu');
+                    const rel = D.relationTypes.find(r => r.name.toLowerCase() === tl.toLowerCase() || r.id === tl);
+                    if (!rel && !/^(none|aucun)$/i.test(tl)) throw Error(`type de lien « ${tl} » inconnu : crée-le d'abord avec createLink`);
+                    pairs.forEach(([a, b]) => link(rel, a, b));
+                };
+                const exec = st => {
+                    if (st[0].t === 'meta' || /^use$/i.test(st[0].v)) return;
+                    if (/^alter$/i.test(st[0].v)) {
+                        const k = st.findIndex(t => t.t === 'w' && /^add$/i.test(t.v)); let j = k + 1;
+                        if (k < 0 || !st[j]) throw Error('ALTER TABLE nom ADD COLUMN colonne type attendu');
+                        if (/^column$/i.test(st[j].v)) j++;
+                        getF(st[j].v, tmap(st.slice(j + 1).map(t => t.v).join(' '))); changed = true; return;
+                    }
+                    if (isCmd(st)) return cmd(st);
+                    const w0 = st[0].v.toUpperCase(); let i = 1;
+                    if (w0 === 'CREATE') {
+                        if (/^(table|card)$/i.test(st[i].v)) i++;
+                        if (/^if$/i.test(st[i].v)) i += 3;
+                        i++;
+                        if (!sy(st[i], '(')) throw Error('« ( » attendue après le nom de la table');
+                        i++; let n = 0;
+                        while (i < st.length) {
+                            const nm = st[i++]; if (sy(nm, ')')) break;
+                            let depth = 0, ty = '';
+                            while (i < st.length && !(depth === 0 && (sy(st[i], ',') || sy(st[i], ')')))) { if (sy(st[i], '(')) depth++; if (sy(st[i], ')')) depth--; ty += ' ' + st[i].v; i++; }
+                            if (sy(st[i], ',')) i++;
+                            const u = nm.v.toLowerCase();
+                            if (u === 'id' || u === '_x' || u === '_y' || /^(primary|foreign|unique|constraint|check)$/.test(u)) continue;
+                            getF(nm.v, tmap(ty)); n++;
+                        }
+                        log.push({ k: 'ok', m: `Table : ${n} colonne(s) prises en compte` }); changed = true; return;
+                    }
+                    if (w0 === 'INSERT') {
+                        if (/^into$/i.test(st[i].v)) i++;
+                        i++; let cols;
+                        if (sy(st[i], '(')) { cols = []; i++; while (!sy(st[i], ')')) { if (!sy(st[i], ',')) cols.push(st[i].v); i++; } i++; }
+                        else cols = ['id', ...D.fields.map(f => f.label)];
+                        if (!/^values$/i.test(st[i].v)) throw Error('VALUES attendu');
+                        i++;
+                        while (sy(st[i], '(')) {
+                            i++; const vs = [];
+                            while (!sy(st[i], ')')) { if (!sy(st[i], ',')) vs.push(val(st[i])); i++; }
+                            i++;
+                            if (vs.length !== cols.length) throw Error(`${cols.length} colonnes mais ${vs.length} valeurs`);
+                            const nd = {}; let id = null;
+                            cols.forEach((c, k) => { const u = c.toLowerCase(); if (u === 'id') id = vs[k]; else if (u === '_x') nd.x = Number(vs[k]); else if (u === '_y') nd.y = Number(vs[k]); });
+                            nd.id = id != null && id !== '' ? String(id) : uid('node-');
+                            if (D.nodes.some(x => x.id === nd.id)) throw Error(`id « ${nd.id} » déjà utilisé`);
+                            cols.forEach((c, k) => { const u = c.toLowerCase(); if (u !== 'id' && u !== '_x' && u !== '_y') setV(nd, getF(c), vs[k]); });
+                            place(nd); D.nodes.push(nd); ins++; changed = true;
+                            if (sy(st[i], ',')) i++;
+                        }
+                        return;
+                    }
+                    if (w0 === 'UPDATE') {
+                        i = 2; if (!/^set$/i.test(st[i].v)) throw Error('SET attendu');
+                        i++; const sets = [];
+                        for (;;) { const c = st[i++].v; i++; sets.push([c, val(st[i++])]); if (sy(st[i], ',')) i++; else break; }
+                        let f = () => true; if (st[i] && /^where$/i.test(st[i].v)) [f, i] = where(st, i + 1);
+                        const hit = D.nodes.filter(f);
+                        hit.forEach(n => sets.forEach(([c, v]) => { const u = c.toLowerCase(); if (u === '_x') n.x = Number(v); else if (u === '_y') n.y = Number(v); else if (u === 'id') throw Error("l'id ne peut pas être modifié"); else setV(n, getF(c), v); }));
+                        upd += hit.length; changed = true; return;
+                    }
+                    if (w0 === 'DELETE') {
+                        if (/^from$/i.test(st[i].v)) i++;
+                        i++; let f = () => true; if (st[i] && /^where$/i.test(st[i].v)) [f, i] = where(st, i + 1);
+                        const ids = new Set(D.nodes.filter(f).map(n => n.id));
+                        D.nodes = D.nodes.filter(n => !ids.has(n.id)); D.links = D.links.filter(l => !ids.has(l.sourceId) && !ids.has(l.targetId));
+                        del += ids.size; changed = true; return;
+                    }
+                    if (w0 === 'SELECT') {
+                        const cols = [];
+                        while (!/^from$/i.test(st[i].v)) { if (!sy(st[i], ',')) cols.push(st[i].v); i++; }
+                        i += 2; let f = () => true; if (st[i] && /^where$/i.test(st[i].v)) [f, i] = where(st, i + 1);
+                        let ord = null, desc = false, lim = Infinity;
+                        while (st[i]) {
+                            const u = st[i].v.toUpperCase();
+                            if (u === 'ORDER') { i += 2; ord = st[i++].v; if (st[i] && /^(asc|desc)$/i.test(st[i].v)) desc = st[i++].v.toUpperCase() === 'DESC'; }
+                            else if (u === 'LIMIT') { lim = Number(st[i + 1].v); i += 2; }
+                            else throw Error(`« ${st[i].v} » inattendu`);
+                        }
+                        const cs = cols[0] === '*' ? ['id', ...D.fields.map(x => x.label)] : cols;
+                        let rs = D.nodes.filter(f);
+                        if (ord) rs = rs.slice().sort((a, b) => { const x = getV(a, ord), y = getV(b, ord); return (x > y ? 1 : x < y ? -1 : 0) * (desc ? -1 : 1); });
+                        rs = rs.slice(0, lim);
+                        results.push({ cols: cs, rows: rs.map(n => cs.map(c => getV(n, c))) });
+                        log.push({ k: 'ok', m: `SELECT : ${rs.length} ligne(s)` }); return;
+                    }
+                    throw Error(`instruction non reconnue : ${st[0].v}`);
+                };
+                S.forEach(st => { try { exec(st); } catch (e) { throw Error(`Ligne ${st[0].ln} : ${e instanceof TypeError ? 'syntaxe invalide' : e.message}`); } });
+                if (ins) log.push({ k: 'ok', m: `${ins} personne(s) ajoutée(s)` });
+                if (upd) log.push({ k: 'ok', m: `${upd} personne(s) modifiée(s)` });
+                if (del) log.push({ k: 'ok', m: `${del} personne(s) supprimée(s)` });
+                if (lk) log.push({ k: 'ok', m: `${lk} lien(s) créé(s)` });
+                return { D, log, results, changed };
+            }
+
+            // routage : CREATE TABLE|CARD crée une nouvelle carte (les instructions suivantes la visent), USE désigne une autre carte ; sans CREATE tout vise la carte courante
+            function runAll(S) {
+                const G = [{ ident: currentCard.name || '', label: 'carte actuelle', base: currentCard, st: [] }];
+                let act = G[0], title = null, made = false;
+                const find = n => G.find(g => idn(g.ident) === idn(n) || idn(g.label) === idn(n));
+                const tn = st => {
+                    const u = st[0].v.toUpperCase(); let i = 1;
+                    if (u === 'INSERT') { if (/^into$/i.test(st[i].v)) i++; return st[i]; }
+                    if (u === 'UPDATE') return st[1];
+                    if (u === 'DELETE') { if (/^from$/i.test(st[i].v)) i++; return st[i]; }
+                    if (u === 'SELECT') return st[st.findIndex(t => t.t === 'w' && /^from$/i.test(t.v)) + 1];
+                    return null;
+                };
+                S.forEach(st => {
+                    if (st[0].t === 'meta') { title = st[0].v; return; }
+                    const u = st[0].t === 'w' ? st[0].v.toUpperCase() : '';
+                    try {
+                        if (u === 'CREATE') {
+                            let j = 1; if (/^(table|card)$/i.test(st[j].v)) j++; if (/^if$/i.test(st[j].v)) j += 3;
+                            const nt = st[j]; if (!nt) throw Error('nom de la table manquant');
+                            act = { ident: nt.v, label: title || (nt.t === 'w' ? pretty(nt.v) : nt.v), base: {}, st: [st], isNew: true }; G.push(act); made = true; title = null; return;
+                        }
+                        if (u === 'USE') { let j = 1; if (/^(table|card)$/i.test(st[j].v)) j++; const g = st[j] && find(st[j].v); if (!g) throw Error(`carte « ${st[j] ? st[j].v : ''} » inconnue`); act = g; return; }
+                        let g = act; const t = tn(st);
+                        if (t && t.t !== 'sym') { const f = find(t.v); if (f) g = f; else if (made) throw Error(`table « ${t.v} » inconnue : crée-la d'abord ou utilise USE`); }
+                        g.st.push(st);
+                    } catch (e) { throw Error(`Ligne ${st[0].ln} : ${e.message}`); }
+                });
+                const outs = G.map(g => ({ g, r: run(g.st, g.base) })), log = [], results = [];
+                outs.forEach(o => { o.r.log.forEach(l => log.push(G.length > 1 ? { ...l, m: `« ${o.g.label} » : ${l.m}` } : l)); results.push(...o.r.results); });
+                return { cur: outs[0].r, news: outs.slice(1).map(o => ({ label: o.g.label, D: o.r.D })), log, results };
+            }
+
+            // un script (une ou plusieurs tables) -> une carte par CREATE TABLE
+            function toCards(src, fname) {
+                const segs = []; let cur = null, title = null;
+                split(tok(src)).forEach(st => {
+                    if (st[0].t === 'meta') { title = st[0].v; return; }
+                    if (st[0].t === 'w' && /^create$/i.test(st[0].v)) {
+                        let j = st.findIndex(t => t.t === 'w' && /^(table|card)$/i.test(t.v)) + 1;
+                        if (st[j] && /^if$/i.test(st[j].v)) j += 3;
+                        cur = { title, tn: st[j] ? st[j].v : '', st: [] }; segs.push(cur); title = null;
+                    } else if (!cur) { cur = { title, tn: '', st: [] }; segs.push(cur); }
+                    cur.st.push(st);
+                });
+                const base = String(fname || 'Carte importée').replace(/\.[^.]+$/, '');
+                return segs.map(s => {
+                    const r = run(s.st, {});
+                    return { id: 'item_' + Date.now() + Math.random().toString(36).slice(2, 7), name: s.title || (segs.length === 1 ? base : pretty(s.tn)), type: 'card', links: r.D.links, nodes: r.D.nodes, content: '', relationTypes: r.D.relationTypes, fields: r.D.fields };
+                });
+            }
+
+            // ---------- tables -> SQL (format Mobius : labels exacts, positions, légende et liens) ----------
+            function emit(tables, o = {}) {
+                const ty = { line: 'TEXT', text: 'TEXT', number: 'NUMERIC', bool: 'BOOLEAN', date: 'DATE' };
+                const out = [o.head || '-- Mobius'];
+                tables.forEach(t => {
+                    const cn = c => qi(o.mobius ? c.label : c.name), xy = o.mobius && t.rows.some(r => typeof r.x === 'number');
+                    const hasId = t.rows.some(r => r.id !== undefined);
+                    const cd = [...(hasId ? ['  "id" TEXT PRIMARY KEY'] : []), ...t.cols.map(c => `  ${cn(c)} ${ty[c.type] || 'TEXT'}`), ...(xy ? ['  "_x" NUMERIC', '  "_y" NUMERIC'] : [])];
+                    const names = [...(hasId ? ['"id"'] : []), ...t.cols.map(cn), ...(xy ? ['"_x"', '"_y"'] : [])].join(', ');
+                    if (o.mobius && !o.noCreate) out.push(`\n-- @card ${qs(t.title || t.name)}`);
+                    if (o.noCreate) { out.push(''); t.cols.forEach(c => out.push(`ALTER TABLE ${qi(t.name)} ADD COLUMN ${cn(c)} ${ty[c.type] || 'TEXT'};`)); } else out.push(`\nCREATE TABLE ${qi(t.name)} (\n${cd.join(',\n')}\n);`);
+                    t.rows.forEach(r => out.push(`INSERT INTO ${qi(t.name)} (${names}) VALUES (${[...(hasId ? [lit(r.id)] : []), ...r.vals.map(lit), ...(xy ? [lit(r.x), lit(r.y)] : [])].join(', ')});`));
+                    const rels = t.rels || (t.card && t.card.relationTypes) || [], lks = t.links || (t.card && t.card.links) || [];
+                    if (o.mobius && (rels.length || lks.length)) {
+                        const key = {}, g = {}; out.push('');
+                        rels.forEach(r => { key[r.id] = r.name; out.push(`createLink: name: ${qs(r.name)}, color: ${qs(r.color || '#5246EE')};`); });
+                        lks.forEach(l => (g[key[l.relationTypeId] || 'none'] ||= []).push(`from ${lit(l.sourceId)} to ${lit(l.targetId)}`));
+                        Object.entries(g).forEach(([k, a]) => out.push(`newLink: typeLink: ${k === 'none' ? 'none' : qs(k)}, ${a.join(', ')};`));
+                    }
+                });
+                return out.join('\n') + '\n';
+            }
+
+            // ---------- fichiers csv / xlsx / json -> tables ----------
+            const csvParse = (t, sep) => {
+                const R = []; let r = [], c = '', q = false;
+                for (let i = 0; i < t.length; i++) {
+                    const ch = t[i];
+                    if (q) { if (ch === '"') { if (t[i + 1] === '"') { c += '"'; i++; } else q = false; } else c += ch; }
+                    else if (ch === '"') q = true;
+                    else if (ch === sep) { r.push(c); c = ''; }
+                    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && t[i + 1] === '\n') i++; r.push(c); c = ''; R.push(r); r = []; }
+                    else c += ch;
+                }
+                if (c !== '' || r.length) { r.push(c); R.push(r); }
+                return R.filter(x => x.some(v => String(v).trim() !== ''));
+            };
+            function aoaTable(aoa, name) {
+                if (!aoa || !aoa.length) return null;
+                const H = aoa[0].map(h => String(h == null ? '' : h).trim()), idI = H.findIndex(h => h.toLowerCase() === 'id');
+                const idx = H.map((h, k) => k).filter(k => H[k] && k !== idI);
+                const cast = v => v instanceof Date ? v.toISOString().slice(0, 10) : (v === '' || v === undefined ? null : v);
+                const rows = aoa.slice(1).map(r => ({ id: idI >= 0 && r[idI] != null && r[idI] !== '' ? String(r[idI]) : undefined, raw: idx.map(k => cast(r[k])) }));
+                const cols = idx.map((k, j) => {
+                    const vs = rows.map(r => r.raw[j]).filter(v => v !== null); let type = 'line';
+                    if (vs.length) {
+                        if (vs.every(v => typeof v === 'number' || (typeof v === 'string' && v.trim() !== '' && isFinite(Number(v.replace(',', '.'))) && !/^0\d/.test(v.trim())))) type = 'number';
+                        else if (vs.every(v => typeof v === 'boolean' || /^(true|false|vrai|faux)$/i.test(String(v)))) type = 'bool';
+                        else if (vs.every(v => /^\d{4}-\d{2}-\d{2}$/.test(String(v)))) type = 'date';
+                    }
+                    return { name: idn(H[k]), label: H[k], type };
+                });
+                rows.forEach(r => { r.vals = r.raw.map((v, j) => v === null ? null : cols[j].type === 'number' ? Number(String(v).replace(',', '.')) : cols[j].type === 'bool' ? (v === true || /^(true|vrai)$/i.test(String(v))) : String(v)); });
+                return { name: idn(name), title: name, cols, rows };
+            }
+            function jsonTables(d, base) {
+                if (d && Array.isArray(d.tables)) return d.tables.map(t => {
+                    const cols = (t.columns || []).filter(c => c.name !== 'id').map(c => ({ name: c.name, label: c.label || c.name, type: c.type === 'text' ? 'line' : (c.type || 'line') }));
+                    return { name: t.table || idn(t.title || base), title: t.title || t.table || base, cols, rows: (t.rows || []).map(r => ({ id: r.id, x: r._x, y: r._y, vals: cols.map(c => r[c.name] ?? null) })), rels: t.relationTypes, links: t.links };
+                });
+                if (d && Array.isArray(d.nodes) && Array.isArray(d.links)) return buildTables([{ card: { ...d, name: d.name || base }, fieldIds: null }]);
+                if (!Array.isArray(d) || !d.length || typeof d[0] !== 'object') throw Error("JSON non reconnu (attendu : tables Mobius, carte ou tableau d'objets)");
+                const keys = [...new Set(d.flatMap(o => Object.keys(o)))];
+                return [aoaTable([keys, ...d.map(o => keys.map(k => o[k] == null ? null : typeof o[k] === 'object' ? JSON.stringify(o[k]) : o[k]))], base)];
+            }
+            async function fileTables(file) {
+                const ext = ((file.name.match(/\.([^.]+)$/) || [])[1] || '').toLowerCase(), base = file.name.replace(/\.[^.]+$/, '');
+                if (ext === 'csv') {
+                    const t = (await file.text()).replace(/^\ufeff/, ''), l = t.split(/\r?\n/)[0] || '';
+                    const sep = [';', '\t', ','].map(s => [s, l.split(s).length]).sort((a, b) => b[1] - a[1])[0][0];
+                    const tb = aoaTable(csvParse(t, sep), base); if (!tb) throw Error('fichier vide'); return [tb];
+                }
+                if (ext === 'xlsx' || ext === 'xls') {
+                    if (typeof XLSX === 'undefined') throw Error('bibliothèque Excel non chargée');
+                    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+                    const out = wb.SheetNames.map(n => aoaTable(XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null }), wb.SheetNames.length > 1 ? n : base)).filter(Boolean);
+                    if (!out.length) throw Error('classeur vide'); return out;
+                }
+                if (ext === 'json' || ext === 'mobius') return jsonTables(JSON.parse((await file.text()).replace(/^\ufeff/, '')), base);
+                throw Error('format non géré');
+            }
+            async function isTabularJson(file) {
+                try { const d = JSON.parse(await file.text()); return !(d && Array.isArray(d.nodes) && Array.isArray(d.links)) && (Array.isArray(d.tables) || (Array.isArray(d) && d.length > 0 && typeof d[0] === 'object')); } catch (e) { return false; }
+            }
+            async function fileToCards(file) {
+                if (/\.sql$/i.test(file.name)) return toCards(await file.text(), file.name);
+                return toCards(emit(await fileTables(file), { mobius: true }), file.name);
+            }
+return { tok, split, toCards, emit, fileTables, fileToCards, isTabularJson };
+})();
+return Object.assign({ buildTables }, MT_core);
+})();
+/* ===== MOBIUS-TABULAR:END ===== */
+
         async function treeImport(files, dest) {
             if (!requireEdit()) return;
-            const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx|mobtext|mobscen)$/i.test(f.name));
-            if (accepted.length < files.length) showToast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx et .mobius.');
+            const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx|mobtext|mobscen|sql|csv|xlsx|xls)$/i.test(f.name));
+            if (accepted.length < files.length) showToast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx, .mobius, .mobtext, .mobscen, .sql, .csv et .xlsx.');
             let t = dest, added = 0;
             const put = (item) => {
                 treeInsert(item, t); added++;
@@ -839,6 +1302,13 @@
             };
             for (const file of accepted) {
                 try {
+                    if (/\.(sql|csv|xlsx|xls)$/i.test(file.name) || (/\.json$/i.test(file.name) && await MT.isTabularJson(file))) {
+                        // Excel / CSV / SQL / SQL Mobius / JSON tabulaire : une carte par table ou feuille (mêmes règles que la page map)
+                        const cs = await MT.fileToCards(file);
+                        cs.forEach(c => put(c));
+                        showToast(`« ${file.name} » : ${cs.length} carte${cs.length > 1 ? 's' : ''} créée${cs.length > 1 ? 's' : ''}.`);
+                        continue;
+                    }
                     if (/\.(mobtext|mobscen)$/i.test(file.name)) {
                         const d = JSON.parse(await file.text());
                         put({ id: newItemId(), type: 'txt', name: d.name || file.name.replace(/\.[^.]+$/, ''), content: d.content || '', docType: d.type, doc: d.doc }); continue;
@@ -1011,6 +1481,7 @@
                 if (it.id === cardId) { if (window.innerWidth < 768) closeTreeSidebar(); return; }
                 if (!await confirmLeave()) return;
                 if (treeSaveTimer) { clearTimeout(treeSaveTimer); treeSaveTimer = null; updateCardInTree(projectData.tree, currentCard); await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId); }
+                topProgress.start();
                 window.location.href = it.type === 'card'
                     ? `map.html?cardId=${encodeURIComponent(it.id)}&projectId=${encodeURIComponent(projectId)}`
                     : `editor.html?projectId=${encodeURIComponent(projectId)}&fileId=${encodeURIComponent(it.id)}`;
@@ -2250,3 +2721,4 @@ async function removeCollaborator(idx){
     </script>
 </body>
 </html>
+
