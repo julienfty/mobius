@@ -141,7 +141,7 @@
                     <button id="tree-import-btn" title="Importer un fichier" class="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-medium flex items-center gap-1"><i data-lucide="file-up" class="w-3.5 h-3.5 text-[#5246EE]"></i>Importer</button>
                 </div>
                 <div id="tree-dest" class="mt-1.5 text-[10px] text-slate-400 truncate"></div>
-                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx" multiple>
+                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx,.mobtext,.mobscen" multiple>
             </div>
             <div id="tree-sidebar-content" class="flex-1 p-3 overflow-y-auto space-y-1 text-xs"></div>
             <div class="p-3 border-t border-slate-200 dark:border-slate-800">
@@ -2865,8 +2865,8 @@ container.addEventListener('touchstart', (e) => {
         /* ---------- Import (mêmes formats / conversions que le dashboard) ---------- */
         async function treeImport(files, dest) {
             if (!requireEdit()) return;
-            const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx)$/i.test(f.name));
-            if (accepted.length < files.length) showToast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx et .mobius.');
+            const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx|mobtext|mobscen)$/i.test(f.name));
+            if (accepted.length < files.length) showToast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx, .mobius, .mobtext et .mobscen.');
             let t = dest, added = 0;
             const put = (item) => {
                 treeInsert(item, t); added++;
@@ -2874,6 +2874,12 @@ container.addEventListener('touchstart', (e) => {
             };
             for (const file of accepted) {
                 try {
+                    if (/\.(mobtext|mobscen)$/i.test(file.name)) {
+                        const d = JSON.parse(await file.text());
+                        if (!d || typeof d !== 'object') { showToast(`« ${file.name} » n'est pas un fichier Mobius valide.`); continue; }
+                        put({ id: newItemId(), type: 'txt', name: d.name || file.name.replace(/\.[^.]+$/, ''), content: d.content || '', docType: d.type, doc: d.doc });
+                        continue;
+                    }
                     if (/\.mobius$/i.test(file.name)) {
                         const card = parseMobiusCard(await file.text(), file.name);
                         if (!card) { showToast(`« ${file.name} » n'est pas une carte Mobius valide.`); continue; }
