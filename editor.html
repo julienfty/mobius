@@ -224,6 +224,7 @@
         let currentUser = null;
         let projectId = null;
         let projectData = null;
+        let standalone = false;       // scénario / texte autonome (dashboard) : ?cardId=… , stocké dans la table cards, sans arborescence
         let cardId = null;            // id du fichier ouvert (nom conservé pour partager le code de l'arborescence)
         let currentCard = null;       // fichier ouvert (même objet que dans projectData.tree)
         let treeOpen = localStorage.getItem('treeOpen') !== '0';
@@ -233,14 +234,15 @@
         let myRole = 'admin';
         let saveTimer = null;
 
-        function getCollabs() { if (!Array.isArray(projectData.collaborators)) projectData.collaborators = []; return projectData.collaborators; }
+        function holder() { return standalone ? currentCard : projectData; }
+        function getCollabs() { const h = holder(); if (!Array.isArray(h.collaborators)) h.collaborators = []; return h.collaborators; }
         function normalizeCollaborators() {
-            projectData.collaborators = (projectData.collaborators || [])
+            holder().collaborators = (holder().collaborators || [])
                 .map(c => typeof c === 'string' ? { email: c, role: 'editor', status: 'pending' } : c)
                 .filter(c => c && c.email)
                 .map(c => c.role ? c : { ...c, role: 'editor' });
         }
-        function getOwnerId() { return projectData.user_id || projectData.owner_id || null; }
+        function getOwnerId() { const h = holder(); return h.user_id || h.owner_id || null; }
         function computeMyRole() {
             const ownerId = getOwnerId();
             if (ownerId && ownerId === currentUser.id) return 'admin';
@@ -276,14 +278,40 @@
         async function saveCurrentMapState(force = false) {
             if (!force && !canEdit()) return false;
             clearTimeout(saveTimer); saveTimer = null;
-            updateCardInTree(projectData.tree, currentCard);
-            lastTreeSave = Date.now();
-            let { error } = await supabaseClient.from('projects').update({ tree: projectData.tree, collaborators: projectData.collaborators || [] }).eq('id', projectId);
-            if (error) ({ error } = await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId));
-            lastTreeSave = Date.now();
+            let error;
+            if (standalone) {
+                syncDoc();
+                ({ error } = await supabaseClient.from('cards').update({ name: currentCard.name, info: standaloneInfo(), collaborators: currentCard.collaborators || [] }).eq('id', cardId));
+            } else {
+                updateCardInTree(projectData.tree, currentCard);
+                lastTreeSave = Date.now();
+                ({ error } = await supabaseClient.from('projects').update({ tree: projectData.tree, collaborators: projectData.collaborators || [] }).eq('id', projectId));
+                if (error) ({ error } = await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId));
+                lastTreeSave = Date.now();
+            }
             if (error) { console.error(error); showToast("Erreur d'enregistrement."); return false; }
             flushEdit();   // fichier enregistré après des modifications : on prévient les autres membres
             return true;
+        }
+
+        // contenu de la colonne cards.info pour un scénario / texte autonome (type = 'script' | 'text' : c'est ce que lit le dashboard)
+        function standaloneInfo() {
+            const t = docType || 'text';
+            return { id: currentCard.infoId || currentCard.id, name: currentCard.name, type: t, docType: t, content: currentCard.content || '', doc: currentCard.doc || doc || null };
+        }
+        function standaloneFromRow(row) {
+            let info = row.info;
+            if (typeof info === 'string') { try { info = JSON.parse(info); } catch (e) { info = null; } }
+            info = info || {};
+            const c = { ...row };
+            delete c.info;
+            c.id = row.id;
+            if (info.id) c.infoId = info.id;
+            c.name = info.name || row.name || '';
+            c.docType = info.docType || (info.type === 'script' || info.type === 'text' ? info.type : null);
+            c.doc = info.doc || null;
+            c.content = info.content || '';
+            return c;
         }
 
         window.saveFile = async function() {
@@ -311,6 +339,12 @@
 
         function renderBreadcrumb() {
             const bc = document.getElementById('breadcrumb-container');
+            if (standalone) {
+                bc.title = ''; bc.style.cursor = 'default';
+                bc.innerHTML = `<span class="text-slate-900 dark:text-slate-100 font-bold"><i data-lucide="${(docType || currentCard.docType) === 'script' ? 'film' : 'file-text'}" class="w-3.5 h-3.5 inline mr-1.5 text-[#5246EE]"></i> ${escapeHtml(currentCard.name)}</span>`;
+                lucide.createIcons();
+                return;
+            }
             const open = window.innerWidth >= 768 ? treeOpen : mobileTreeOpen;
             const path = getTreePath(projectData.tree, cardId) || [currentCard.name];
             const label = window.innerWidth >= 768 ? formatTruncatedPath([projectData.name, ...path]) : path[path.length - 1];
@@ -324,6 +358,7 @@
         function applyTreeSidebarState() {
             const sidebar = document.getElementById('tree-sidebar');
             sidebar.style.cssText = '';
+            if (standalone) { sidebar.style.display = 'none'; return; }
             if (window.innerWidth >= 768) sidebar.style.display = treeOpen ? 'flex' : 'none';
             else if (mobileTreeOpen) sidebar.style.cssText = `display:flex;position:fixed;left:0;right:0;bottom:0;top:${document.getElementById('top-header').offsetHeight}px;z-index:35`;
         }
@@ -334,6 +369,7 @@
         }
 
         window.toggleTreeSidebar = function() {
+            if (standalone) return;
             if (window.innerWidth < 768) mobileTreeOpen = !mobileTreeOpen;
             else { treeOpen = !treeOpen; localStorage.setItem('treeOpen', treeOpen ? '1' : '0'); }
             applyTreeSidebarState();
@@ -352,7 +388,7 @@
 
         window.goBack = async function() {
             if (saveTimer) await saveCurrentMapState();
-            window.location.href = `dashboard.html?openProjectId=${encodeURIComponent(projectId)}`;
+            window.location.href = standalone ? `dashboard.html?tab=${docType === 'script' ? 'scripts' : 'texts'}` : `dashboard.html?openProjectId=${encodeURIComponent(projectId)}`;
         }
 
         /* ===================== DÉMARRAGE ===================== */
@@ -366,8 +402,10 @@
             const urlParams = new URLSearchParams(window.location.search);
             projectId = urlParams.get('projectId');
             cardId = urlParams.get('fileId');
+            standalone = !projectId && !!urlParams.get('cardId');
+            if (standalone) cardId = urlParams.get('cardId');
 
-            if (!projectId || !cardId) {
+            if (!standalone && (!projectId || !cardId)) {
                 alert("Paramètres manquants.");
                 window.location.href = 'dashboard.html';
                 return;
@@ -377,20 +415,30 @@
             if (!session || !session.user) { window.location.href = 'index.html'; return; }
             currentUser = session.user;
 
-            const { data, error } = await supabaseClient.from('projects').select('*').eq('id', projectId).single();
-            if (error || !data) {
-                alert("Impossible de charger le projet.");
-                window.location.href = 'dashboard.html';
-                return;
-            }
-            projectData = data;
-            if (!Array.isArray(projectData.tree)) projectData.tree = [];
+            if (standalone) {
+                const { data, error } = await supabaseClient.from('cards').select('*').eq('id', cardId).single();
+                if (error || !data) {
+                    alert("Impossible de charger le fichier.");
+                    window.location.href = 'dashboard.html';
+                    return;
+                }
+                currentCard = standaloneFromRow(data);
+            } else {
+                const { data, error } = await supabaseClient.from('projects').select('*').eq('id', projectId).single();
+                if (error || !data) {
+                    alert("Impossible de charger le projet.");
+                    window.location.href = 'dashboard.html';
+                    return;
+                }
+                projectData = data;
+                if (!Array.isArray(projectData.tree)) projectData.tree = [];
 
-            currentCard = findTreeItem(projectData.tree, cardId);
-            if (!currentCard) {
-                alert("Fichier introuvable.");
-                window.location.href = 'dashboard.html?openProjectId=' + encodeURIComponent(projectId);
-                return;
+                currentCard = findTreeItem(projectData.tree, cardId);
+                if (!currentCard) {
+                    alert("Fichier introuvable.");
+                    window.location.href = 'dashboard.html?openProjectId=' + encodeURIComponent(projectId);
+                    return;
+                }
             }
 
             normalizeCollaborators();
@@ -1319,9 +1367,9 @@ function toggleAuthors(){
 let actDirty=false,lastNotif=0;   // actDirty : modifications pas encore annoncées
 const hasOthers=()=>getCollabs().length>0||(getOwnerId()&&getOwnerId()!==currentUser.id);
 function notifyActivity(kind,anchor){
-  if(!projectId||!currentCard||!hasOthers())return;
+  if(!(standalone||projectId)||!currentCard||!hasOthers())return;
   if(kind==='edit'){const t=Date.now();if(t-lastNotif<10000)return;lastNotif=t;}   // au plus une par 10 s ; le dashboard fusionne de toute façon par fichier
-  try{supabaseClient.rpc('notify_collaborators',{p_table:'projects',p_id:String(projectId),p_kind:kind,p_file_id:String(currentCard.id),p_file_name:currentCard.name||'',p_file_type:docType||'text',p_anchor:anchor||null}).then(()=>{},()=>{});}catch(e){}
+  try{supabaseClient.rpc('notify_collaborators',{p_table:standalone?'cards':'projects',p_id:String(standalone?cardId:projectId),p_kind:kind,p_file_id:String(currentCard.id),p_file_name:currentCard.name||'',p_file_type:docType||'text',p_anchor:anchor||null}).then(()=>{},()=>{});}catch(e){}
 }
 function markEdited(){if(canEdit())actDirty=true;}
 function flushEdit(){if(!actDirty)return;actDirty=false;notifyActivity('edit');}
@@ -1441,7 +1489,7 @@ function exportDoc(){
 /* --- Collaborateurs (repris de map.html) --- */
 const myEmail=()=>(currentUser.email||'').toLowerCase();
 const isOwner=()=>{const o=getOwnerId();return !o||o===currentUser.id;};
-const ownerEmail=()=>(projectData.owner_email||'').toLowerCase();
+const ownerEmail=()=>(holder().owner_email||'').toLowerCase();
 function canManageCollab(c){if(myRole!=='admin')return false;if(isOwner())return true;return (c.role||'editor')!=='admin'&&(c.email||'').toLowerCase()!==myEmail();}
 function requireAdmin(){if(myRole==='admin')return true;showToast("Seul un admin peut gérer les collaborateurs.");return false;}
 window.toggleCollaboratorsDropdown=()=>E('collab-dropdown').classList.toggle('hidden');
@@ -1463,7 +1511,7 @@ function renderCollaboratorsList(){
   lucide.createIcons();
 }
 async function requestAdmin(email){
-  const{error}=await supabaseClient.rpc('request_admin_role',{p_table:'projects',p_id:String(projectId),p_email:email});
+  const{error}=await supabaseClient.rpc('request_admin_role',{p_table:standalone?'cards':'projects',p_id:String(standalone?cardId:projectId),p_email:email});
   showToast(error?"Demande impossible : "+error.message:"Demande envoyée au propriétaire pour nommer "+email+" admin.");
 }
 async function addCollaborator(){
