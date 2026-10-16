@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Éditeur de Fichier - Mobius</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Supabase SDK -->
@@ -51,6 +51,25 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(100,100,100,0.2); border-radius: 4px; }
     </style>
+    <style>.hdrbtn{width:36px;height:36px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#f1f5f9;color:#475569;flex-shrink:0}.dark .hdrbtn{background:#1e293b;color:#cbd5e1}
+.ed-in{width:100%;padding:.6rem .8rem;border-radius:.75rem;border:1px solid #e2e8f0;background:transparent;font-size:.875rem;outline:none}.ed-in:focus{border-color:#5246EE}.dark .ed-in{border-color:#334155}
+.ed-pick{width:15rem;padding:1.5rem 1rem;border-radius:1rem;border:1px solid #e2e8f0;background:#fff;display:flex;flex-direction:column;align-items:center;gap:.5rem;font-size:.75rem;color:#64748b;transition:.15s}.ed-pick:hover{border-color:#5246EE;transform:translateY(-2px)}.ed-pick b{font-size:.95rem;color:#0f172a}.dark .ed-pick{background:#0f172a;border-color:#334155}.dark .ed-pick b{color:#f1f5f9}
+.ed-page{white-space:pre-wrap;min-height:1056px;background:#fff;color:#0f172a;border:1px solid #e2e8f0;border-radius:1rem;padding:48px 56px;outline:none;box-shadow:0 1px 3px rgba(0,0,0,.06);background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 1055px,rgba(82,70,238,.45) 1055px,rgba(82,70,238,.45) 1056px);line-height:1.6;word-break:break-word}.dark .ed-page{background-color:#0f172a;color:#e2e8f0;border-color:#1e293b}
+@media(max-width:640px){.ed-page{padding:28px 20px}}
+.script{font-family:'Courier Prime','American Typewriter','Courier New',monospace;font-size:14px}
+[data-s=title]{font-size:2.4em;font-weight:800;text-align:center;margin:.3em 0}[data-s=h1]{font-size:1.9em;font-weight:700;margin:.6em 0 .2em}[data-s=h2]{font-size:1.5em;font-weight:700;margin:.5em 0 .2em}[data-s=h3]{font-size:1.2em;font-weight:700;margin:.4em 0 .1em}[data-s=sub]{font-size:1.15em;color:#64748b;font-style:italic;margin:.2em 0}[data-s=box]{border:1px solid #c7c3fb;background:rgba(82,70,238,.07);border-radius:.75rem;padding:.6em .9em;margin:.5em 0}
+.script [data-s=title],.script [data-s=sub]{text-align:center}
+[data-s=act]{text-align:center;font-weight:700;text-transform:uppercase;text-decoration:underline;margin:2em 0 1em}[data-s=scene]{font-weight:700;text-transform:uppercase;margin:1.6em 0 .6em}[data-s=desc]{font-style:italic;margin:.6em 0}[data-s=char]{text-transform:uppercase;margin:1em 0 0 37%}[data-s=dial]{margin:0 15% 0 20%}[data-s=paren]{margin:0 25% 0 28%;font-style:italic}[data-s=action]{margin:.6em 0}
+[data-bubble]{background:rgba(250,204,21,.3);border-bottom:2px dotted #eab308;cursor:pointer}[data-bubble]::after{content:'💬';font-size:.7em;margin-left:2px}
+.show-by [data-by]{box-shadow:inset 3px 0 0 var(--c,#5246EE);padding-left:8px}
+.ed-tools{display:none;width:13rem;flex-direction:column;gap:.2rem;padding:.75rem;border-left:1px solid #e2e8f0;background:#fff;overflow-y:auto;flex-shrink:0}.dark .ed-tools{background:#0f172a;border-color:#1e293b}
+@media(min-width:768px) and (orientation:landscape){.ed-tools{display:flex}}
+.tb{padding:.45rem .6rem;border-radius:.6rem;font-size:.75rem;text-align:left;color:#475569;display:flex;gap:.5rem;align-items:center}.tb:hover{background:#f1f5f9}.dark .tb{color:#cbd5e1}.dark .tb:hover{background:#1e293b}
+.ed-bub,.ed-prop,#ed-menu{background:#fff;border:1px solid #e2e8f0;border-radius:1rem;padding:.75rem;box-shadow:0 10px 30px rgba(0,0,0,.15);font-size:.85rem}.dark .ed-bub,.dark .ed-prop,.dark #ed-menu{background:#0f172a;border-color:#334155;color:#e2e8f0}
+.ed-prop{box-shadow:none;border-style:dashed;border-color:#5246EE}.ed-mini{min-height:3rem;outline:none;white-space:pre-wrap}
+#ed-menu{position:fixed;z-index:60;width:13rem;padding:.4rem;font-size:.75rem}#ed-menu .tb{width:100%}#ed-menu hr{margin:.3rem 0;border-color:#e2e8f0}
+.vote{padding:.3rem .6rem;border-radius:.6rem;border:1px solid #e2e8f0}.vote.on{background:#5246EE;color:#fff;border-color:#5246EE}
+</style>
 </head>
 <body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col antialiased selection:bg-[#5246EE] selection:text-white">
 
@@ -67,6 +86,9 @@
 
         <div class="flex items-center gap-2 shrink-0">
             <span id="role-badge" class="hidden sm:inline-flex px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-500"></span>
+            <button id="ed-authors-btn" onclick="toggleAuthors()" title="Voir qui a écrit quoi" class="hdrbtn hidden"><i class="fa-solid fa-user-pen"></i></button>
+            <button id="ed-collab-btn" onclick="openCollab()" title="Collaborateurs" class="hdrbtn hidden"><i class="fa-solid fa-user-plus"></i></button>
+            <button id="ed-export-btn" onclick="exportDoc()" title="Exporter (.mobtext / .mobscen)" class="hdrbtn hidden"><i class="fa-solid fa-file-export"></i></button>
             <button onclick="toggleDarkMode()" class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
                 <i class="fa-solid fa-moon dark:hidden"></i>
                 <i class="fa-solid fa-sun hidden dark:block text-amber-400"></i>
@@ -93,7 +115,7 @@
                     <button id="tree-import-btn" title="Importer un fichier" class="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-medium flex items-center gap-1"><i data-lucide="file-up" class="w-3.5 h-3.5 text-[#5246EE]"></i>Importer</button>
                 </div>
                 <div id="tree-dest" class="mt-1.5 text-[10px] text-slate-400 truncate"></div>
-                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx" multiple>
+                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx,.mobtext,.mobscen" multiple>
             </div>
             <div id="tree-sidebar-content" class="flex-1 p-3 overflow-y-auto space-y-1 text-xs"></div>
             <div class="p-3 border-t border-slate-200 dark:border-slate-800">
@@ -102,11 +124,32 @@
         </aside>
 
 
-        <main class="flex-1 min-w-0 overflow-y-auto">
-            <div class="max-w-5xl w-full mx-auto p-4 sm:p-8 h-full flex flex-col">
-                <textarea id="text-editor" class="flex-1 w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 text-base font-mono focus:outline-none focus:border-[#5246EE] resize-none leading-relaxed shadow-sm" placeholder="Rédigez votre texte ici..."></textarea>
-            </div>
-        </main>
+        <main class="flex-1 min-w-0 flex overflow-hidden relative">
+  <div id="ed-choose" style="display:none;flex-direction:column" class="flex-1 items-center justify-center gap-6 p-6 overflow-y-auto">
+    <h2 class="text-lg font-bold">Que veux-tu écrire ?</h2>
+    <div class="flex flex-wrap gap-4 justify-center">
+      <button class="ed-pick" onclick="pickType('text')"><i class="fa-solid fa-align-left text-2xl text-[#5246EE]"></i><b>Texte</b><span>Mise en forme, titres, bulles</span></button>
+      <button class="ed-pick" onclick="pickType('script')"><i class="fa-solid fa-film text-2xl text-[#5246EE]"></i><b>Scénario</b><span>Format scénario, propositions, votes</span></button>
+    </div>
+  </div>
+  <div id="ed-title" style="display:none" class="flex-1 items-center justify-center p-6">
+    <div class="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-3">
+      <h2 class="font-bold">Page de titre</h2>
+      <input id="ed-t-title" class="ed-in" placeholder="Titre"><input id="ed-t-author" class="ed-in" placeholder="Auteur">
+      <button onclick="submitTitle()" class="w-full bg-[#5246EE] text-white rounded-xl py-2.5 text-xs font-semibold">Commencer à écrire</button>
+    </div>
+  </div>
+  <div id="ed-work" style="display:none" class="flex-1 min-w-0 overflow-hidden">
+    <div id="ed-scroll" class="flex-1 min-w-0 overflow-y-auto p-4 sm:p-8" onscroll="pageNo()">
+      <div class="max-w-3xl mx-auto">
+        <div class="flex justify-between text-[11px] text-slate-400 mb-2"><span id="ed-pageno"></span><span id="ed-legend" class="flex gap-2"></span></div>
+        <div id="ed-page" class="ed-page" contenteditable="true" spellcheck="false"></div>
+        <div id="ed-props" class="mt-8 space-y-3"></div>
+      </div>
+    </div>
+    <aside id="ed-tools" class="ed-tools"></aside>
+  </div>
+</main>
     </div>
 
     <!-- MENU CONTEXTUEL DE L'ARBORESCENCE -->
@@ -169,7 +212,7 @@
         /* ===================== SAUVEGARDE DU FICHIER ===================== */
         // Utilisé aussi par le code de l'arborescence : recopie le texte de l'éditeur dans le fichier ouvert
         function updateCardInTree(list, file) {
-            if (file && file === currentCard) file.content = document.getElementById('text-editor').value;
+            if (file && file === currentCard) syncDoc();
             return true;
         }
 
@@ -294,25 +337,17 @@
             normalizeCollaborators();
             myRole = computeMyRole();
 
-            const editor = document.getElementById('text-editor');
-            editor.value = currentCard.content || '';
-            editor.readOnly = !canEdit();
             document.getElementById('save-btn').classList.toggle('hidden', !canEdit());
             const badge = document.getElementById('role-badge');
             badge.textContent = ROLE_LABELS[myRole] || '';
             badge.classList.toggle('text-[#5246EE]', myRole === 'admin');
 
-            // enregistrement automatique 1 s après la dernière frappe
-            editor.addEventListener('input', () => {
-                if (!canEdit()) return;
-                clearTimeout(saveTimer);
-                saveTimer = setTimeout(() => { saveTimer = null; saveCurrentMapState(); }, 1000);
-            });
             // ne pas perdre le texte si on ferme l'onglet juste après avoir tapé
             window.addEventListener('beforeunload', () => { if (saveTimer) saveCurrentMapState(); });
 
             setupTreeSidebarVisibility();
             renderBreadcrumb();
+            initEditor();
 
             window.addEventListener('resize', () => {
                 applyTreeSidebarState();
@@ -608,7 +643,7 @@
         /* ---------- Import (mêmes formats / conversions que le dashboard) ---------- */
         async function treeImport(files, dest) {
             if (!requireEdit()) return;
-            const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx)$/i.test(f.name));
+            const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx|mobtext|mobscen)$/i.test(f.name));
             if (accepted.length < files.length) showToast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx et .mobius.');
             let t = dest, added = 0;
             const put = (item) => {
@@ -617,6 +652,10 @@
             };
             for (const file of accepted) {
                 try {
+                    if (/\.(mobtext|mobscen)$/i.test(file.name)) {
+                        const d = JSON.parse(await file.text());
+                        put({ id: newItemId(), type: 'txt', name: d.name || file.name.replace(/\.[^.]+$/, ''), content: d.content || '', docType: d.type, doc: d.doc }); continue;
+                    }
                     if (/\.mobius$/i.test(file.name)) {
                         const card = parseMobiusCard(await file.text(), file.name);
                         if (!card) { showToast(`« ${file.name} » n'est pas une carte Mobius valide.`); continue; }
@@ -823,6 +862,227 @@
             });
         }
 
+
+
+/* ===================== ÉDITEUR : texte & scénario ===================== */
+const TEXT_STYLES=[['title','Titre'],['h1','Titre 1'],['h2','Titre 2'],['h3','Titre 3'],['sub','Sous-titre'],['body','Corps'],['box','Container']];
+const SCRIPT_STYLES=[['act','Acte'],['scene','En-tête de scène'],['desc','Description'],['char','Personnage'],['paren','Didascalie'],['dial','Dialogue'],['action','Action']];
+let docType=null, doc=null, docReady=false, edBound=false;
+const E=id=>document.getElementById(id), rid=()=>Math.random().toString(36).slice(2,8);
+const edPage=()=>E('ed-page'), me=()=>(currentUser.email||'?').split('@')[0];
+const edStyles=()=>docType==='script'?SCRIPT_STYLES:TEXT_STYLES;
+const colorOf=n=>{let h=0;for(const c of n)h=(h*31+c.charCodeAt(0))%360;return `hsl(${h},70%,50%)`;};
+const blk=(s,h)=>`<div data-s="${s}" data-id="${rid()}">${h||'<br>'}</div>`;
+function show(id){['ed-choose','ed-title','ed-work'].forEach(x=>E(x).style.display=x===id?'flex':'none');}
+function curBlock(){const s=getSelection();if(!s.anchorNode)return null;const el=s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentElement;return el&&el.closest('[data-s]');}
+function scheduleSave(){if(!canEdit())return;clearTimeout(saveTimer);saveTimer=setTimeout(()=>{saveTimer=null;saveCurrentMapState();},1000);}
+function syncDoc(){if(!docReady)return;doc.html=edPage().innerHTML;currentCard.doc=doc;currentCard.docType=docType;currentCard.content=edPage().innerText;}
+
+/* --- Fountain : conserve la mise en page du fichier d'origine (stocké en .txt) --- */
+const SCENE_RE=/^(INT|EXT|EST|INT\.?\/EXT|EXT\.?\/INT|I\/E)[. ]/i;
+function looksFountain(t,n){return /\.fountain$/i.test(n||'')||/^\s*(title|author|credit|draft date)\s*:/im.test(t.slice(0,400))||(t.match(/^(INT|EXT|EST|I\/E)[. ]/gim)||[]).length>=2;}
+function parseFountain(t){
+  const L=t.replace(/\r/g,'').split('\n'),meta={},K=/^(title|authors?|credit|source|draft date|date|contact|copyright|notes)\s*:\s*(.*)$/i;let i=0,k=null;
+  while(i<L.length&&(K.test(L[i])||(k&&/^\s+\S/.test(L[i])))){const m=L[i].match(K);if(m){k=m[1].toLowerCase();meta[k]=m[2];}else meta[k]+=' '+L[i].trim();i++;}
+  const out=[];let dlg=false;
+  if(meta.title)out.push(blk('title',escapeHtml(meta.title)));
+  if(meta.author||meta.authors)out.push(blk('sub','de '+escapeHtml(meta.author||meta.authors)));
+  for(;i<L.length;i++){
+    const l=L[i].trim();let m;
+    if(!l){dlg=false;continue;}
+    if(/^(\[\[.*\]\]|={3,})$/.test(l))continue;
+    const nm=l.replace(/\s*\(.*\)\s*$/,'');
+    if((m=l.match(/^#+\s*(.*)$/))){out.push(blk('act',escapeHtml(m[1])));dlg=false;}
+    else if(SCENE_RE.test(l)||/^\.[^.]/.test(l)){out.push(blk('scene',escapeHtml(l.replace(/^\./,''))));dlg=false;}
+    else if(dlg&&/^\(.*\)$/.test(l))out.push(blk('paren',escapeHtml(l)));
+    else if(dlg)out.push(blk('dial',escapeHtml(l)));
+    else if((l[0]==='@'||(nm===nm.toUpperCase()&&/[A-ZÀ-Ý]/.test(nm)&&!/^[>!]/.test(l)))&&L[i+1]&&L[i+1].trim()&&(i===0||!L[i-1].trim())){out.push(blk('char',escapeHtml(l.replace(/^@/,''))));dlg=true;}
+    else out.push(blk('action',escapeHtml(l.replace(/^!/,''))));
+  }
+  return {meta,html:out.join('')};
+}
+
+/* --- Démarrage : contenu existant ? type déjà choisi ? --- */
+function initEditor(){
+  document.execCommand('defaultParagraphSeparator',false,'div');
+  doc=currentCard.doc||null;docType=currentCard.docType||null;
+  const txt=currentCard.content||'';
+  if(!docType){
+    if(!txt.trim()){show('ed-choose');return;}
+    docType=looksFountain(txt,currentCard.name)?'script':'text';
+    doc={meta:{},bubbles:{},proposals:{},html:docType==='script'?parseFountain(txt).html:txt.split('\n').map(l=>blk('body',escapeHtml(l))).join('')};
+    currentCard.docType=docType;currentCard.doc=doc;scheduleSave();
+  }
+  doc.bubbles=doc.bubbles||{};doc.proposals=doc.proposals||{};
+  openDoc();
+}
+function pickType(t){
+  docType=t;doc={meta:{},bubbles:{},proposals:{},html:blk(t==='script'?'action':'body')};
+  currentCard.docType=t;currentCard.doc=doc;scheduleSave();
+  if(t==='script'&&canEdit())show('ed-title');else openDoc();
+}
+function submitTitle(){
+  const t=E('ed-t-title').value.trim(),a=E('ed-t-author').value.trim();
+  doc.meta={title:t,author:a};
+  doc.html=(t?blk('title',escapeHtml(t)):'')+(a?blk('sub','de '+escapeHtml(a)):'')+blk('action');
+  openDoc();scheduleSave();
+}
+function openDoc(){
+  show('ed-work');docReady=true;
+  const p=edPage();p.innerHTML=doc.html||blk(docType==='script'?'action':'body');
+  p.classList.toggle('script',docType==='script');p.contentEditable=canEdit();
+  E('ed-tools').style.visibility=canEdit()?'':'hidden';
+  buildTools();renderProps();pageNo();bindEditor();
+  ['ed-export-btn','ed-authors-btn'].forEach(id=>E(id).classList.remove('hidden'));
+  E('ed-collab-btn').classList.toggle('hidden',myRole!=='admin');
+  lucide.createIcons();
+}
+
+/* --- Outils de mise en forme --- */
+function buildTools(){
+  const b=(ic,t,fn)=>`<button class="tb" onmousedown="event.preventDefault()" onclick="${fn}"><i class="fa-solid ${ic} w-4"></i>${t}</button>`;
+  E('ed-tools').innerHTML=`<div class="text-[10px] font-bold uppercase text-slate-400 px-1">Format</div>`
+   +b('fa-bold','Gras',"cmd('bold')")+b('fa-italic','Italique',"cmd('italic')")+b('fa-underline','Souligné',"cmd('underline')")
+   +(docType==='text'?b('fa-highlighter','Surligner',"hilite()")+b('fa-text-height','Agrandir',"sizeBump(2)")+b('fa-text-height fa-flip-vertical','Réduire',"sizeBump(-2)")+b('fa-comment-dots','Ajouter une bulle',"addBubble()"):'')
+   +`<div class="text-[10px] font-bold uppercase text-slate-400 px-1 mt-3">Style</div>`
+   +edStyles().map(([k,l])=>`<button class="tb" onmousedown="event.preventDefault()" onclick="setStyle('${k}')">${l}</button>`).join('');
+}
+function cmd(c){if(!requireEdit())return;document.execCommand(c);afterEdit();}
+function hilite(){if(!requireEdit())return;const on=/rgb\(253, 224, 71\)|#fde047/i.test(document.queryCommandValue('hiliteColor'));document.execCommand('hiliteColor',false,on?'transparent':'#fde047');afterEdit();}
+function sizeBump(d){
+  if(!requireEdit())return;const el=curBlock();if(!el)return;
+  const cur=parseFloat(getComputedStyle(el).fontSize)||16;document.execCommand('fontSize',false,'7');
+  edPage().querySelectorAll('font[size="7"]').forEach(f=>{const s=document.createElement('span');s.style.fontSize=Math.max(8,cur+d)+'px';s.innerHTML=f.innerHTML;f.replaceWith(s);});
+  afterEdit();
+}
+function selBlocks(){
+  const s=getSelection();if(!s.rangeCount)return[];const r=s.getRangeAt(0);
+  const el=r.commonAncestorContainer.nodeType===1?r.commonAncestorContainer:r.commonAncestorContainer.parentElement;
+  const root=el&&el.closest('[contenteditable=true]');if(!root)return[];
+  const kids=[...root.children].filter(e=>e.dataset.s);
+  return kids.length?kids.filter(e=>r.intersectsNode(e)):[curBlock()].filter(Boolean);
+}
+function setStyle(k){
+  if(!requireEdit())return;const bs=selBlocks();
+  if(k==='box'&&bs.length&&bs.every(b=>b.dataset.s==='box'))k='body';
+  bs.forEach(b=>b.dataset.s=k);afterEdit();
+}
+function afterEdit(){
+  if(!canEdit())return;const b=curBlock();
+  if(b&&edPage().contains(b)){b.dataset.by=me();b.style.setProperty('--c',colorOf(me()));b.title='Écrit par '+me();}
+  const seen=new Set();edPage().querySelectorAll('[data-s]').forEach(x=>{if(!x.dataset.id||seen.has(x.dataset.id))x.dataset.id=rid();seen.add(x.dataset.id);});
+  scheduleSave();pageNo();
+}
+function pageNo(){const n=Math.max(1,Math.ceil(edPage().scrollHeight/1056)),c=Math.min(n,Math.floor(E('ed-scroll').scrollTop/1056)+1);E('ed-pageno').textContent=`Page ${c} / ${n}`;}
+
+/* --- Événements de l'éditeur + menu clic droit --- */
+function bindEditor(){
+  if(edBound)return;edBound=true;const p=edPage();
+  p.addEventListener('input',afterEdit);
+  p.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&!e.shiftKey&&docType==='script'){
+      const cur=curBlock(),prev=cur&&cur.dataset.s;
+      setTimeout(()=>{const n=curBlock();if(!n||n===cur)return;const nx={scene:'action',char:'dial',paren:'dial',dial:'char',act:'scene',desc:'action'}[prev];if(nx)n.dataset.s=nx;},0);
+    }
+    if(e.key==='Tab'){
+      e.preventDefault();
+      if(docType==='text'){if(e.shiftKey)setStyle('box');else document.execCommand('insertText',false,'\t');}
+      else{const b=curBlock();if(b){const k=SCRIPT_STYLES.map(s=>s[0]),i=k.indexOf(b.dataset.s);b.dataset.s=k[(i+(e.shiftKey?k.length-1:1))%k.length];afterEdit();}}
+    }
+  });
+  p.addEventListener('click',e=>{const sp=e.target.closest('[data-bubble]');if(sp){const open=E('ed-bubble')&&E('ed-bubble').dataset.id===sp.dataset.bubble;open?closeBubble():openBubble(sp.dataset.bubble);}});
+  p.addEventListener('contextmenu',e=>{
+    if(!canEdit())return;e.preventDefault();
+    const m=E('ed-menu')||Object.assign(document.createElement('div'),{id:'ed-menu'});document.body.appendChild(m);
+    const b=(t,fn)=>`<button class="tb" onmousedown="event.preventDefault()" onclick="${fn};E('ed-menu').style.display='none'">${t}</button>`;
+    m.innerHTML=b('<b>G</b> Gras',"cmd('bold')")+b('<i>I</i> Italique',"cmd('italic')")+b('<u>S</u> Souligné',"cmd('underline')")+'<hr>'
+      +edStyles().map(([k,l])=>b(l,`setStyle('${k}')`)).join('')+'<hr>'
+      +(docType==='text'?b('💬 Ajouter une bulle','addBubble()'):b('💡 Proposer une idée ici','propose()'));
+    m.style.display='block';m.style.left=Math.min(e.clientX,innerWidth-220)+'px';m.style.top=Math.min(e.clientY,innerHeight-m.offsetHeight-8)+'px';
+  });
+  document.addEventListener('click',()=>{const m=E('ed-menu');if(m)m.style.display='none';});
+}
+
+/* --- Bulles rattachées à une sélection --- */
+function addBubble(){
+  if(!requireEdit())return;const s=getSelection();
+  if(!s.rangeCount||s.isCollapsed){showToast('Sélectionne un mot ou une phrase.');return;}
+  const r=s.getRangeAt(0),id=rid(),f=n=>(n.nodeType===1?n:n.parentElement).closest('[data-s]');
+  if(f(r.startContainer)!==f(r.endContainer)){showToast('Une bulle doit rester dans un seul paragraphe.');return;}
+  const sp=document.createElement('span');sp.dataset.bubble=id;sp.appendChild(r.extractContents());r.insertNode(sp);
+  doc.bubbles[id]={html:'<div data-s="body"><br></div>',by:me(),at:Date.now()};
+  s.removeAllRanges();afterEdit();openBubble(id);
+}
+function openBubble(id){
+  closeBubble();const sp=edPage().querySelector(`[data-bubble="${id}"]`),d=doc.bubbles[id];if(!sp||!d)return;
+  const r=sp.getBoundingClientRect(),el=document.createElement('div');el.id='ed-bubble';el.dataset.id=id;el.className='ed-bub';
+  el.style.cssText=`position:fixed;left:${Math.max(8,Math.min(r.left,innerWidth-300))}px;top:${Math.min(r.bottom+8,innerHeight-160)}px;width:280px;z-index:45`;
+  el.innerHTML=`<div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>💬 ${escapeHtml(d.by)}</span><span>${canEdit()?`<button onclick="delBubble('${id}')">🗑</button> `:''}<button onclick="closeBubble()">✕</button></span></div><div class="ed-mini ${docType==='script'?'script':''}" contenteditable="${canEdit()}">${d.html}</div>`;
+  document.body.appendChild(el);const m=el.querySelector('.ed-mini');
+  m.addEventListener('input',()=>{d.html=m.innerHTML;d.editors=d.editors||{};d.editors[me()]=Date.now();scheduleSave();});
+}
+function closeBubble(){const b=E('ed-bubble');if(b)b.remove();}
+function delBubble(id){const sp=edPage().querySelector(`[data-bubble="${id}"]`);if(sp)sp.replaceWith(...sp.childNodes);delete doc.bubbles[id];closeBubble();afterEdit();}
+
+/* --- Qui a écrit quoi --- */
+function toggleAuthors(){
+  const p=edPage();p.classList.toggle('show-by');
+  const names=new Set([...p.querySelectorAll('[data-by]')].map(b=>b.dataset.by));Object.values(doc.bubbles).forEach(b=>names.add(b.by));
+  E('ed-legend').innerHTML=p.classList.contains('show-by')?[...names].map(n=>`<span><i style="background:${colorOf(n)}" class="inline-block w-2 h-2 rounded-full"></i> ${escapeHtml(n)}</span>`).join(''):'';
+}
+
+/* --- Propositions (scénario) + sondage --- */
+function propose(){
+  if(!getCollabs().length){showToast('Les propositions sont réservées aux projets collaboratifs.');return;}
+  const b=curBlock();
+  doc.proposals[rid()]={after:b?b.dataset.id:null,excerpt:b?b.innerText.slice(0,50):'',html:blk('action'),by:me(),at:Date.now(),votes:{}};
+  renderProps();scheduleSave();E('ed-props').scrollIntoView({behavior:'smooth'});
+}
+function renderProps(){
+  const box=E('ed-props'),list=Object.entries(doc.proposals||{});
+  if(docType!=='script'||!list.length){box.innerHTML='';return;}
+  box.innerHTML=`<div class="text-xs font-bold text-slate-500">Propositions (${list.length})</div>`;
+  list.forEach(([id,p])=>{
+    const v=Object.values(p.votes),y=v.filter(x=>x===1).length,n=v.filter(x=>x===0).length,mine=p.votes[currentUser.id],c=document.createElement('div');c.className='ed-prop';
+    c.innerHTML=`<div class="text-[10px] text-slate-400 mb-2">💡 ${escapeHtml(p.by)} · après « ${escapeHtml(p.excerpt||'le début')} »</div><div class="ed-mini script" contenteditable="${canEdit()}">${p.html}</div><div class="flex items-center gap-2 mt-3 text-xs flex-wrap"><button class="vote ${mine===1?'on':''}" onclick="vote('${id}',1)">👍 Oui ${y}</button><button class="vote ${mine===0?'on':''}" onclick="vote('${id}',0)">👎 Non ${n}</button>${myRole==='admin'?`<span class="flex-1"></span><button class="vote" onclick="resolveProp('${id}',true)">✓ Accepter</button><button class="vote" onclick="resolveProp('${id}',false)">✕ Refuser</button>`:''}</div>`;
+    const m=c.querySelector('.ed-mini');m.addEventListener('input',()=>{p.html=m.innerHTML;scheduleSave();});box.appendChild(c);
+  });
+}
+function vote(id,val){const p=doc.proposals[id];if(!p)return;if(p.votes[currentUser.id]===val)delete p.votes[currentUser.id];else p.votes[currentUser.id]=val;renderProps();scheduleSave();}
+function resolveProp(id,ok){
+  const p=doc.proposals[id];if(!p||myRole!=='admin')return;
+  if(ok){
+    const t=document.createElement('div');t.innerHTML=p.html;
+    const nodes=[...t.children].map(n=>{if(!n.dataset.s)n.dataset.s='action';n.dataset.id=rid();n.dataset.by=p.by;n.style.setProperty('--c',colorOf(p.by));return n;});
+    const a=p.after&&edPage().querySelector(`[data-id="${p.after}"]`);a?a.after(...nodes):edPage().append(...nodes);
+  }
+  delete doc.proposals[id];renderProps();afterEdit();showToast(ok?'Proposition ajoutée au scénario.':'Proposition refusée.');
+}
+
+/* --- Export .mobtext / .mobscen (JSON : lisible, versionné, bulles et propositions rattachées par id) --- */
+function exportDoc(){
+  syncDoc();const ext=docType==='script'?'mobscen':'mobtext';
+  const d={format:ext,version:1,type:docType,name:currentCard.name,content:currentCard.content,doc:{...doc,proposals:docType==='script'?doc.proposals:{}}};
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:'application/json'}));
+  a.download=String(currentCard.name).replace(/\.[^.]+$/,'').replace(/[\\/:*?"<>|]/g,'_')+'.'+ext;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  showToast(`Exporté en .${ext} !`);
+}
+
+/* --- Collaborateurs (propriétaire / admin uniquement) --- */
+function openCollab(){
+  if(myRole!=='admin')return;
+  const ov=document.createElement('div');ov.className='fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4';ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  const opts=sel=>Object.entries(ROLE_LABELS).map(([k,l])=>`<option value="${k}" ${sel===k?'selected':''}>${l}</option>`).join('');
+  const save=async()=>{const{error}=await supabaseClient.from('projects').update({collaborators:getCollabs()}).eq('id',projectId);showToast(error?"Erreur d'enregistrement.":'Collaborateurs mis à jour.');};
+  const paint=()=>{
+    ov.innerHTML=`<div class="bg-white dark:bg-slate-900 rounded-2xl p-5 w-full max-w-md space-y-3 shadow-2xl"><div class="flex justify-between"><b class="text-sm">Collaborateurs</b><button id="cb-x">✕</button></div>${getCollabs().map((c,i)=>`<div class="flex items-center gap-2 text-xs"><span class="flex-1 truncate">${escapeHtml(c.email)}${c.status==='pending'?' (invité)':''}</span><select data-i="${i}" class="ed-in !w-auto !py-1">${opts(c.role)}</select><button data-rm="${i}">🗑</button></div>`).join('')}<div class="flex gap-2"><input id="cb-mail" class="ed-in" placeholder="email@exemple.com"><select id="cb-role" class="ed-in !w-auto">${opts('editor')}</select><button id="cb-add" class="bg-[#5246EE] text-white rounded-xl px-3 text-xs">Ajouter</button></div></div>`;
+    ov.querySelector('#cb-x').onclick=()=>ov.remove();
+    ov.querySelectorAll('select[data-i]').forEach(s=>s.onchange=()=>{getCollabs()[s.dataset.i].role=s.value;save();});
+    ov.querySelectorAll('[data-rm]').forEach(x=>x.onclick=()=>{getCollabs().splice(+x.dataset.rm,1);save();paint();});
+    ov.querySelector('#cb-add').onclick=()=>{const em=ov.querySelector('#cb-mail').value.trim().toLowerCase();if(!/^\S+@\S+\.\S+$/.test(em))return showToast('Email invalide.');if(getCollabs().some(c=>c.email.toLowerCase()===em))return showToast('Déjà collaborateur.');getCollabs().push({email:em,role:ov.querySelector('#cb-role').value,status:'pending'});save();paint();};
+  };
+  paint();document.body.appendChild(ov);
+}
 
     </script>
 </body>
