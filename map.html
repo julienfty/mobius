@@ -1000,7 +1000,7 @@
             document.getElementById('collab-count-label').textContent = `Collaborateurs (${collabs.length + 1})`;
             document.getElementById('collab-add-section').classList.toggle('hidden', !admin);
             const adminOpt = document.querySelector('#new-collab-role option[value="admin"]');
-            if (adminOpt) { adminOpt.hidden = adminOpt.disabled = !isOwner(); if (!isOwner() && adminOpt.parentNode.value === 'admin') adminOpt.parentNode.value = 'editor'; }
+            if (adminOpt) { adminOpt.textContent = isOwner() ? 'Admin' : 'Admin (à confirmer)'; }
             listEl.innerHTML = `
                 <div class="flex items-center justify-between gap-2 text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded-lg">
                     <span class="font-medium text-slate-700 dark:text-slate-300 truncate">${escapeHtml(currentUser.email)} (vous)</span>
@@ -1010,7 +1010,7 @@
                 const accepted = c.status === 'accepted';
                 const manage = canManageCollab(c);
                 const roleCtl = manage
-                    ? `<select onchange="setCollaboratorRole(${idx}, this.value)" class="px-1.5 py-1 text-[10px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none">${Object.entries(ROLE_LABELS).filter(([k]) => isOwner() || k !== 'admin').map(([k, v]) => `<option value="${k}" ${k === c.role ? 'selected' : ''}>${v}</option>`).join('')}</select>`
+                    ? `<select onchange="setCollaboratorRole(${idx}, this.value)" class="px-1.5 py-1 text-[10px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none">${Object.entries(ROLE_LABELS).map(([k, v]) => `<option value="${k}" ${k === c.role ? 'selected' : ''}>${(k === 'admin' && !isOwner()) ? 'Admin (à confirmer)' : v}</option>`).join('')}</select>`
                     : `<span class="text-[10px] font-semibold text-slate-500">${ROLE_LABELS[c.role] || c.role}</span>`;
                 const row = document.createElement('div');
                 row.className = "flex items-center justify-between gap-2 text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded-lg";
@@ -1039,10 +1039,11 @@
                 return; 
             }
 
-            const role = document.getElementById('new-collab-role').value;
+            let role = document.getElementById('new-collab-role').value;
+            let wantAdmin = false;
             const collabs = getCollabs();
             if (email === ownerEmail()) { showToast("Le propriétaire ne peut pas être invité."); return; }
-            if (role === 'admin' && !isOwner()) { showToast("Seul le propriétaire peut nommer un admin."); return; }
+            if (role === 'admin' && !isOwner()) { wantAdmin = true; role = 'editor'; }   // invité comme éditeur, admin à confirmer par le propriétaire
 
             const existingCollab = collabs.find(c => (c.email || '').toLowerCase() === email);
             if (existingCollab && !canManageCollab(existingCollab)) { showToast("Vous ne pouvez pas modifier ce collaborateur."); return; }
@@ -1068,15 +1069,17 @@
             renderCollaboratorsList();
             input.value = '';
             showToast("Invitation envoyée !");
+            if (wantAdmin) await requestAdmin(email);
         }
 
         window.setCollaboratorRole = async function(idx, role) {
             if (!requireAdmin()) return;
             const target = getCollabs()[idx];
-            if (!target || !canManageCollab(target) || (role === 'admin' && !isOwner())) {
-                showToast("Seul le propriétaire peut modifier le rôle d'un admin ou nommer un admin.");
+            if (!target || !canManageCollab(target)) {
+                showToast("Seul le propriétaire peut modifier le rôle d'un admin.");
                 renderCollaboratorsList(); return;
             }
+            if (role === 'admin' && !isOwner()) { await requestAdmin(target.email); renderCollaboratorsList(); return; }
             target.role = role;
             await saveCurrentMapState();
             renderCollaboratorsList();
@@ -2499,7 +2502,38 @@ container.addEventListener('touchstart', (e) => {
             showToast("Lien supprimé.");
         }
 
+        /* --- Activité : prévient les autres membres (notifications du dashboard) --- */
+        const IDLE_MS = 5 * 60 * 1000;   // inactivité avant d'annoncer « x a modifié la carte x »
+        let actDirty = false, actTimer = null;
+        function hasOthers() { return getCollabs().length > 0 || (getOwnerId() && getOwnerId() !== currentUser.id); }
+        function notifyActivity() {
+            if (!hasOthers()) return;
+            const inProject = !!(projectId && projectData);
+            try {
+                supabaseClient.rpc('notify_collaborators', {
+                    p_table: inProject ? 'projects' : 'cards',
+                    p_id: String(inProject ? projectId : cardId),
+                    p_kind: 'edit',
+                    p_file_id: String(cardId),
+                    p_file_name: currentCard.name || '',
+                    p_file_type: 'card'
+                }).then(() => {}, () => {});
+            } catch (e) {}
+        }
+        function markEdited() { if (!canEdit()) return; actDirty = true; clearTimeout(actTimer); actTimer = setTimeout(flushEdit, IDLE_MS); }
+        function flushEdit() { clearTimeout(actTimer); if (!actDirty) return; actDirty = false; notifyActivity(); }
+        document.addEventListener('visibilitychange', () => { if (document.hidden) flushEdit(); });
+        addEventListener('pagehide', flushEdit);
+
+        // un admin ne nomme pas d'admin directement : demande au propriétaire (validée côté base)
+        async function requestAdmin(email) {
+            const inProject = !!(projectId && projectData);
+            const { error } = await supabaseClient.rpc('request_admin_role', { p_table: inProject ? 'projects' : 'cards', p_id: String(inProject ? projectId : cardId), p_email: email });
+            showToast(error ? "Demande impossible : " + error.message : "Demande envoyée au propriétaire pour nommer " + email + " admin.");
+        }
+
         function scheduleSave() {
+            markEdited();
             clearTimeout(saveTimer);
             saveTimer = setTimeout(() => { saveTimer = null; saveCurrentMapState(); }, 500);
         }
