@@ -340,6 +340,17 @@
                 <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Type de relation</label>
                 <select id="ql-type-select" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none"></select>
             </div>
+            <div class="space-y-2">
+                <label class="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer select-none"><input type="checkbox" id="ql-directed" onchange="updateQlDir()" class="w-4 h-4 accent-[#5246EE]"> Lien à sens unique</label>
+                <div id="ql-dir-row" class="hidden">
+                    <div class="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+                        <span id="ql-dir-from" class="flex-1 min-w-0 truncate text-right font-semibold text-slate-800 dark:text-slate-200"></span>
+                        <i data-lucide="arrow-right" class="w-4 h-4 text-[#5246EE] shrink-0"></i>
+                        <span id="ql-dir-to" class="flex-1 min-w-0 truncate font-semibold text-slate-800 dark:text-slate-200"></span>
+                    </div>
+                    <p class="text-[10px] text-slate-400 mt-1">Le sens va de la personne où tu as commencé le lien vers celle où tu l'as déposé.</p>
+                </div>
+            </div>
             <div class="flex justify-end space-x-2 pt-2">
                 <button onclick="cancelQuickLink()" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl">Annuler</button>
                 <button onclick="confirmQuickLink()" class="px-3 py-1.5 bg-[#5246EE] text-white text-xs font-medium rounded-xl">Valider</button>
@@ -354,6 +365,17 @@
             <div>
                 <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Type de relation</label>
                 <select id="el-type-select" class="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none"></select>
+            </div>
+            <div class="space-y-2">
+                <label class="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer select-none"><input type="checkbox" id="el-directed" onchange="updateElDir()" class="w-4 h-4 accent-[#5246EE]"> Lien à sens unique</label>
+                <div id="el-dir-row" class="hidden">
+                    <div class="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+                        <span id="el-dir-from" class="flex-1 min-w-0 truncate text-right font-semibold text-slate-800 dark:text-slate-200"></span>
+                        <button type="button" onclick="flipElDir()" title="Inverser le sens" class="w-8 h-8 shrink-0 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center hover:border-[#5246EE]"><span id="el-dir-arrow" class="inline-flex" style="transition:transform .35s ease"><i data-lucide="arrow-right" class="w-4 h-4 text-[#5246EE]"></i></span></button>
+                        <span id="el-dir-to" class="flex-1 min-w-0 truncate font-semibold text-slate-800 dark:text-slate-200"></span>
+                    </div>
+                    <p class="text-[10px] text-slate-400 mt-1">Clique sur la flèche pour inverser le sens.</p>
+                </div>
             </div>
             <div class="flex items-center justify-between pt-2">
                 <button onclick="deleteLinkFromModal()" class="px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 text-xs font-medium rounded-xl transition flex items-center space-x-1">
@@ -1287,9 +1309,18 @@
                 const s = nodes.find(n => n.id === l.sourceId), t = nodes.find(n => n.id === l.targetId);
                 if (!s || !t) return;
                 const rt = (currentCard.relationTypes || []).find(r => r.id === l.relationTypeId) || { color: '#5246EE', name: 'Lien' };
-                const x1 = s.x + W / 2, y1 = s.y + H / 2, x2 = t.x + W / 2, y2 = t.y + H / 2, mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+                let x1 = s.x + W / 2, y1 = s.y + H / 2, x2 = t.x + W / 2, y2 = t.y + H / 2;
+                const sibs = (currentCard.links || []).filter(o => (o.sourceId === l.sourceId && o.targetId === l.targetId) || (o.sourceId === l.targetId && o.targetId === l.sourceId));
+                if (sibs.length > 1) {
+                    const [pa, pb] = l.sourceId < l.targetId ? [s, t] : [t, s];
+                    let ux = pb.x - pa.x, uy = pb.y - pa.y; const ul = Math.hypot(ux, uy) || 1; ux /= ul; uy /= ul;
+                    const off = (sibs.indexOf(l) - (sibs.length - 1) / 2) * 20;
+                    x1 += -uy * off; y1 += ux * off; x2 += -uy * off; y2 += ux * off;
+                }
+                const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
                 const lw = Math.max(40, String(rt.name).length * 5.6 + 16);
-                links += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${xmlEsc(rt.color)}" stroke-width="3" stroke-linecap="round"/>` +
+                const arrowSvg = isDirected(l) ? `<polygon points="${arrowHead(x2, y2, { l: t.x, t: t.y, r: t.x + W, b: t.y + H }, x1, y1)}" fill="${xmlEsc(rt.color)}" stroke="${xmlEsc(rt.color)}" stroke-width="1.5" stroke-linejoin="round"/>` : '';
+                links += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${xmlEsc(rt.color)}" stroke-width="3" stroke-linecap="round"/>` + arrowSvg +
                     `<rect x="${mx - lw / 2}" y="${my - 11}" width="${lw}" height="22" rx="7" fill="#fff" stroke="${xmlEsc(rt.color)}"/>` +
                     `<text x="${mx}" y="${my + 4}" text-anchor="middle" font-size="10" font-weight="600" fill="#334155">${xmlEsc(trunc(rt.name, 24))}</text>`;
             });
@@ -2309,21 +2340,104 @@ container.addEventListener('touchstart', (e) => {
             renderSvgLinks();
         }
 
+        /* ================= LIENS À SENS UNIQUE ================= */
+        // link.directed === true : la flèche va de link.sourceId vers link.targetId. Sinon : lien normal.
+        const isDirected = l => l.directed === true;
+        const newLinkId = () => 'link-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+        // Ajoute un lien dans `links` en appliquant les règles de fusion.
+        // Retourne 'added' | 'merged' | 'exists'.
+        //  - A→B puis B→A avec le même type : les deux fusionnent en un lien normal.
+        //  - Un lien normal et un lien à sens unique de même type se rejoignent aussi en lien normal.
+        function addLinkTo(links, srcId, tgtId, relId, directed) {
+            const rel = relId || '';
+            const between = links.filter(l => (l.sourceId === srcId && l.targetId === tgtId) || (l.sourceId === tgtId && l.targetId === srcId));
+            const sameType = l => (l.relationTypeId || '') === rel;
+            // un lien normal et des liens à sens unique peuvent coexister entre les deux mêmes personnes
+            if (directed) {
+                if (between.some(l => !isDirected(l) && sameType(l))) return 'exists';                 // déjà couvert par un lien normal de ce type
+                if (between.some(l => l.sourceId === srcId && isDirected(l) && sameType(l))) return 'exists';
+                const opp = between.find(l => l.sourceId === tgtId && isDirected(l) && sameType(l));
+                if (opp) { delete opp.directed; return 'merged'; }
+                links.push({ id: newLinkId(), sourceId: srcId, targetId: tgtId, relationTypeId: rel, directed: true });
+                return 'added';
+            }
+            if (between.some(l => !isDirected(l) && sameType(l))) return 'exists';
+            const same = between.filter(l => isDirected(l) && sameType(l));
+            if (same.length) {
+                delete same[0].directed;
+                same.slice(1).forEach(l => links.splice(links.indexOf(l), 1));
+                return 'merged';
+            }
+            links.push({ id: newLinkId(), sourceId: srcId, targetId: tgtId, relationTypeId: rel });
+            return 'added';
+        }
+        const LINK_MSG = { exists: "Un lien existe déjà entre ces personnes.", merged: "Les deux sens ont fusionné : le lien est maintenant normal." };
+
+        // fusionne deux liens à sens unique opposés de même type (après une modification manuelle)
+        function normalizeLinkList(ls) {
+            // 1) deux sens uniques opposés de même type -> un lien normal
+            for (let i = 0; i < ls.length; i++) {
+                const a = ls[i]; if (!isDirected(a)) continue;
+                const j = ls.findIndex((b, k) => k !== i && isDirected(b) && b.sourceId === a.targetId && b.targetId === a.sourceId && (b.relationTypeId || '') === (a.relationTypeId || ''));
+                if (j >= 0) { delete a.directed; ls.splice(j, 1); if (j < i) i--; }
+            }
+            // 2) doublons exacts (même paire, même type, même sens) ou sens unique déjà couvert par un lien normal de même type
+            const pair = l => [l.sourceId, l.targetId].sort().join('|') + '|' + (l.relationTypeId || '');
+            for (let i = 0; i < ls.length; i++) {
+                for (let j = i + 1; j < ls.length; j++) {
+                    if (pair(ls[i]) !== pair(ls[j])) continue;
+                    const a = ls[i], b = ls[j];
+                    const dup = (!isDirected(a) && !isDirected(b)) || (isDirected(a) && isDirected(b) && a.sourceId === b.sourceId);
+                    if (dup) { ls.splice(j, 1); j--; continue; }
+                    if (!isDirected(a) && isDirected(b)) { ls.splice(j, 1); j--; }
+                    else if (isDirected(a) && !isDirected(b)) { ls.splice(i, 1); i--; break; }
+                }
+            }
+        }
+        function normalizeLinks() { normalizeLinkList(currentCard.links || []); }
+
+        // Géométrie d'un lien : extrémités (décalées si plusieurs liens relient la même paire)
+        function linkGeom(link) {
+            const nodes = currentCard.nodes || [];
+            const s = nodes.find(n => n.id === link.sourceId), t = nodes.find(n => n.id === link.targetId);
+            if (!s || !t) return null;
+            let x1 = s.x + 80, y1 = s.y + 40, x2 = t.x + 80, y2 = t.y + 40;
+            const sibs = (currentCard.links || []).filter(l => (l.sourceId === link.sourceId && l.targetId === link.targetId) || (l.sourceId === link.targetId && l.targetId === link.sourceId));
+            if (sibs.length > 1) {
+                const [a, b] = link.sourceId < link.targetId ? [s, t] : [t, s];
+                let ux = b.x - a.x, uy = b.y - a.y; const len = Math.hypot(ux, uy) || 1; ux /= len; uy /= len;
+                const off = (sibs.indexOf(link) - (sibs.length - 1) / 2) * 20;
+                const px = -uy * off, py = ux * off;
+                x1 += px; y1 += py; x2 += px; y2 += py;
+            }
+            return { s, t, x1, y1, x2, y2 };
+        }
+
+        // Pointe de flèche posée sur le bord de la carte d'arrivée (centre tcx,tcy ; rect = bords de la carte)
+        function arrowHead(tcx, tcy, rect, sx, sy, size = 14) {
+            let dx = sx - tcx, dy = sy - tcy; const len = Math.hypot(dx, dy) || 1; dx /= len; dy /= len;
+            const tx = dx > 0 ? (rect.r - tcx) / dx : dx < 0 ? (rect.l - tcx) / dx : Infinity;
+            const ty = dy > 0 ? (rect.b - tcy) / dy : dy < 0 ? (rect.t - tcy) / dy : Infinity;
+            const t = Math.max(0, Math.min(tx, ty)) + 2;
+            const px = tcx + dx * t, py = tcy + dy * t, bx = px + dx * size, by = py + dy * size, nx = -dy * size * 0.45, ny = dx * size * 0.45;
+            return `${px},${py} ${bx + nx},${by + ny} ${bx - nx},${by - ny}`;
+        }
+        function nodeRect(n) {
+            const el = document.getElementById(`card-${n.id}`);
+            return { l: n.x, t: n.y, r: n.x + 160, b: n.y + (el ? el.offsetHeight : 90) };
+        }
+
         function renderSvgLinks() {
             const svg = document.getElementById('links-svg');
             svg.innerHTML = '';
 
             (currentCard.links || []).forEach(link => {
-                const source = (currentCard.nodes || []).find(n => n.id === link.sourceId);
-                const target = (currentCard.nodes || []).find(n => n.id === link.targetId);
-                if (!source || !target) return;
+                const geo = linkGeom(link);
+                if (!geo) return;
+                const { x1, y1, x2, y2, t: target } = geo;
 
                 const relType = (currentCard.relationTypes || []).find(r => r.id === link.relationTypeId) || { color: '#5246EE', name: 'Lien' };
-
-                const x1 = source.x + 80;
-                const y1 = source.y + 40;
-                const x2 = target.x + 80;
-                const y2 = target.y + 40;
 
                 const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
                 g.classList.add("cursor-pointer");
@@ -2375,6 +2489,13 @@ container.addEventListener('touchstart', (e) => {
                 }
                 g.appendChild(hit);
                 g.appendChild(line);
+                if (isDirected(link)) {
+                    const arrow = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+                    arrow.setAttribute("points", arrowHead(x2, y2, nodeRect(target), x1, y1));
+                    arrow.setAttribute("fill", relType.color);
+                    arrow.setAttribute("stroke", relType.color); arrow.setAttribute("stroke-width", "1.5"); arrow.setAttribute("stroke-linejoin", "round");
+                    g.appendChild(arrow);
+                }
                 g.appendChild(textBg);
                 g.appendChild(text);
                 svg.appendChild(g);
@@ -2487,6 +2608,7 @@ container.addEventListener('touchstart', (e) => {
                 return;
             }
 
+            dirFlipped = false;
             container.innerHTML = `
                 <div class="space-y-4">
                     <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -2508,11 +2630,22 @@ container.addEventListener('touchstart', (e) => {
                         <div id="add-link-form" class="hidden p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
                             <div>
                                 <label class="block text-[10px] font-semibold uppercase text-slate-500 mb-1">Associer à</label>
-                                <select id="link-target-select" class="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none"></select>
+                                <select id="link-target-select" onchange="updateDirRow()" class="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none"></select>
                             </div>
                             <div>
                                 <label class="block text-[10px] font-semibold uppercase text-slate-500 mb-1">Type de relation</label>
                                 <select id="link-type-select" class="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none"></select>
+                            </div>
+                            <div class="space-y-2">
+                                <label class="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer select-none"><input type="checkbox" id="link-directed" onchange="updateDirRow()" class="w-4 h-4 accent-[#5246EE]"> Lien à sens unique</label>
+                                <div id="link-dir-row" class="hidden">
+                                    <div class="flex items-center gap-2 p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
+                                        <span id="dir-from" class="flex-1 min-w-0 truncate text-right font-semibold text-slate-800 dark:text-slate-200"></span>
+                                        <button type="button" onclick="flipLinkDirection()" title="Inverser le sens" class="w-8 h-8 shrink-0 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center hover:border-[#5246EE]"><span id="dir-arrow" class="inline-flex" style="transition:transform .35s ease"><i data-lucide="arrow-right" class="w-4 h-4 text-[#5246EE]"></i></span></button>
+                                        <span id="dir-to" class="flex-1 min-w-0 truncate font-semibold text-slate-800 dark:text-slate-200"></span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-400 mt-1">Clique sur la flèche pour inverser le sens.</p>
+                                </div>
                             </div>
                             <button onclick="createLinkFromInspector()" class="w-full py-1.5 bg-[#5246EE] hover:bg-[#4538d8] text-white text-xs font-medium rounded-lg shadow-xs">Valider la connexion</button>
                         </div>
@@ -2611,7 +2744,10 @@ container.addEventListener('touchstart', (e) => {
                         <span class="font-medium text-slate-800 dark:text-slate-200 truncate">${otherNode ? otherNode.firstname + ' ' + otherNode.lastname : 'Inconnu'}</span>
                         <span class="text-slate-400">(${relType.name})</span>
                     </div>
+                    <div class="flex items-center shrink-0">
+                    ${isDirected(link) ? `<button ${canEdit() ? `onclick="flipLink('${link.id}')"` : 'disabled'} title="${canEdit() ? 'Sens unique : clique pour inverser' : 'Sens unique'}" class="p-1 text-[#5246EE]"><span id="flip-${link.id}" class="inline-flex" style="transition:transform .35s ease"><i data-lucide="${link.sourceId === nodeId ? 'arrow-right' : 'arrow-left'}" class="w-4 h-4"></i></span></button>` : ''}
                     ${canEdit() ? `<button onclick="deleteLink('${link.id}')" class="text-rose-500 hover:text-rose-700 p-1"><i data-lucide="trash" class="w-3.5 h-3.5"></i></button>` : ''}
+                    </div>
                 `;
                 listEl.appendChild(item);
             });
@@ -2627,25 +2763,58 @@ container.addEventListener('touchstart', (e) => {
             if (!targetId) return;   // le type de lien est facultatif
 
             const selectedNodeId = selectedNodeIds[0];
-            const exists = (currentCard.links || []).some(l => (l.sourceId === selectedNodeId && l.targetId === targetId) || (l.sourceId === targetId && l.targetId === selectedNodeId));
-            if (exists) {
-                showToast("Un lien existe déjà entre ces personnes.");
-                return;
-            }
+            const directed = document.getElementById('link-directed').checked;
+            const [src, tgt] = (directed && dirFlipped) ? [targetId, selectedNodeId] : [selectedNodeId, targetId];
 
             if (!currentCard.links) currentCard.links = [];
-            currentCard.links.push({
-                id: 'link-' + Date.now(),
-                sourceId: selectedNodeId,
-                targetId,
-                relationTypeId
-            });
+            const res = addLinkTo(currentCard.links, src, tgt, relationTypeId, directed);
+            if (res === 'exists') { showToast(LINK_MSG.exists); return; }
 
             await saveCurrentMapState();
             renderNodeLinksInInspector(selectedNodeId);
             renderSvgLinks();
             document.getElementById('add-link-form').classList.add('hidden');
-            showToast("Lien créé avec succès !");
+            showToast(res === 'merged' ? LINK_MSG.merged : "Lien créé avec succès !");
+        }
+
+        // --- sens unique dans le formulaire de l'inspecteur ---
+        let dirFlipped = false;
+        function updateDirRow() {
+            const on = document.getElementById('link-directed').checked;
+            document.getElementById('link-dir-row').classList.toggle('hidden', !on);
+            const meId = selectedNodeIds[0], tgtId = document.getElementById('link-target-select').value;
+            const a = personName(meId), b = tgtId ? personName(tgtId) : '…';
+            document.getElementById('dir-from').textContent = dirFlipped ? b : a;
+            document.getElementById('dir-to').textContent = dirFlipped ? a : b;
+            document.getElementById('dir-arrow').style.transform = 'rotate(0deg)';
+        }
+        function flipLinkDirection() {
+            const arrow = document.getElementById('dir-arrow');
+            dirFlipped = !dirFlipped;
+            arrow.style.transform = 'rotate(180deg)';
+            setTimeout(() => {
+                const meId = selectedNodeIds[0], tgtId = document.getElementById('link-target-select').value;
+                const a = personName(meId), b = tgtId ? personName(tgtId) : '…';
+                document.getElementById('dir-from').textContent = dirFlipped ? b : a;
+                document.getElementById('dir-to').textContent = dirFlipped ? a : b;
+                arrow.style.transition = 'none'; arrow.style.transform = 'rotate(0deg)';
+                void arrow.offsetWidth; arrow.style.transition = 'transform .35s ease';
+            }, 350);
+        }
+
+        // inverse le sens d'un lien existant (depuis la liste des connexions), avec animation
+        function flipLink(linkId) {
+            if (!requireEdit()) return;
+            const link = (currentCard.links || []).find(l => l.id === linkId); if (!link || !isDirected(link)) return;
+            const sp = document.getElementById('flip-' + linkId);
+            if (sp) sp.style.transform = 'rotate(180deg)';
+            setTimeout(async () => {
+                [link.sourceId, link.targetId] = [link.targetId, link.sourceId];
+                await saveCurrentMapState();
+                renderSvgLinks();
+                if (selectedNodeIds.length === 1) renderNodeLinksInInspector(selectedNodeIds[0]);
+                showToast('Sens inversé.');
+            }, 350);
         }
 
         async function deleteLink(linkId) {
@@ -2768,7 +2937,19 @@ container.addEventListener('touchstart', (e) => {
             });
             fillEmptyTypeOption(select);
 
+            document.getElementById('ql-directed').checked = false;
+            updateQlDir();
             document.getElementById('modal-quick-link').classList.remove('hidden');
+        }
+
+        const personName = id => { const n = (currentCard.nodes || []).find(v => v.id === id); return n ? `${n.firstname || ''} ${n.lastname || ''}`.trim() || 'Sans nom' : '?'; };
+        function updateQlDir() {
+            const on = document.getElementById('ql-directed').checked;
+            document.getElementById('ql-dir-row').classList.toggle('hidden', !on);
+            if (pendingQuickLink) {
+                document.getElementById('ql-dir-from').textContent = personName(pendingQuickLink.sourceId);
+                document.getElementById('ql-dir-to').textContent = personName(pendingQuickLink.targetId);
+            }
         }
 
         function cancelQuickLink() {
@@ -2781,19 +2962,16 @@ container.addEventListener('touchstart', (e) => {
             if (!pendingQuickLink) return;
             const relationTypeId = document.getElementById('ql-type-select').value;
 
-            const exists = (currentCard.links || []).some(l => (l.sourceId === pendingQuickLink.sourceId && l.targetId === pendingQuickLink.targetId) || (l.sourceId === pendingQuickLink.targetId && l.targetId === pendingQuickLink.sourceId));
-            if (!exists) {
-                if (!currentCard.links) currentCard.links = [];
-                currentCard.links.push({
-                    id: 'link-' + Date.now(),
-                    sourceId: pendingQuickLink.sourceId,
-                    targetId: pendingQuickLink.targetId,
-                    relationTypeId
-                });
+            const directed = document.getElementById('ql-directed').checked;
+            if (!currentCard.links) currentCard.links = [];
+            const res = addLinkTo(currentCard.links, pendingQuickLink.sourceId, pendingQuickLink.targetId, relationTypeId, directed);
+            if (res === 'exists') {
+                showToast(LINK_MSG.exists);
+            } else {
                 await saveCurrentMapState();
                 renderSvgLinks();
                 if (selectedNodeIds.length === 1) renderNodeLinksInInspector(selectedNodeIds[0]);
-                showToast("Connexion créée !");
+                showToast(res === 'merged' ? LINK_MSG.merged : (directed ? "Lien à sens unique créé !" : "Connexion créée !"));
             }
             cancelQuickLink();
         }
@@ -2820,7 +2998,33 @@ container.addEventListener('touchstart', (e) => {
             });
             fillEmptyTypeOption(select);
 
+            elFlipped = false;
+            document.getElementById('el-directed').checked = isDirected(link);
+            updateElDir();
             document.getElementById('modal-edit-link').classList.remove('hidden');
+        }
+
+        let elFlipped = false;
+        function updateElDir() {
+            const link = (currentCard.links || []).find(l => l.id === activeEditLinkId); if (!link) return;
+            document.getElementById('el-dir-row').classList.toggle('hidden', !document.getElementById('el-directed').checked);
+            const from = elFlipped ? link.targetId : link.sourceId, to = elFlipped ? link.sourceId : link.targetId;
+            document.getElementById('el-dir-from').textContent = personName(from);
+            document.getElementById('el-dir-to').textContent = personName(to);
+            document.getElementById('el-dir-arrow').style.transform = 'rotate(0deg)';
+        }
+        function flipElDir() {
+            const link = (currentCard.links || []).find(l => l.id === activeEditLinkId); if (!link) return;
+            const arrow = document.getElementById('el-dir-arrow');
+            elFlipped = !elFlipped;
+            arrow.style.transform = 'rotate(180deg)';             // animation du retournement
+            setTimeout(() => {
+                const from = elFlipped ? link.targetId : link.sourceId, to = elFlipped ? link.sourceId : link.targetId;
+                document.getElementById('el-dir-from').textContent = personName(from);
+                document.getElementById('el-dir-to').textContent = personName(to);
+                arrow.style.transition = 'none'; arrow.style.transform = 'rotate(0deg)';
+                void arrow.offsetWidth; arrow.style.transition = 'transform .35s ease';
+            }, 350);
         }
 
         function closeEditLinkModal() {
@@ -2834,10 +3038,16 @@ container.addEventListener('touchstart', (e) => {
             const link = (currentCard.links || []).find(l => l.id === activeEditLinkId);
             if (link) {
                 link.relationTypeId = document.getElementById('el-type-select').value;
+                if (document.getElementById('el-directed').checked) {
+                    if (elFlipped) [link.sourceId, link.targetId] = [link.targetId, link.sourceId];
+                    link.directed = true;
+                } else delete link.directed;
+                const n0 = currentCard.links.length;
+                normalizeLinks();
                 await saveCurrentMapState();
                 renderSvgLinks();
                 if (selectedNodeIds.length === 1) renderNodeLinksInInspector(selectedNodeIds[0]);
-                showToast("Lien mis à jour !");
+                showToast(currentCard.links.length < n0 ? LINK_MSG.merged : "Lien mis à jour !");
             }
             closeEditLinkModal();
         }
@@ -2857,6 +3067,8 @@ container.addEventListener('touchstart', (e) => {
                 <select id="lcm-type" class="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none">
                     <option value="">Sans type</option>${(currentCard.relationTypes || []).map(r => `<option value="${escapeHtml(r.id)}" ${r.id === link.relationTypeId ? 'selected' : ''}>${escapeHtml(r.name)}</option>`).join('')}
                 </select>
+                <label class="flex items-center gap-2 font-medium cursor-pointer select-none"><input type="checkbox" id="lcm-dir" ${isDirected(link) ? 'checked' : ''} class="w-4 h-4 accent-[#5246EE]"> Sens unique${isDirected(link) ? ` <span class="text-slate-400 font-normal truncate">(${escapeHtml(nm(link.sourceId))} → ${escapeHtml(nm(link.targetId))})</span>` : ''}</label>
+                ${isDirected(link) ? `<button id="lcm-flip" class="w-full px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 font-medium flex items-center gap-2"><i data-lucide="repeat" class="w-3.5 h-3.5 text-[#5246EE]"></i> Inverser le sens</button>` : ''}
                 <button id="lcm-del" class="w-full px-3 py-2 rounded-xl text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 font-medium flex items-center gap-2"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Supprimer le lien</button>`;
             document.body.appendChild(m);
             m.style.left = Math.max(8, Math.min(x, window.innerWidth - m.offsetWidth - 8)) + 'px';
@@ -2865,7 +3077,18 @@ container.addEventListener('touchstart', (e) => {
             const refresh = () => { renderSvgLinks(); if (selectedNodeIds.length === 1) renderNodeLinksInInspector(selectedNodeIds[0]); };
             m.querySelector('#lcm-type').addEventListener('change', async (e) => {
                 if (!requireEdit()) return;
-                link.relationTypeId = e.target.value; await saveCurrentMapState(); refresh(); closeLinkMenu(); showToast('Type du lien modifié.');
+                link.relationTypeId = e.target.value; normalizeLinks(); await saveCurrentMapState(); refresh(); closeLinkMenu(); showToast('Type du lien modifié.');
+            });
+            m.querySelector('#lcm-dir').addEventListener('change', async (e) => {
+                if (!requireEdit()) return;
+                if (e.target.checked) link.directed = true; else delete link.directed;
+                normalizeLinks(); await saveCurrentMapState(); refresh(); closeLinkMenu(); showToast(e.target.checked ? 'Lien à sens unique.' : 'Lien normal.');
+            });
+            const fl = m.querySelector('#lcm-flip');
+            if (fl) fl.addEventListener('click', async () => {
+                if (!requireEdit()) return;
+                [link.sourceId, link.targetId] = [link.targetId, link.sourceId];
+                await saveCurrentMapState(); refresh(); closeLinkMenu(); showToast('Sens inversé.');
             });
             m.querySelector('#lcm-del').addEventListener('click', async () => {
                 if (!requireEdit()) return;
@@ -2882,9 +3105,9 @@ container.addEventListener('touchstart', (e) => {
             const px = (e.clientX - r.left + c.scrollLeft) / whiteboardZoom, py = (e.clientY - r.top + c.scrollTop) / whiteboardZoom;
             let best = null, bd = 26 / whiteboardZoom;
             (currentCard.links || []).forEach(l => {
-                const a = (currentCard.nodes || []).find(n => n.id === l.sourceId), b = (currentCard.nodes || []).find(n => n.id === l.targetId);
-                if (!a || !b) return;
-                const x1 = a.x + 80, y1 = a.y + 40, dx = b.x + 80 - x1, dy = b.y + 40 - y1, L = dx * dx + dy * dy;
+                const gm = linkGeom(l);
+                if (!gm) return;
+                const x1 = gm.x1, y1 = gm.y1, dx = gm.x2 - x1, dy = gm.y2 - y1, L = dx * dx + dy * dy;
                 const t = L ? Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / L)) : 0;
                 const d = Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
                 if (d <= bd) { bd = d; best = l; }
@@ -3528,7 +3751,7 @@ container.addEventListener('touchstart', (e) => {
             const lit = v => v == null ? 'NULL' : typeof v === 'boolean' ? (v ? 'TRUE' : 'FALSE') : typeof v === 'number' ? (isFinite(v) ? String(v) : 'NULL') : "'" + String(v).replace(/'/g, "''") + "'";
             const sy = (t, v) => !!t && t.t === 'sym' && t.v === v;
             const tmap = t => /int|num|dec|float|real|doub/i.test(t) ? 'number' : /bool/i.test(t) ? 'bool' : /date|time/i.test(t) ? 'date' : 'line';
-            const isCmd = c => c.length > 1 && c[0].t === 'w' && /^(createlink|newlink)$/i.test(c[0].v) && sy(c[1], ':');
+            const isCmd = c => c.length > 1 && c[0].t === 'w' && /^(createlink|newlink|link)$/i.test(c[0].v) && sy(c[1], ':');
 
             // ---------- analyse ----------
             function tok(src) {
@@ -3571,7 +3794,10 @@ container.addEventListener('touchstart', (e) => {
                 for (const t of T) {
                     if (t.t === 'meta') { flush(); S.push([t]); continue; }
                     if (sy(t, ';')) { flush(); continue; }
-                    if (isCmd(cur)) { const p = cur[cur.length - 1]; if (t.ln > p.ln && !sy(p, ',')) flush(); }
+                    if (isCmd(cur)) {
+                        const p = cur[cur.length - 1], depth = cur.reduce((d, x) => d + (sy(x, '(') ? 1 : sy(x, ')') ? -1 : 0), 0);
+                        if (t.ln > p.ln && !sy(p, ',') && depth <= 0) flush();
+                    }
                     cur.push(t);
                 }
                 flush(); return S;
@@ -3581,7 +3807,7 @@ container.addEventListener('touchstart', (e) => {
             function run(S, base) {
                 const cp = x => JSON.parse(JSON.stringify(x));
                 const D = { nodes: cp(base.nodes || []), links: cp(base.links || []), relationTypes: cp(base.relationTypes || []), fields: cp(Array.isArray(base.fields) ? base.fields : DEFAULT_FIELDS()) };
-                const log = [], results = [], types = {}; let ins = 0, upd = 0, del = 0, lk = 0, changed = false;
+                const log = [], results = [], types = {}; let ins = 0, upd = 0, del = 0, lk = 0, md = 0, changed = false;
                 const val = t => { if (!t) throw Error('valeur manquante'); if (t.t !== 'w') return t.v; const u = t.v.toUpperCase(); if (u === 'NULL') return null; if (u === 'TRUE') return true; if (u === 'FALSE') return false; return /^-?\d+(\.\d+)?$/.test(t.v) ? Number(t.v) : t.v; };
                 const findF = c => { const k = idn(c); return D.fields.find(f => idn(f.label) === k || f.key === k) || D.fields.find(f => f.key && f.key === ALIAS[k]); };
                 const getF = (c, type) => findF(c) || (() => { const f = { id: uid('f_'), label: pretty(c), type: type || 'line' }; D.fields.push(f); return f; })();
@@ -3624,19 +3850,54 @@ container.addEventListener('touchstart', (e) => {
                     }
                     return [n => ors.some(a => a.every(f => f(n))), i];
                 };
-                const link = (rel, a, b) => {
+                const link = (rel, a, b, directed) => {
                     const A = ref(a), B = ref(b);
                     if (A === B) throw Error('une personne ne peut pas être reliée à elle-même');
-                    if (D.links.some(l => (l.sourceId === A.id && l.targetId === B.id) || (l.sourceId === B.id && l.targetId === A.id))) { log.push({ k: 'warn', m: `Lien déjà existant entre « ${a} » et « ${b} » : ignoré` }); return; }
-                    D.links.push({ id: uid('link-'), sourceId: A.id, targetId: B.id, relationTypeId: rel ? rel.id : '' }); lk++; changed = true;
+                    const res = addLinkTo(D.links, A.id, B.id, rel ? rel.id : '', directed);
+                    if (res === 'exists') { log.push({ k: 'warn', m: `Lien déjà existant entre « ${a} » et « ${b} » : ignoré` }); return; }
+                    if (res === 'merged') { log.push({ k: 'ok', m: `« ${a} » et « ${b} » : les deux sens ont fusionné en un lien normal` }); changed = true; return; }
+                    lk++; changed = true;
                 };
-                // createLink: name: "Nom", color: "#hex"   |   newLink: typeLink: "Nom", from x to y, from x to z ...
+                // link: (typeLink: "Nom", a and b)  /  (typeLink: "Nom", from a to b) : modifie le lien EXISTANT entre deux personnes
+                const editLink = (rel, a, b, directed) => {
+                    const A = ref(a), B = ref(b);
+                    if (A === B) throw Error('une personne ne peut pas être reliée à elle-même');
+                    const between = D.links.filter(l => (l.sourceId === A.id && l.targetId === B.id) || (l.sourceId === B.id && l.targetId === A.id));
+                    if (!between.length) { log.push({ k: 'warn', m: `Aucun lien entre « ${a} » et « ${b} » : utilise newLink pour le créer` }); return; }
+                    const t = directed ? (between.find(l => isDirected(l) && l.sourceId === A.id) || (between.length === 1 ? between[0] : null))
+                                       : (between.find(l => !isDirected(l)) || (between.length === 1 ? between[0] : null));
+                    if (!t) throw Error(`plusieurs liens existent entre « ${a} » et « ${b} » : précise le sens avec « from X to Y », ou le lien normal avec « X and Y »`);
+                    t.relationTypeId = rel ? rel.id : '';
+                    if (directed) { t.sourceId = A.id; t.targetId = B.id; t.directed = true; } else delete t.directed;
+                    md++; changed = true;
+                };
+                // createLink: (name: "Nom", color: "#hex")   |   newLink: (typeLink: "Nom", x and y, from x to z ...)
+                // « to » = lien à sens unique (x → z), « and » = lien normal. Les parenthèses sont facultatives.
                 const cmd = st => {
                     const kind = st[0].v.toLowerCase(); let i = 2, name = null, color = null, tl = null; const pairs = [];
                     while (i < st.length) {
                         const t = st[i], w = t.v.toLowerCase();
-                        if (sy(t, ',')) { i++; continue; }
-                        if (t.t === 'w' && w === 'from') { const a = st[i + 1], to = st[i + 2], b = st[i + 3]; if (!a || !b || !to || to.v.toLowerCase() !== 'to') throw Error('syntaxe attendue : from X to Y'); pairs.push([a.v, b.v]); i += 4; continue; }
+                        if (sy(t, ',') || sy(t, '(') || sy(t, ')')) { i++; continue; }
+                        // clause de liens : from A [with B …] to C [to D …] (sens unique)   |   A [with B …] and C [and D …] (lien normal)
+                        //   to = sens unique (flèche), and = lien normal ; chaque source est reliée à chaque cible
+                        const isRef = x => x && x.t !== 'sym' && x.t !== 'meta';
+                        const kw = x => x && x.t === 'w' ? x.v.toLowerCase() : '';
+                        const isKey = t.t === 'w' && (w === 'name' || w === 'color' || w === 'typelink') && (sy(st[i + 1], ':') || sy(st[i + 1], '='));
+                        if (!isKey && isRef(t)) {
+                            let j = i; const hasFrom = kw(st[j]) === 'from'; if (hasFrom) j++;
+                            const srcs = [], tgs = [];
+                            const fmt = 'syntaxe attendue : from X [with Y …] to Z (sens unique) ou X [with Y …] and Z (lien normal)';
+                            if (!isRef(st[j])) throw Error(fmt);
+                            srcs.push(st[j++].v);
+                            while (kw(st[j]) === 'with') { j++; if (!isRef(st[j])) throw Error('with : une personne est attendue après « with »'); srcs.push(st[j++].v); }
+                            while (kw(st[j]) === 'to' || kw(st[j]) === 'and') { const d = kw(st[j]) === 'to'; j++; if (!isRef(st[j])) throw Error(`« ${d ? 'to' : 'and'} » : une personne est attendue après`); tgs.push([st[j++].v, d]); }
+                            if (!tgs.length) throw Error(fmt);
+                            if (new Set(tgs.map(x => x[1])).size > 1) throw Error('ne mélange pas « to » et « and » dans la même clause : sépare-les par une virgule');
+                            if (tgs[0][1] && !hasFrom) throw Error('un lien à sens unique s\'écrit « from X to Y »');
+                            if (!tgs[0][1] && hasFrom) throw Error('« from » ne s\'utilise qu\'avec « to » : écris « a and b » pour un lien normal');
+                            srcs.forEach(a => tgs.forEach(([b, d]) => { if (a !== b) pairs.push([a, b, d]); }));
+                            i = j; continue;
+                        }
                         if (t.t === 'w' && (w === 'name' || w === 'color' || w === 'typelink') && (sy(st[i + 1], ':') || sy(st[i + 1], '='))) { const v = st[i + 2]; if (!v || v.t === 'sym') throw Error(`valeur manquante après ${t.v}`); if (w === 'name') name = v.v; else if (w === 'color') color = v.v; else tl = v.v; i += 3; continue; }
                         throw Error(`élément inattendu « ${t.v} »`);
                     }
@@ -3650,11 +3911,19 @@ container.addEventListener('touchstart', (e) => {
                         else { rel = { id: uid('rel-'), name, color }; D.relationTypes.push(rel); log.push({ k: 'ok', m: `Type de lien « ${name} » ajouté à la légende` }); }
                         changed = true; return;
                     }
-                    if (!tl) throw Error('newLink : typeLink: "…" est obligatoire');
-                    if (!pairs.length) throw Error('newLink : from X to Y attendu');
+                    const cn = kind === 'link' ? 'link' : 'newLink';
+                    if (!tl) throw Error(`${cn} : typeLink: "…" est obligatoire`);
+                    if (!pairs.length) throw Error(`${cn} : from X [with Y …] to Z (sens unique) ou X [with Y …] and Z (lien normal) attendu`);
                     const rel = D.relationTypes.find(r => r.name.toLowerCase() === tl.toLowerCase() || r.id === tl);
                     if (!rel && !/^(none|aucun)$/i.test(tl)) throw Error(`type de lien « ${tl} » inconnu : crée-le d'abord avec createLink`);
-                    pairs.forEach(([a, b]) => link(rel, a, b));
+                    if (kind === 'link') {
+                        const n0 = D.links.length;
+                        pairs.forEach(([a, b, directed]) => editLink(rel, a, b, directed));
+                        normalizeLinkList(D.links);
+                        if (D.links.length < n0) log.push({ k: 'ok', m: `${n0 - D.links.length} lien(s) fusionné(s) ou devenu(s) identique(s)` });
+                        return;
+                    }
+                    pairs.forEach(([a, b, directed]) => link(rel, a, b, directed));
                 };
                 const exec = st => {
                     if (st[0].t === 'meta' || /^use$/i.test(st[0].v)) return;
@@ -3746,6 +4015,7 @@ container.addEventListener('touchstart', (e) => {
                 if (upd) log.push({ k: 'ok', m: `${upd} personne(s) modifiée(s)` });
                 if (del) log.push({ k: 'ok', m: `${del} personne(s) supprimée(s)` });
                 if (lk) log.push({ k: 'ok', m: `${lk} lien(s) créé(s)` });
+                if (md) log.push({ k: 'ok', m: `${md} lien(s) modifié(s)` });
                 return { D, log, results, changed };
             }
 
@@ -3816,9 +4086,10 @@ container.addEventListener('touchstart', (e) => {
                     const rels = t.rels || (t.card && t.card.relationTypes) || [], lks = t.links || (t.card && t.card.links) || [];
                     if (o.mobius && (rels.length || lks.length)) {
                         const key = {}, g = {}; out.push('');
-                        rels.forEach(r => { key[r.id] = r.name; out.push(`createLink: name: ${qs(r.name)}, color: ${qs(r.color || '#5246EE')};`); });
-                        lks.forEach(l => (g[key[l.relationTypeId] || 'none'] ||= []).push(`from ${lit(l.sourceId)} to ${lit(l.targetId)}`));
-                        Object.entries(g).forEach(([k, a]) => out.push(`newLink: typeLink: ${k === 'none' ? 'none' : qs(k)}, ${a.join(', ')};`));
+                        rels.forEach(r => { key[r.id] = r.name; out.push(`createLink: (name: ${qs(r.name)}, color: ${qs(r.color || '#5246EE')});`); });
+                        // « to » = sens unique (source → cible), « and » = lien normal
+                        lks.forEach(l => (g[key[l.relationTypeId] || 'none'] ||= []).push((l.directed === true ? `from ${lit(l.sourceId)} to ${lit(l.targetId)}` : `${lit(l.sourceId)} and ${lit(l.targetId)}`)));
+                        Object.entries(g).forEach(([k, a]) => out.push(`newLink: (typeLink: ${k === 'none' ? 'none' : qs(k)}, ${a.join(', ')});`));
                     }
                 });
                 return out.join('\n') + '\n';
@@ -3899,18 +4170,25 @@ INSERT INTO equipe (id, "Prénom", "Nom", "Poste") VALUES
   ('c', 'Chloé', 'Petit', 'Designer');
 
 -- Types de lien (name et color obligatoires), puis liens
-createLink: name: "Collègue", color: "#5246EE";
-createLink: name: "Ami", color: "#10b981";
-newLink: typeLink: "Collègue", from a to b, from a to c;
-newLink: typeLink: "Ami", from b to c;
+createLink: (name: "Collègue", color: "#5246EE");
+createLink: (name: "Ami", color: "#10b981");
+createLink: (name: "Mentor", color: "#f59e0b");
+-- and = lien normal, to = lien à sens unique (flèche)
+newLink: (typeLink: "Collègue", a and b);
+newLink: (typeLink: "Ami", b and c);
+-- sens unique (avec from) : from a with b to c  =  a vers c + b vers c
+newLink: (typeLink: "Mentor", from a with b to c);
 `;
             const HELP = `<p><b>SQL</b> : CREATE TABLE (ou CREATE CARD), INSERT INTO, UPDATE … SET … WHERE, DELETE FROM … WHERE, SELECT … WHERE / ORDER BY / LIMIT. Une colonne = un champ de l'inspecteur, une ligne = une personne. Colonnes spéciales : <code>id</code>, <code>_x</code>, <code>_y</code> (position, sinon placement automatique).</p>
 <p class="mt-2"><b>Où ça s'exécute</b> : sans CREATE, tout s'exécute dans la carte où tu as ouvert cette console. Avec CREATE, une nouvelle carte est ajoutée à l'arborescence avec tout son contenu, et les instructions qui suivent (dont createLink / newLink) s'appliquent à elle. Pour revenir à une autre carte : <code>USE CARD nom;</code> ou nomme-la dans l'instruction (<code>INSERT INTO nom …</code>).</p>
-<p class="mt-2"><b>createLink: name: "Nom", color: "#RRGGBB"</b> crée un type de lien dans la légende (name et color obligatoires).</p>
-<p class="mt-2"><b>newLink: typeLink: "Nom", from x to y, from x to z</b> crée un ou plusieurs liens du type choisi (la liste des types apparaît pendant la saisie, Tab pour valider). x et y sont des id ou des « Prénom Nom ». <code>typeLink: none</code> : lien sans type.</p>
+<p class="mt-2"><b>createLink: (name: "Nom", color: "#RRGGBB");</b> crée un type de lien dans la légende (name et color obligatoires).</p>
+<p class="mt-2"><b>newLink: (typeLink: "Nom", x and y, from x to z);</b> crée un ou plusieurs liens du type choisi (la liste des types apparaît pendant la saisie, Tab pour valider). x et y sont des id ou des « Prénom Nom ». <code>typeLink: none</code> : lien sans type.</p>
+<p class="mt-2"><code>and</code> = lien normal (dans les deux sens). <code>to</code> = lien à sens unique : <code>from x to y</code> trace une flèche de x vers y. Si tu crées <code>from x to y</code> puis <code>from y to x</code> avec le même type, les deux fusionnent en un lien normal. Les parenthèses sont facultatives.</p>
+<p class="mt-2"><b>Raccourcis</b> : <code>with</code> ajoute des sources, on peut enchaîner des cibles, et chaque source est reliée à chaque cible (jamais entre elles). <code>from a with b to c</code> = a→c, b→c. <code>from a with b with c to d to e</code> = a→d, a→e, b→d, b→e, c→d, c→e. Pareil avec <code>and</code>, mais <b>sans</b> <code>from</code> : <code>a with b and c</code> = a–c, b–c. <code>from</code> est obligatoire avec <code>to</code> et interdit avec <code>and</code>. On ne mélange pas <code>to</code> et <code>and</code> dans une même clause : sépare-les par une virgule.</p>
+<p class="mt-2"><b>link: (typeLink: "Nom", a and b);</b> <b>modifie</b> le lien déjà existant entre a et b (type et sens) au lieu d'en créer un, avec la même syntaxe que newLink : <code>link: (typeLink: "Ami", a and b)</code> le rend normal et de type Ami, <code>link: (typeLink: "Mentor", from a to b)</code> le rend à sens unique a→b (même avec <code>with</code> / plusieurs cibles). S'il n'y a aucun lien, rien n'est créé (un avertissement t'invite à utiliser newLink). S'il y en a plusieurs entre les deux personnes, <code>and</code> vise le lien normal et <code>from a to b</code> le lien a→b ; sinon une erreur te demande de préciser.</p>
 <p class="mt-2">Les instructions finissent par « ; » (ou à la fin de la ligne pour createLink / newLink). Tout est exécuté ou rien : en cas d'erreur, rien n'est modifié. Annulable avec Ctrl+Z pour la carte courante.</p>
 <p class="mt-2">Dépose un fichier <b>.sql, .csv, .xlsx, .json</b> : il est converti en SQL dans l'éditeur (donc il s'ajoute à la carte ouverte, sauf si tu écris CREATE CARD), tu relis puis tu exécutes. Importé dans l'arborescence, il crée une nouvelle carte. Seuls le SQL format Mobius, le JSON et le .mobius gardent les liens, leurs types et leurs noms.</p>`;
-const HLRE = /(--[^\n]*)|("(?:[^"]|"")*"|'(?:[^']|'')*'|«[^»]*»|“[^”]*”)|\b(createLink|newLink)\b|\b(name|color|typeLink|to)\b|\b(CREATE|TABLE|CARD|USE|INSERT|INTO|VALUES|UPDATE|SET|DELETE|FROM|WHERE|SELECT|ORDER|BY|LIMIT|AND|OR|NOT|NULL|LIKE|IS|ALTER|ADD|COLUMN|PRIMARY|KEY|IF|EXISTS|ASC|DESC|TRUE|FALSE)\b|\b(TEXT|NUMERIC|BOOLEAN|DATE|INTEGER|INT)\b|(\b\d+(?:\.\d+)?\b)/gi;
+const HLRE = /(--[^\n]*)|("(?:[^"]|"")*"|'(?:[^']|'')*'|«[^»]*»|“[^”]*”)|\b(createLink|newLink|link)\b|\b(name|color|typeLink|to)\b|\b(CREATE|TABLE|CARD|USE|INSERT|INTO|VALUES|UPDATE|SET|DELETE|FROM|WITH|WHERE|SELECT|ORDER|BY|LIMIT|AND|OR|NOT|NULL|LIKE|IS|ALTER|ADD|COLUMN|PRIMARY|KEY|IF|EXISTS|ASC|DESC|TRUE|FALSE)\b|\b(TEXT|NUMERIC|BOOLEAN|DATE|INTEGER|INT)\b|(\b\d+(?:\.\d+)?\b)/gi;
             const HLC = ['text-slate-400', 'text-emerald-600 dark:text-emerald-400', 'text-pink-600 dark:text-pink-400 font-bold', 'text-sky-600 dark:text-sky-400', 'text-[#5246EE] dark:text-indigo-400 font-semibold', 'text-violet-500', 'text-amber-600 dark:text-amber-400'];
             const hl = (t, nl = true) => {
                 let o = '', i = 0, m; HLRE.lastIndex = 0;
@@ -3991,11 +4269,11 @@ const HLRE = /(--[^\n]*)|("(?:[^"]|"")*"|'(?:[^']|'')*'|«[^»]*»|“[^”]*”
                 $('mt-file').onchange = ev => { load([...ev.target.files]); ev.target.value = ''; };
                                 src.addEventListener('keydown', ev => { if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); runIt(); } });
                 const ac = $('mt-ac');
-                const names = before => { const l = [], re = /createLink\s*:\s*name\s*[:=]\s*["«“'‘]([^"»”'’]+)["»”'’]/gi; let m; while ((m = re.exec(before))) l.push(m[1]); (currentCard.relationTypes || []).forEach(r => l.push(r.name)); return [...new Set(l)]; };
+                const names = before => { const l = [], re = /createLink\s*:\s*\(?\s*name\s*[:=]\s*["«“'‘]([^"»”'’]+)["»”'’]/gi; let m; while ((m = re.exec(before))) l.push(m[1]); (currentCard.relationTypes || []).forEach(r => l.push(r.name)); return [...new Set(l)]; };
                 const pre = $('mt-hl');
                 const upd = () => {
                     const p = src.selectionStart, v = src.value, before = v.slice(0, p), line = before.slice(before.lastIndexOf('\n') + 1);
-                    const m = line.match(/^\s*newLink\s*:\s*typeLink\s*[:=]\s*(["«“'‘]?)([^"»”'’,;]*)$/i);
+                    const m = line.match(/^\s*(?:newLink|link)\s*:\s*\(?\s*typeLink\s*[:=]\s*(["«“'‘]?)([^"»”'’,;)]*)$/i);
                     const list = m ? names(before).filter(n => n.toLowerCase().includes(m[2].toLowerCase())) : [];
                     if (!list.length) { ac.classList.add('hidden'); pre.innerHTML = hl(v); pre.scrollTop = src.scrollTop; return; }
                     pre.innerHTML = hl(before, false) + '<span id="mt-caret"></span>' + hl(v.slice(p));
