@@ -148,9 +148,9 @@
                 <i class="fa-solid fa-moon dark:hidden"></i>
                 <i class="fa-solid fa-sun hidden dark:block text-amber-400"></i>
             </button>
-            <button id="save-btn" onclick="saveFile()" class="bg-[#5246EE] hover:bg-[#4538d8] text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-md shadow-[#5246EE]/25 flex items-center gap-2 transition-all">
-                <i class="fa-solid fa-floppy-disk"></i>
-                <span class="hidden sm:inline">Enregistrer</span>
+            <button id="save-btn" onclick="saveFile()" disabled title="Aucune modification à enregistrer" class="bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all">
+                <i id="save-icon" class="fa-solid fa-check"></i>
+                <span id="save-label" class="hidden sm:inline">Enregistré</span>
             </button>
         </div>
     </header>
@@ -234,6 +234,20 @@
         const ROLE_LABELS = { viewer: 'Observateur', editor: 'Peut modifier', admin: 'Admin' };
         let myRole = 'admin';
         let saveTimer = null;
+        let unsaved = false, editVer = 0, saving = false;   // unsaved : modifications pas encore enregistrées ; editVer : compteur de modifications
+
+        function updateSaveBtn() {
+            const b = document.getElementById('save-btn'); if (!b) return;
+            const active = unsaved && !saving;
+            b.disabled = !active;
+            ['bg-[#5246EE]', 'hover:bg-[#4538d8]', 'text-white', 'shadow-md', 'shadow-[#5246EE]/25'].forEach(c => b.classList.toggle(c, active));
+            ['bg-slate-100', 'dark:bg-slate-800', 'text-slate-400', 'dark:text-slate-500', 'cursor-not-allowed'].forEach(c => b.classList.toggle(c, !active));
+            const icon = document.getElementById('save-icon');
+            icon.className = 'fa-solid ' + (unsaved || saving ? 'fa-floppy-disk' : 'fa-check');
+            document.getElementById('save-label').textContent = saving ? 'Enregistrement…' : (unsaved ? 'Enregistrer' : 'Enregistré');
+            b.title = unsaved ? 'Enregistrer (Ctrl/Cmd + S)' : 'Aucune modification à enregistrer';
+        }
+        function setUnsaved(v) { unsaved = v; updateSaveBtn(); }
 
         function holder() { return standalone ? currentCard : projectData; }
         function getCollabs() { const h = holder(); if (!Array.isArray(h.collaborators)) h.collaborators = []; return h.collaborators; }
@@ -279,18 +293,26 @@
         async function saveCurrentMapState(force = false) {
             if (!force && !canEdit()) return false;
             clearTimeout(saveTimer); saveTimer = null;
+            const ver = editVer, wasUnsaved = unsaved;
+            saving = true; updateSaveBtn();
             let error;
-            if (standalone) {
-                syncDoc();
-                ({ error } = await supabaseClient.from('cards').update({ name: currentCard.name, info: standaloneInfo(), collaborators: currentCard.collaborators || [] }).eq('id', cardId));
-            } else {
-                updateCardInTree(projectData.tree, currentCard);
-                lastTreeSave = Date.now();
-                ({ error } = await supabaseClient.from('projects').update({ tree: projectData.tree, collaborators: projectData.collaborators || [] }).eq('id', projectId));
-                if (error) ({ error } = await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId));
-                lastTreeSave = Date.now();
-            }
-            if (error) { console.error(error); showToast("Erreur d'enregistrement."); return false; }
+            try {
+                if (standalone) {
+                    syncDoc();
+                    ({ error } = await supabaseClient.from('cards').update({ name: currentCard.name, info: standaloneInfo(), collaborators: currentCard.collaborators || [] }).eq('id', cardId));
+                } else {
+                    updateCardInTree(projectData.tree, currentCard);
+                    lastTreeSave = Date.now();
+                    ({ error } = await supabaseClient.from('projects').update({ tree: projectData.tree, collaborators: projectData.collaborators || [] }).eq('id', projectId));
+                    if (error) ({ error } = await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId));
+                    lastTreeSave = Date.now();
+                }
+            } catch (e) { error = e; }
+            saving = false;
+            if (error) { console.error(error); updateSaveBtn(); showToast("Erreur d'enregistrement."); return false; }
+            if (editVer === ver) unsaved = false;   // si on a retapé pendant l'enregistrement, ça reste « non enregistré »
+            updateSaveBtn();
+            if (wasUnsaved) actDirty = true;
             flushEdit();   // fichier enregistré après des modifications : on prévient les autres membres
             return true;
         }
@@ -316,7 +338,8 @@
         }
 
         window.saveFile = async function() {
-            if (!requireEdit()) return;
+            if (!requireEdit() || saving) return;
+            if (!unsaved) { showToast('Aucune modification à enregistrer.'); return; }
             if (await saveCurrentMapState()) showToast('Fichier enregistré !');
         }
 
@@ -388,7 +411,7 @@
         }
 
         window.goBack = async function() {
-            if (saveTimer) await saveCurrentMapState();
+            if (!await confirmLeave()) return;
             window.location.href = standalone ? `dashboard.html?tab=${docType === 'script' ? 'scripts' : 'texts'}` : `dashboard.html?openProjectId=${encodeURIComponent(projectId)}`;
         }
 
@@ -407,7 +430,7 @@
             if (standalone) cardId = urlParams.get('cardId');
 
             if (!standalone && (!projectId || !cardId)) {
-                alert("Paramètres manquants.");
+                await dlgAlert("Paramètres manquants.");
                 window.location.href = 'dashboard.html';
                 return;
             }
@@ -419,7 +442,7 @@
             if (standalone) {
                 const { data, error } = await supabaseClient.from('cards').select('*').eq('id', cardId).single();
                 if (error || !data) {
-                    alert("Impossible de charger le fichier.");
+                    await dlgAlert("Impossible de charger le fichier.");
                     window.location.href = 'dashboard.html';
                     return;
                 }
@@ -427,7 +450,7 @@
             } else {
                 const { data, error } = await supabaseClient.from('projects').select('*').eq('id', projectId).single();
                 if (error || !data) {
-                    alert("Impossible de charger le projet.");
+                    await dlgAlert("Impossible de charger le projet.");
                     window.location.href = 'dashboard.html';
                     return;
                 }
@@ -436,7 +459,7 @@
 
                 currentCard = findTreeItem(projectData.tree, cardId);
                 if (!currentCard) {
-                    alert("Fichier introuvable.");
+                    await dlgAlert("Fichier introuvable.");
                     window.location.href = 'dashboard.html?openProjectId=' + encodeURIComponent(projectId);
                     return;
                 }
@@ -446,12 +469,18 @@
             myRole = computeMyRole();
 
             document.getElementById('save-btn').classList.toggle('hidden', !canEdit());
+            updateSaveBtn();
             const badge = document.getElementById('role-badge');
             badge.textContent = ROLE_LABELS[myRole] || '';
             badge.classList.toggle('text-[#5246EE]', myRole === 'admin');
 
             // ne pas perdre le texte si on ferme l'onglet juste après avoir tapé
-            window.addEventListener('beforeunload', () => { if (saveTimer) saveCurrentMapState(); });
+            // fermeture / rechargement de l'onglet : le navigateur n'autorise que sa propre boîte native (pas de popup personnalisée possible)
+            window.addEventListener('beforeunload', (e) => { if (unsaved && canEdit()) { e.preventDefault(); e.returnValue = ''; return ''; } });
+            // Ctrl/Cmd + S : enregistrer (comme GitHub), sans ouvrir « Enregistrer sous » du navigateur
+            document.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 's') { e.preventDefault(); if (canEdit()) saveFile(); }
+            }, true);
 
             setupTreeSidebarVisibility();
             renderBreadcrumb();
@@ -480,7 +509,7 @@
             buttons.forEach(b => {
                 const btn = document.createElement('button');
                 btn.type = 'button'; btn.textContent = b.label; btn.disabled = !!b.disabled; if (b.title) btn.title = b.title;
-                btn.className = 'py-2.5 px-3 rounded-xl font-semibold transition-all ' + (row ? 'flex-1 ' : '') + (b.primary ? 'bg-[#5246EE] hover:bg-[#4538d8] text-white' : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700') + (b.disabled ? ' opacity-40 cursor-not-allowed' : '');
+                btn.className = 'py-2.5 px-3 rounded-xl font-semibold transition-all ' + (row ? 'flex-1 ' : '') + (b.danger ? 'bg-red-500 hover:bg-red-600 text-white' : b.primary ? 'bg-[#5246EE] hover:bg-[#4538d8] text-white' : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700') + (b.disabled ? ' opacity-40 cursor-not-allowed' : '');
                 btn.addEventListener('click', () => done(b.value));
                 bar.appendChild(btn);
             });
@@ -496,6 +525,24 @@
         return r && r.value ? r.text.trim() : null;
     };
     const treeConfirm = async (message) => !!(await dlg({ title: 'Confirmation', message, row: true, buttons: [{ label: 'Annuler', value: false }, { label: 'Confirmer', value: true, primary: true }] }))?.value;
+    const dlgAlert = (message, title = 'Information') => dlg({ title, message, row: true, buttons: [{ label: 'OK', value: true, primary: true }] });
+    // Quitter l'éditeur : propose d'enregistrer s'il reste des modifications. Renvoie true si on peut quitter.
+    async function confirmLeave() {
+        if (!unsaved || !canEdit()) return true;
+        const r = await dlg({
+            title: 'Modifications non enregistrées',
+            message: "Voulez-vous enregistrer avant de quitter ?\nSinon, vos modifications ne seront pas conservées.",
+            buttons: [
+                { label: 'Enregistrer et quitter', value: 'save', primary: true },
+                { label: 'Quitter sans enregistrer', value: 'discard', danger: true },
+                { label: 'Annuler', value: 'cancel' }
+            ]
+        });
+        if (!r || r.value === 'cancel') return false;
+        if (r.value === 'save') return await saveCurrentMapState();   // en cas d'erreur on reste sur la page
+        unsaved = false;   // « quitter sans enregistrer » : pas de seconde alerte native
+        return true;
+    }
     // JSON importé : carte / JSON conservé / texte
     async function askJsonFormat(fileName, isMap) {
         const r = await dlg({
@@ -675,11 +722,13 @@
             clearTimeout(treeSaveTimer);
             treeSaveTimer = setTimeout(async () => {
                 treeSaveTimer = null;
+                const ver = editVer;
                 updateCardInTree(projectData.tree, currentCard);
                 lastTreeSave = Date.now();
                 const { error } = await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId);
                 lastTreeSave = Date.now();
                 if (error) showToast("Sauvegarde de l'arborescence impossible.");
+                else if (unsaved && editVer === ver) setUnsaved(false);   // le texte ouvert a été enregistré avec l'arborescence
             }, 250);
         }
         function refreshTree() { renderTreeSidebarContent(); renderBreadcrumb(); saveProjectTree(); }
@@ -931,7 +980,7 @@
                     treeStoreUI(); return renderTreeSidebarContent();
                 }
                 if (it.id === cardId) { if (window.innerWidth < 768) closeTreeSidebar(); return; }
-                if (saveTimer) await saveCurrentMapState();
+                if (!await confirmLeave()) return;
                 if (treeSaveTimer) { clearTimeout(treeSaveTimer); treeSaveTimer = null; updateCardInTree(projectData.tree, currentCard); await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId); }
                 window.location.href = it.type === 'card'
                     ? `map.html?cardId=${encodeURIComponent(it.id)}&projectId=${encodeURIComponent(projectId)}`
@@ -984,7 +1033,7 @@ const colorOf=n=>{let h=0;for(const c of n)h=(h*31+c.charCodeAt(0))%360;return `
 const blk=(s,h)=>`<div data-s="${s}" data-id="${rid()}">${h||'<br>'}</div>`;
 function show(id){['ed-choose','ed-title','ed-work'].forEach(x=>E(x).style.display=x===id?'flex':'none');}
 function curBlock(){const n=getRange().startContainer,el=n.nodeType===1?n:n.parentElement;let b=el&&el.closest('[data-s]');if(!b&&el&&el.closest&&el.closest('#ed-page')){normalizeRoot(edPage());b=el.closest('[data-s]');}return b;}
-function scheduleSave(){if(!canEdit())return;markEdited();clearTimeout(saveTimer);saveTimer=setTimeout(()=>{saveTimer=null;saveCurrentMapState();},1000);}
+function scheduleSave(){if(!canEdit())return;editVer++;setUnsaved(true);}   // plus d'enregistrement automatique : on marque « non enregistré »
 function syncDoc(){if(!docReady)return;doc.html=edPage().innerHTML;currentCard.doc=doc;currentCard.docType=docType;currentCard.content=edPage().innerText.replace(/\u200b/g,'');}
 
 /* --- Fountain : conserve la mise en page du fichier d'origine (stocké en .txt) --- */
@@ -1021,7 +1070,7 @@ function initEditor(){
     if(!txt.trim()){show('ed-choose');return;}
     docType=looksFountain(txt,currentCard.name)?'script':'text';
     doc={meta:{},bubbles:{},proposals:{},html:docType==='script'?parseFountain(txt).html:txt.split('\n').map(l=>blk('body',escapeHtml(l))).join('')};
-    currentCard.docType=docType;currentCard.doc=doc;scheduleSave();
+    currentCard.docType=docType;currentCard.doc=doc;
   }
   doc.bubbles=doc.bubbles||{};doc.proposals=doc.proposals||{};
   openDoc();
@@ -1406,11 +1455,11 @@ function loadScene(p){   // recopie toute la scène dans la proposition
   p.html=sceneExtent(h).map(n=>{const c=n.cloneNode(true);['data-id','data-by','title'].forEach(a=>c.removeAttribute(a));c.style.removeProperty('--c');return c.outerHTML;}).join('');
   p.dirty=false;return true;
 }
-function propPickScene(id,val){
+async function propPickScene(id,val){
   const p=doc.proposals[id];if(!p||!requireEdit())return;
   if(p.mode==='edit'){
     if(!val){showToast('Choisis la scène à modifier.');renderSide();return;}
-    if(p.dirty&&!confirm('Remplacer le texte de la proposition par la scène choisie ?')){renderSide();return;}
+    if(p.dirty&&!await treeConfirm('Remplacer le texte de la proposition par la scène choisie ?')){renderSide();return;}
     p.scene=val;loadScene(p);
   }else{
     p.scene=val||null;const h=q(val);
@@ -1418,9 +1467,9 @@ function propPickScene(id,val){
   }
   propChanged();
 }
-function propMode(id,m){
+async function propMode(id,m){
   const p=doc.proposals[id];if(!p||!requireEdit()||(p.mode||'add')===m)return;
-  if(p.dirty&&!confirm('Changer de mode remplace le texte de la proposition. Continuer ?'))return;
+  if(p.dirty&&!await treeConfirm('Changer de mode remplace le texte de la proposition. Continuer ?'))return;
   if(m==='edit'){
     if(!sceneHead(p)){showToast("Choisis d'abord une scène dans le menu.");return;}
     p.scene=sceneHead(p).dataset.id;p.mode='edit';loadScene(p);
@@ -1437,10 +1486,10 @@ function propKind(id,k){
   propChanged();
 }
 function propNum(id,v){const p=doc.proposals[id];if(!p)return;p.num=v;scheduleSave();}
-function delProp(id){
+async function delProp(id){
   const p=doc.proposals[id];if(!p)return;
   if(!canDelProp(p)){showToast("Seuls l'auteur, un admin ou le propriétaire peuvent supprimer cette proposition.");return;}
-  if(!confirm('Supprimer cette proposition ?'))return;
+  if(!await treeConfirm('Supprimer cette proposition ?'))return;
   delete doc.proposals[id];openNote=null;propChanged();
 }
 // Place des blocs selon le numéro d'un acte / d'une scène (numéro écrit en tête de l'en-tête, sinon ordre d'apparition)
@@ -1457,7 +1506,7 @@ function commitDoc(){
   edPage().querySelectorAll('[data-s]').forEach(x=>{if(!x.dataset.id||seen.has(x.dataset.id))x.dataset.id=rid();seen.add(x.dataset.id);});
   recordHistory();scheduleSave();pageNo();renderSide();
 }
-function resolveProp(id,ok){
+async function resolveProp(id,ok){
   const p=doc.proposals[id];if(!p||!requireEdit())return;
   if(miniCur&&miniCur.obj===p&&miniCur.m.isConnected)p.html=miniCur.m.innerHTML;
   const t=document.createElement('div');t.innerHTML=p.html;normalizeRoot(t);
@@ -1466,7 +1515,7 @@ function resolveProp(id,ok){
   const mode=p.mode||'add',kind=p.kind||'free';
   if(mode==='edit'){
     const h=sceneHead(p);if(!h){showToast("La scène d'origine n'existe plus : choisis-en une autre.");return;}
-    if(!confirm('Remplacer la scène « '+headerText(h).slice(0,40)+' » par cette version ?'))return;
+    if(!await treeConfirm('Remplacer la scène « '+headerText(h).slice(0,40)+' » par cette version ?'))return;
     const ext=sceneExtent(h);ext[0].before(...nodes);ext.forEach(n=>n.remove());
   }else if(kind!=='free'){
     const num=parseInt(p.num);if(!(num>0)){showToast("Indique le numéro "+(kind==='act'?"de l'acte":"de la scène")+" pour le placer.");return;}
@@ -1479,11 +1528,15 @@ function resolveProp(id,ok){
 }
 
 /* --- Export .mobtext / .mobscen (JSON : lisible, versionné, bulles et propositions rattachées par id) --- */
-function exportDoc(){
+const fmtBytes=b=>b<1024?`${b} octets`:b<1048576?`${(b/1024).toFixed(1).replace('.',',')} Ko`:`${(b/1048576).toFixed(2).replace('.',',')} Mo`;
+async function exportDoc(){
   syncDoc();const ext=docType==='script'?'mobscen':'mobtext';
   const d={format:ext,version:1,type:docType,name:currentCard.name,content:currentCard.content,doc:{...doc,proposals:docType==='script'?doc.proposals:{}}};
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:'application/json'}));
-  a.download=String(currentCard.name).replace(/\.[^.]+$/,'').replace(/[\\/:*?"<>|]/g,'_')+'.'+ext;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  const blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
+  const fileName=String(currentCard.name).replace(/\.[^.]+$/,'').replace(/[\\/:*?"<>|]/g,'_')+'.'+ext;
+  if(!await treeConfirm(`Télécharger « ${fileName} » ?\nTaille du fichier : ${fmtBytes(blob.size)}`))return;
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=fileName;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
   showToast(`Exporté en .${ext} !`);
 }
 
@@ -1538,7 +1591,7 @@ window.setCollaboratorRole=async function(idx,role){
 async function removeCollaborator(idx){
   if(!requireAdmin())return;const c=getCollabs()[idx];
   if(c&&!canManageCollab(c)){showToast("Seul le propriétaire peut retirer un admin.");return;}
-  if(!c||!confirm(`Retirer ${c.email} ?`))return;
+  if(!c||!await treeConfirm(`Retirer ${c.email} ?`))return;
   getCollabs().splice(idx,1);await saveCurrentMapState(true);renderCollaboratorsList();
 }
 
