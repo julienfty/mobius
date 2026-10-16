@@ -155,9 +155,9 @@
                     <p class="text-xs text-gray-500" id="workspace-subtitle"></p>
                 </div>
             </div>
-            <button id="export-btn" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all">
-                <i class="fa-solid fa-download text-red-500"></i><span>Télécharger le projet (.mobpro)</span>
-            </button>
+            <div class="relative"><button id="export-btn" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all">
+                <i class="fa-solid fa-download text-red-500"></i><span>Exporter le projet ▾</span>
+            </button><div id="dash-export-menu" class="hidden absolute right-0 mt-2 z-40 bg-white dark:bg-gray-900 shadow-xl rounded-xl p-2 w-56"><button id="dash-mobpro" class="w-full p-2 text-left">Projet (.mobpro)</button><button id="dash-tabular" class="w-full p-2 text-left">Tabulation (MQL, SQL, CSV, Excel, JSON)</button></div></div>
         </div>
 
         <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -2105,7 +2105,9 @@ return Object.assign({ buildTables }, MT_core);
     });
 
     /* ---------- Export .mobpro (contenu de la colonne tree) ---------- */
-    $('export-btn').addEventListener('click', async () => {
+    $('export-btn').addEventListener('click', () => $('dash-export-menu').classList.toggle('hidden'));
+    $('dash-tabular').addEventListener('click', () => { $('dash-export-menu').classList.add('hidden'); MobiusProjectExport.open(state.activeProject); });
+    $('dash-mobpro').addEventListener('click', async () => { $('dash-export-menu').classList.add('hidden');
         const p = state.activeProject;
         if (p.pwd) {
             const v = await askPrompt('Mot de passe requis pour télécharger :', 'Mot de passe', 'password');
@@ -2137,6 +2139,28 @@ return Object.assign({ buildTables }, MT_core);
         openProject(openId);
     }
 });
+</script>
+<script>
+/* Export projet unifié : même sélection de cartes/champs et formats que Map. */
+window.MobiusProjectExport = (() => {
+ const formats=['xlsx','csv','json','mql','sql'];
+ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const slug=s=>String(s||'projet').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'_');
+ const fields=c=>Array.isArray(c.fields)?c.fields:[{id:'f_firstname',key:'firstname',label:'Prénom',type:'line'},{id:'f_lastname',key:'lastname',label:'Nom',type:'line'},{id:'f_nickname',key:'nickname',label:'Surnom',type:'line'},{id:'f_birthdate',key:'birthdate',label:'Date de naissance',type:'date'},{id:'f_location',key:'location',label:'Lieu de résidence',type:'line'}];
+ let project,chosen,checks,fmt='mql',overlay;
+ function cards(){const r=[];(function walk(xs){(xs||[]).forEach(x=>{if(x.type==='card')r.push(x);if(x.children)walk(x.children)})})(project.tree);return r}
+ function blob(data,name,type='text/plain;charset=utf-8'){const url=URL.createObjectURL(new Blob([data],{type})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500)}
+ function rows(c){const fs=fields(c).filter(f=>checks[c.id].has(f.id));return {fs,items:(c.nodes||[]).map(n=>({id:n.id,...Object.fromEntries(fs.map(f=>[f.label,f.key?n[f.key]??null:(n.custom||{})[f.id]??null])) ,_x:n.x,_y:n.y}))}}
+ function draw(){const cs=cards(),sel=cs.filter(c=>chosen.has(c.id));overlay.innerHTML=`<div class="flex justify-between items-center border-b p-4"><b>Exporter le projet · Tabulation</b><button data-x="close" class="text-xl">✕</button></div><div class="p-4 flex gap-2 flex-wrap">${formats.map(f=>`<button data-f="${f}" class="px-3 py-2 rounded-xl ${fmt===f?'bg-[#5246EE] text-white':'bg-slate-200 dark:bg-slate-800'}">${f.toUpperCase()}</button>`).join('')}</div><div class="flex-1 min-h-0 flex flex-col md:flex-row gap-4 px-4 overflow-hidden"><div class="md:w-72 border rounded-xl p-3 overflow-auto"><div class="flex justify-between"><b>Cartes du projet</b><button data-x="all" class="text-[#5246EE]">Tout</button><button data-x="none">Aucune</button></div>${cs.map(c=>`<label class="flex gap-2 items-center py-2"><input type="checkbox" data-card="${esc(c.id)}" ${chosen.has(c.id)?'checked':''}><span>${esc(c.name)}</span></label>`).join('')}</div><div class="flex-1 overflow-auto border rounded-xl p-4"><p class="text-slate-500 mb-4">Choisis les cartes et les champs à exporter. Les fichiers .mobql conservent les données et les relations Mobius ; .sql exporte des tables SQL classiques.</p>${sel.map(c=>`<section class="mb-5"><div class="flex justify-between"><b>${esc(c.name)}</b><span><button data-allfields="${esc(c.id)}" class="text-[#5246EE]">Tout</button> · <button data-nofields="${esc(c.id)}">Aucun</button></span></div><div class="grid sm:grid-cols-2 gap-2 mt-2">${fields(c).map(f=>`<label class="flex gap-2 text-xs"><input type="checkbox" data-field="${esc(c.id)}" data-id="${esc(f.id)}" ${checks[c.id].has(f.id)?'checked':''}>${esc(f.label)}</label>`).join('')}</div></section>`).join('')}</div></div><div class="p-4 border-t flex justify-between items-center"><span>${sel.length} carte(s) sélectionnée(s)</span><button data-x="download" ${sel.length?'':'disabled'} class="bg-[#5246EE] disabled:opacity-40 text-white px-5 py-3 rounded-xl">Télécharger .${fmt}</button></div>`}
+ function exportNow(){const cs=cards().filter(c=>chosen.has(c.id));if(!cs.length)return;const name=slug(project.name);
+ if(fmt==='json'){blob(JSON.stringify({tables:cs.map(c=>({title:c.name,columns:rows(c).fs.map(f=>({name:f.label,type:f.type})),rows:rows(c).items}))},null,2),name+'.json','application/json');return}
+ if(fmt==='xlsx'){if(!window.XLSX){alert('Bibliothèque Excel indisponible');return}const wb=XLSX.utils.book_new();cs.forEach(c=>{const r=rows(c);XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(r.items),slug(c.name).slice(0,31)||'Carte')});XLSX.writeFile(wb,name+'.xlsx');return}
+ if(fmt==='csv'){const csv=c=>{const r=rows(c),keys=['id',...r.fs.map(f=>f.label)];const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';return [keys.map(q).join(';'),...r.items.map(n=>keys.map(k=>q(n[k])).join(';'))].join('\r\n')};if(cs.length===1)blob('\ufeff'+csv(cs[0]),name+'.csv','text/csv');else if(window.JSZip){const zip=new JSZip();cs.forEach(c=>zip.file(slug(c.name)+'.csv','\ufeff'+csv(c)));zip.generateAsync({type:'blob'}).then(b=>blob(b,name+'.zip','application/zip'))}else alert('JSZip indisponible');return}
+ const qi=s=>'"'+String(s).replace(/"/g,'""')+'"',lit=v=>v==null?'NULL':typeof v==='number'?String(v):typeof v==='boolean'?(v?'TRUE':'FALSE'):"'"+String(v).replace(/'/g,"''")+"'";
+ const out=['-- Export Mobius '+fmt.toUpperCase()];cs.forEach(c=>{const r=rows(c),t=slug(c.name),col=r.fs.map(f=>({f,k:slug(f.label)}));out.push(`CREATE TABLE ${qi(t)} ("id" TEXT PRIMARY KEY${col.map(x=>`, ${qi(x.k)} ${x.f.type==='number'?'NUMERIC':x.f.type==='bool'?'BOOLEAN':'TEXT'}`).join('')}${fmt==='mql'?', "_x" NUMERIC, "_y" NUMERIC':''});`);r.items.forEach(n=>{const keys=['id',...col.map(x=>x.k),...(fmt==='mql'?['_x','_y']:[])];const vals=[n.id,...col.map(x=>n[x.f.label]),...(fmt==='mql'?[n._x,n._y]:[])];out.push(`INSERT INTO ${qi(t)} (${keys.map(qi).join(', ')}) VALUES (${vals.map(lit).join(', ')});`)});if(fmt==='mql'){out.push(`-- @card "${c.name}"`);(c.relationTypes||[]).forEach(rt=>out.push(`createLink: (name: ${lit(rt.name)}, color: ${lit(rt.color)});`));(c.links||[]).forEach(l=>{const rel=(c.relationTypes||[]).find(rt=>rt.id===l.relationTypeId);out.push(`newLink: (typeLink: ${lit(rel?.name||'none')}, ${l.directed?'from '+lit(l.sourceId)+' to '+lit(l.targetId):lit(l.sourceId)+' and '+lit(l.targetId)});`)})}});blob(out.join('\n')+'\n',name+'.'+(fmt==='mql'?'mobql':fmt))}
+ function open(p){if(!p)return;project=p;chosen=new Set(cards().map(c=>c.id));checks={};cards().forEach(c=>checks[c.id]=new Set(fields(c).map(f=>f.id)));fmt='mql';overlay=document.createElement('div');overlay.className='fixed inset-0 z-[100] bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col text-xs';document.body.appendChild(overlay);draw();overlay.addEventListener('change',e=>{const t=e.target;if(t.dataset.card) t.checked?chosen.add(t.dataset.card):chosen.delete(t.dataset.card);if(t.dataset.field)t.checked?checks[t.dataset.field].add(t.dataset.id):checks[t.dataset.field].delete(t.dataset.id);draw()});overlay.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)return;if(t.dataset.f)fmt=t.dataset.f;if(t.dataset.x==='close'){overlay.remove();return}if(t.dataset.x==='all')chosen=new Set(cards().map(c=>c.id));if(t.dataset.x==='none')chosen.clear();if(t.dataset.allfields)checks[t.dataset.allfields]=new Set(fields(cards().find(c=>c.id===t.dataset.allfields)).map(f=>f.id));if(t.dataset.nofields)checks[t.dataset.nofields]=new Set();if(t.dataset.x==='download'){exportNow();return}draw()})}
+ return {open};
+})();
 </script>
 </body>
 </html>
