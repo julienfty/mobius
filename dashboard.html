@@ -78,9 +78,11 @@
     <!-- DASHBOARD -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 flex flex-col" id="main-view">
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-            <div class="bg-gray-200/70 dark:bg-gray-800 p-1 rounded-2xl flex w-full sm:w-auto">
+            <div class="bg-gray-200/70 dark:bg-gray-800 p-1 rounded-2xl flex w-full sm:w-auto overflow-x-auto">
                 <button data-tab="projects" class="tab-btn flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold transition-all">Projets & Dossiers</button>
                 <button data-tab="cards" class="tab-btn flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold transition-all">Cartes Libres</button>
+                <button data-tab="scripts" class="tab-btn flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold transition-all">Scénarios</button>
+                <button data-tab="texts" class="tab-btn flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold transition-all">Textes</button>
             </div>
 
             <div class="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
@@ -97,8 +99,8 @@
                     <option value="chrono">Plus récents</option>
                 </select>
                 <!-- Bouton d'importation global .mobius -->
-                <input type="file" id="import-mobius-input" accept=".mobius,.mobpro,.json" multiple class="hidden" onchange="importDashboardMobiusFile(event)">
-                <button onclick="document.getElementById('import-mobius-input').click()" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all" title="Importer une carte (.mobius) ou un projet (.mobpro)">
+                <input type="file" id="import-mobius-input" accept=".mobius,.mobpro,.json,.mobscen,.mobtext,.fountain,.txt,.pdf,.docx,.page" multiple class="hidden" onchange="importDashboardMobiusFile(event)">
+                <button onclick="document.getElementById('import-mobius-input').click()" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all" title="Importer une carte (.mobius), un projet (.mobpro), un scénario (.mobscen, .fountain) ou un texte (.mobtext, .txt, .pdf, .docx)">
                     <i class="fa-solid fa-file-arrow-down text-[#5246EE]"></i>
                     <span class="hidden sm:inline">Importer</span>
                 </button>
@@ -244,6 +246,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     const norm = (e) => String(e || '').trim().toLowerCase();
     const isEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
     const TABLE_LABEL = { projects: 'projet', cards: 'carte libre' };
+    // 4 onglets, 2 tables : « Scénarios » et « Textes » vivent dans la table cards (info.type = 'script' | 'text')
+    const TAB_META = {
+        projects: { table: 'projects', label: 'projet', icon: 'fa-folder', newBtn: 'Nouveau Projet', createTitle: 'Créer un nouveau projet', settingsTitle: 'Paramètres du projet' },
+        cards:    { table: 'cards', label: 'carte libre', icon: 'fa-note-sticky', newBtn: 'Nouvelle Carte Libre', createTitle: 'Créer une nouvelle carte libre', settingsTitle: 'Paramètres de la carte libre' },
+        scripts:  { table: 'cards', label: 'scénario', icon: 'fa-film', newBtn: 'Nouveau Scénario', createTitle: 'Créer un nouveau scénario', settingsTitle: 'Paramètres du scénario' },
+        texts:    { table: 'cards', label: 'texte', icon: 'fa-align-left', newBtn: 'Nouveau Texte', createTitle: 'Créer un nouveau texte', settingsTitle: 'Paramètres du texte' }
+    };
+    const tableOf = (tab) => TAB_META[tab].table;
+    const kindOfRow = (row) => {
+        let info = row && row.info;
+        if (typeof info === 'string') { try { info = JSON.parse(info); } catch (_) { info = null; } }
+        return info && (info.type === 'script' || info.type === 'text') ? info.type : 'card';
+    };
+    const tabOfItem = (table, row) => table === 'projects' ? 'projects' : ({ script: 'scripts', text: 'texts' }[kindOfRow(row)] || 'cards');
+    const labelOf = (table, item) => TAB_META[table === 'projects' ? 'projects' : (item ? tabOfItem(table, item) : 'cards')].label;
 
     function toast(msg, type = 'info') {
         const colors = { info: 'bg-gray-900 text-white', success: 'bg-emerald-600 text-white', error: 'bg-red-600 text-white' };
@@ -354,21 +371,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     function applyTabStyles() {
         document.querySelectorAll('.tab-btn').forEach(b => {
             const active = b.dataset.tab === state.tab;
-            b.className = `tab-btn flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold transition-all ${active ? 'bg-white dark:bg-gray-900 shadow-sm' : 'text-gray-500 dark:text-gray-400'}`;
+            b.className = `tab-btn flex-1 sm:flex-none px-3 sm:px-5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${active ? 'bg-white dark:bg-gray-900 shadow-sm' : 'text-gray-500 dark:text-gray-400'}`;
         });
         document.querySelectorAll('.view-btn').forEach(b => {
             const active = b.dataset.view === state.view;
             b.className = `view-btn w-8 h-8 rounded-lg text-xs flex items-center justify-center transition-all ${active ? 'bg-white dark:bg-gray-900 shadow-sm' : 'text-gray-500 dark:text-gray-400'}`;
         });
-        $('create-btn-text').textContent = state.tab === 'projects' ? 'Nouveau Projet' : 'Nouvelle Carte Libre';
+        $('create-btn-text').textContent = TAB_META[state.tab].newBtn;
     }
+
+    // éléments visibles d'un onglet (les scénarios / textes sont des lignes de la table cards)
+    const itemsOfTab = (tab) => tab === 'projects' ? state.data.projects : state.data.cards.filter(i => tabOfItem('cards', i) === tab);
 
     function renderDashboard() {
         applyTabStyles();
         const container = $('items-grid');
         const q = $('search-input').value.trim().toLowerCase();
         const sort = $('sort-select').value;
-        const items = [...state.data[state.tab]]
+        const items = [...itemsOfTab(state.tab)]
             .filter(i => !q || i.name.toLowerCase().includes(q))
             .sort((a, b) => sort === 'alpha' ? a.name.localeCompare(b.name) : new Date(b.created_at) - new Date(a.created_at));
 
@@ -393,7 +413,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="item-card bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 ${base} transition-all cursor-pointer" data-id="${esc(item.id)}">
                 <div class="flex items-center gap-3 min-w-0 flex-1">
                     <div class="w-10 h-10 shrink-0 rounded-xl bg-[#5246EE]/10 text-[#5246EE] flex items-center justify-center relative">
-                        <i class="fa-solid ${state.tab === 'projects' ? 'fa-folder' : 'fa-note-sticky'}"></i>
+                        <i class="fa-solid ${TAB_META[state.tab].icon}"></i>
                         ${collab ? `<span class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 text-white text-[8px] flex items-center justify-center ring-2 ring-white dark:ring-gray-900" title="Collaboratif"><i class="fa-solid fa-user-group"></i></span>` : ''}
                     </div>
                     <div class="min-w-0">
@@ -427,7 +447,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const card = e.target.closest('.item-card');
         if (!card) return;
         if (state.tab === 'projects') openProject(card.dataset.id);
-        else openCard(card.dataset.id);
+        else if (state.tab === 'cards') openCard(card.dataset.id);
+        else openDoc(card.dataset.id);
     });
 
     /* ---------- Importation fichier .mobius ---------- */
@@ -497,22 +518,106 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Point d'entrée commun (bouton « Importer » et glisser-déposer de la page principale) :
     // reconnaît .mobius / .mobpro et bascule sur l'onglet correspondant à la fin.
+    /* ---------- Scénarios & textes autonomes ---------- */
+    const rid = () => Math.random().toString(36).slice(2, 8);
+    const blk = (st, h) => `<div data-s="${st}" data-id="${rid()}">${h || '<br>'}</div>`;
+
+    // Une ligne est un en-tête de scène seulement si elle COMMENCE par INT. / EXT. / EST. / INT/EXT / I/E…
+    // (jamais au milieu d'un mot : « INTREPIDE », « EXTRAIT », « Estelle » ne comptent pas)
+    function isSceneHeading(line) {
+        const t = String(line).trim().replace(/^#?\d+[A-Za-z]?[.)#]?\s+/, '');   // numéro de scène éventuel : « 12. INT. … »
+        return /^(?:INT|EXT)\.?\s?\/\s?(?:INT|EXT)(?![A-Za-zÀ-ÿ])/i.test(t)      // INT/EXT, INT./EXT.
+            || /^(?:INT|EXT)\./i.test(t)                                         // INT. / EXT.
+            || /^(?:EST\.|I\/E\.?|E\/I\.?)(?![A-Za-zÀ-ÿ])/.test(t)               // EST. / I/E
+            || /^(?:INT|EXT)\s+(?:[-–—:]\s*|(?=[A-ZÀ-Ý]))/.test(t);              // « INT CUISINE », « INT - CUISINE » (majuscules)
+    }
+    const TRANSITION_RE = /^\s*(?:FADE (?:IN|OUT)[.:]?|(?:[A-Z][A-Z ]* )?TO:|FONDU (?:AU NOIR|ENCHAÎNÉ)[.:]?|CUT TO BLACK\.?)\s*$/;
+    function looksLikeScript(text) {
+        const lines = String(text).replace(/\r/g, '').split('\n');
+        const heads = lines.filter(isSceneHeading).length;
+        if (heads >= 2) return true;
+        if (heads < 1) return false;
+        return /^\s*(title|authors?|credit|draft date)\s*:/im.test(text.slice(0, 400)) || lines.some(l => TRANSITION_RE.test(l));
+    }
+
+    // Fountain / texte de scénario -> blocs de l'éditeur (même format que editor.html)
+    function parseFountain(t) {
+        const L = t.replace(/\r/g, '').split('\n'), meta = {}, K = /^(title|authors?|credit|source|draft date|date|contact|copyright|notes)\s*:\s*(.*)$/i;
+        let i = 0, k = null;
+        while (i < L.length && (K.test(L[i]) || (k && /^\s+\S/.test(L[i])))) { const m = L[i].match(K); if (m) { k = m[1].toLowerCase(); meta[k] = m[2]; } else meta[k] += ' ' + L[i].trim(); i++; }
+        const out = []; let dl = false;
+        if (meta.title) out.push(blk('title', esc(meta.title)));
+        if (meta.author || meta.authors) out.push(blk('sub', 'de ' + esc(meta.author || meta.authors)));
+        for (; i < L.length; i++) {
+            const l = L[i].trim(); let m;
+            if (!l) { dl = false; continue; }
+            if (/^(\[\[.*\]\]|={3,})$/.test(l)) continue;
+            const nm = l.replace(/\s*\(.*\)\s*$/, '');
+            if ((m = l.match(/^#+\s*(.*)$/))) { out.push(blk('act', esc(m[1]))); dl = false; }
+            else if (isSceneHeading(l) || /^\.[^.]/.test(l)) { out.push(blk('scene', esc(l.replace(/^\./, '')))); dl = false; }
+            else if (dl && /^\(.*\)$/.test(l)) out.push(blk('paren', esc(l)));
+            else if (dl) out.push(blk('dial', esc(l)));
+            else if ((l[0] === '@' || (nm === nm.toUpperCase() && /[A-ZÀ-Ý]/.test(nm) && !/^[>!]/.test(l))) && L[i + 1] && L[i + 1].trim() && (i === 0 || !L[i - 1].trim())) { out.push(blk('char', esc(l.replace(/^@/, '')))); dl = true; }
+            else out.push(blk('action', esc(l.replace(/^!/, ''))));
+        }
+        return { meta, html: out.join('') };
+    }
+
+    // objet info (colonne cards.info) d'un scénario ou d'un texte ; docType + doc => l'éditeur s'ouvre directement
+    function buildDocInfo(kind, name, { content = '', doc = null } = {}) {
+        const d = doc && typeof doc === 'object' ? { ...doc } : {};
+        d.meta = d.meta || {}; d.bubbles = d.bubbles || {};
+        d.proposals = kind === 'script' ? (d.proposals || {}) : {};
+        if (!d.html) {
+            d.html = !content ? blk(kind === 'script' ? 'action' : 'body')
+                : kind === 'script' ? parseFountain(content).html
+                : content.replace(/\r/g, '').split('\n').map(l => blk('body', esc(l))).join('');
+        }
+        return { id: 'item_' + Date.now() + Math.random().toString(36).slice(2, 7), name, type: kind, docType: kind, content, doc: d };
+    }
+    async function insertDocCard(kind, name, opts) {
+        const id = 'id_' + Date.now() + Math.random().toString(36).slice(2, 5);
+        const { error } = await sb.from('cards').insert([{
+            id, name, owner_email: user.email, owner_id: user.id,
+            is_collab: false, collaborators: [], info: buildDocInfo(kind, name, opts)
+        }]);
+        if (error) { console.error(error); toast("Erreur d'enregistrement : " + error.message, 'error'); return null; }
+        return { tab: kind === 'script' ? 'scripts' : 'texts', id };
+    }
+    // .mobscen -> scénario, .mobtext -> texte, .fountain -> scénario ; .txt / .pdf / .docx / .page : lus puis classés selon leur contenu
+    async function importDocFile(file, ext) {
+        const baseName = file.name.replace(/\.[^.]+$/, '') || 'Sans titre';
+        if (ext === 'mobscen' || ext === 'mobtext') {
+            let d = null;
+            try { d = JSON.parse(await file.text()); } catch (e) {}
+            if (!d || typeof d !== 'object') { toast(`« ${file.name} » n'est pas un fichier Mobius valide.`, 'error'); return null; }
+            return insertDocCard(ext === 'mobscen' ? 'script' : 'text', String(d.name || baseName).replace(/\.(txt|fountain|pdf|docx)$/i, ''), { content: d.content || '', doc: d.doc });
+        }
+        const { text, fixes } = await fileToText(file);
+        if (fixes) toast(`« ${file.name} » : ${fixes} ligature${fixes > 1 ? 's' : ''} (ti / tt) corrigée${fixes > 1 ? 's' : ''}.`, 'info');
+        return insertDocCard(ext === 'fountain' || looksLikeScript(text) ? 'script' : 'text', baseName, { content: text });
+    }
+
     async function importDashboardFiles(files) {
         const results = [];
         for (const file of files) {
             const ext = (file.name.split('.').pop() || '').toLowerCase();
-            if (ext !== 'mobius' && ext !== 'mobpro') { toast(`« ${file.name} » ignoré : seuls .mobius et .mobpro sont acceptés.`, 'info'); continue; }
-            const text = await file.text();
-            const r = ext === 'mobpro' ? await importProjectFile(file, text) : await importCardFile(file, text);
-            if (r) results.push(r);
+            try {
+                let r = null;
+                if (ext === 'mobius') r = await importCardFile(file, await file.text());
+                else if (ext === 'mobpro') r = await importProjectFile(file, await file.text());
+                else if (['mobscen', 'mobtext', 'fountain', 'txt', 'pdf', 'docx', 'page'].includes(ext)) r = await importDocFile(file, ext);
+                else { toast(`« ${file.name} » ignoré : formats acceptés : .mobius, .mobpro, .mobscen, .mobtext, .fountain, .txt, .pdf, .docx.`, 'info'); continue; }
+                if (r) results.push(r);
+            } catch (err) { console.error(err); toast(`« ${file.name} » refusé : ${err.message}.`, 'error'); }
         }
         if (!results.length) return;
         const last = results[results.length - 1];
         state.tab = last.tab;
         await loadAll();
-        const nCards = results.filter(r => r.tab === 'cards').length;
-        const nProj = results.length - nCards;
-        toast([nProj && `${nProj} projet${nProj > 1 ? 's' : ''}`, nCards && `${nCards} carte${nCards > 1 ? 's' : ''}`].filter(Boolean).join(' et ') + ' importé' + (results.length > 1 ? 's' : '') + ' !', 'success');
+        const NAMES = { projects: ['projet', 'projets'], cards: ['carte', 'cartes'], scripts: ['scénario', 'scénarios'], texts: ['texte', 'textes'] };
+        const parts = Object.keys(NAMES).map(t => [t, results.filter(r => r.tab === t).length]).filter(([, n]) => n).map(([t, n]) => `${n} ${NAMES[t][n > 1 ? 1 : 0]}`);
+        toast(parts.join(' et ') + ' importé' + (results.length > 1 ? 's' : '') + ' !', 'success');
         // Un seul fichier carte : on l'ouvre directement (comportement existant)
         if (results.length === 1 && last.tab === 'cards') openCard(last.id);
     }
@@ -570,7 +675,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /* ---------- Suppression / sortie ---------- */
     async function deleteItem(id) {
-        const table = state.tab;
+        const table = tableOf(state.tab);
         const item = state.data[table].find(i => i.id === id);
         if (!item) return;
 
@@ -586,7 +691,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (error) return toast('Suppression impossible : ' + error.message, 'error');
             toast('Élément supprimé.', 'success');
         } else {
-            if (!await askConfirm(`Quitter ce ${TABLE_LABEL[table]} ? Il disparaîtra de votre dashboard.`)) return;
+            if (!await askConfirm(`Quitter ce ${labelOf(table, item)} ? Il disparaîtra de votre dashboard.`)) return;
             const { error } = await sb.rpc('leave_collab', { p_table: table, p_id: id });
             if (error) return toast('Impossible de quitter : ' + error.message, 'error');
             toast('Vous avez quitté la collaboration.', 'success');
@@ -595,6 +700,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function openCard(id) { window.location.href = `map.html?cardId=${encodeURIComponent(id)}`; }
+    // scénario / texte autonome : ouverture directe dans l'éditeur (le type est déjà connu, aucun écran de choix)
+    async function openDoc(id) {
+        const item = state.data.cards.find(i => i.id === id);
+        if (!item) return;
+        if (item.pwd && !isOwner(item)) {
+            const v = await askPrompt('Ce fichier est protégé. Entrez le mot de passe :', 'Mot de passe', 'password');
+            if (v === null) return;
+            if (v !== item.pwd) return toast('Mot de passe incorrect.', 'error');
+        }
+        window.location.href = `editor.html?cardId=${encodeURIComponent(id)}`;
+    }
 
     /* ---------- Notifications ---------- */
     function timeAgo(iso) {
@@ -620,7 +736,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     function activityUrl(a) {
         const e = encodeURIComponent;
-        if (a.table_name === 'cards') return `map.html?cardId=${e(a.item_id)}`;
+        if (a.table_name === 'cards') return (a.file_type === 'script' || a.file_type === 'text') ? `editor.html?cardId=${e(a.item_id)}` + (a.anchor ? `&focus=${e(a.anchor)}` : '') : `map.html?cardId=${e(a.item_id)}`;
         if (a.file_type === 'card') return `map.html?cardId=${e(a.file_id)}&projectId=${e(a.item_id)}`;
         return `editor.html?projectId=${e(a.item_id)}&fileId=${e(a.file_id)}` + (a.anchor ? `&focus=${e(a.anchor)}` : '');
     }
@@ -656,7 +772,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div class="flex items-start gap-3">
                     <div class="w-9 h-9 shrink-0 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-sm"><i class="fa-solid fa-user-shield"></i></div>
                     <div class="min-w-0 text-xs leading-snug">
-                        <p><span class="font-semibold">${esc(r.requested_by_email)}</span> souhaite nommer <span class="font-semibold">${esc(r.target_email)}</span> admin du ${TABLE_LABEL[r.table_name]} <span class="font-semibold">« ${esc(r.item_name || '')} »</span></p>
+                        <p><span class="font-semibold">${esc(r.requested_by_email)}</span> souhaite nommer <span class="font-semibold">${esc(r.target_email)}</span> admin du ${labelOf(r.table_name, (state.data[r.table_name] || []).find(i => i.id === r.item_id))} <span class="font-semibold">« ${esc(r.item_name || '')} »</span></p>
                         <p class="text-[10px] text-gray-400 mt-0.5">${timeAgo(r.created_at)}</p>
                     </div>
                 </div>
@@ -682,7 +798,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div class="flex items-start gap-3">
                     <div class="w-9 h-9 shrink-0 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center text-sm"><i class="fa-solid fa-key"></i></div>
                     <div class="min-w-0 text-xs leading-snug">
-                        <p><span class="font-semibold">${esc(r.requested_by_email || 'Un admin')}</span> ${verb} du ${TABLE_LABEL[r.table_name]} <span class="font-semibold">« ${esc(r.item.name)} »</span></p>
+                        <p><span class="font-semibold">${esc(r.requested_by_email || 'Un admin')}</span> ${verb} du ${labelOf(r.table_name, r.item)} <span class="font-semibold">« ${esc(r.item.name)} »</span></p>
                         <p class="text-[10px] text-gray-400 mt-0.5">${timeAgo(r.created_at)}</p>
                     </div>
                 </div>
@@ -696,10 +812,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="px-4 py-3.5 space-y-2.5">
                 <div class="flex items-start gap-3">
                     <div class="w-9 h-9 shrink-0 rounded-xl bg-[#5246EE]/10 text-[#5246EE] flex items-center justify-center text-sm">
-                        <i class="fa-solid ${inv.table === 'projects' ? 'fa-folder' : 'fa-note-sticky'}"></i>
+                        <i class="fa-solid ${TAB_META[tabOfItem(inv.table, inv.item)].icon}"></i>
                     </div>
                     <div class="min-w-0 text-xs leading-snug">
-                        <p><span class="font-semibold">${esc(inv.from)}</span> vous invite à collaborer sur le ${TABLE_LABEL[inv.table]} <span class="font-semibold">« ${esc(inv.item.name)} »</span></p>
+                        <p><span class="font-semibold">${esc(inv.from)}</span> vous invite à collaborer sur le ${labelOf(inv.table, inv.item)} <span class="font-semibold">« ${esc(inv.item.name)} »</span></p>
                         <p class="text-[10px] text-gray-400 mt-0.5">${timeAgo(inv.at)}</p>
                     </div>
                 </div>
@@ -758,7 +874,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return renderNotifications();
         }
         toast(accept ? `Vous avez rejoint « ${inv.item.name} »` : 'Invitation refusée.', accept ? 'success' : 'info');
-        if (accept) state.tab = inv.table;
+        if (accept) state.tab = tabOfItem(inv.table, inv.item);
         await loadAll();
     });
 
@@ -796,7 +912,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         $('modal-is-collab').checked = false; $('modal-has-pwd').checked = false;
         $('collab-box').classList.add('hidden');$('pwd-box').classList.add('hidden');
         renderCollabBadges();
-        $('create-modal-title').textContent = state.tab === 'projects' ? 'Créer un nouveau projet' : 'Créer une nouvelle carte libre';
+        $('create-modal-title').textContent = TAB_META[state.tab].createTitle;
         showModal('create-modal');
         setTimeout(() => $('modal-item-name').focus(), 40); }$('create-btn').addEventListener('click', openCreateModal);
     $('modal-is-collab').addEventListener('change', (e) =>$('collab-box').classList.toggle('hidden', !e.target.checked));
@@ -807,7 +923,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /* ---------- Paramètres d'un projet / d'une carte libre (nom, collaboration, sécurité) ---------- */
     async function openSettingsModal(id) {
-        const table = state.tab;
+        const table = tableOf(state.tab);
         const item = state.data[table].find(i => i.id === id);
         if (!item) return;
         if (!isAdminOf(item)) return toast('Seuls le propriétaire et les admins peuvent modifier les paramètres.', 'error');
@@ -840,7 +956,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         $('pwd-locked-note').classList.toggle('hidden', pwdOk);
         $('pwd-approval-note').classList.toggle('hidden', owner || !pwdOk);
         renderCollabBadges();
-        $('create-modal-title').textContent = table === 'projects' ? 'Paramètres du projet' : 'Paramètres de la carte libre';
+        $('create-modal-title').textContent = TAB_META[state.tab].settingsTitle;
         $('create-modal-ok').textContent = 'Enregistrer';
         showModal('create-modal');
         setTimeout(() => $('modal-item-name').focus(), 40);
@@ -995,8 +1111,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
         if ($('modal-admin-pwd').checked) row.admins_manage_pwd = true;
         if (state.tab === 'projects') row.tree = [];
+        else if (state.tab === 'scripts') row.info = buildDocInfo('script', name);   // typé dès la création : l'éditeur s'ouvre directement
+        else if (state.tab === 'texts') row.info = buildDocInfo('text', name);
 
-        const { error } = await sb.from(state.tab).insert([row]);
+        const { error } = await sb.from(tableOf(state.tab)).insert([row]);
         if (error) return toast('Création impossible : ' + error.message, 'error');
         hideModal('create-modal');
         toast(collaborators.length ? `Créé · ${collaborators.length} invitation(s) envoyée(s)` : 'Créé avec succès.', 'success');
@@ -1516,6 +1634,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     /* ---------- Démarrage ---------- */
     const params = new URLSearchParams(window.location.search);
     const openId = params.get('openProjectId');
+    const tabParam = params.get('tab');
+    if (tabParam && TAB_META[tabParam]) { state.tab = tabParam; window.history.replaceState({}, document.title, window.location.pathname); }
     await loadAll();
     if (openId) {
         window.history.replaceState({}, document.title, window.location.pathname);
