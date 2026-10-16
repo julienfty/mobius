@@ -3514,35 +3514,44 @@ container.addEventListener('touchstart', (e) => {
                     if (D.links.some(l => (l.sourceId === A.id && l.targetId === B.id) || (l.sourceId === B.id && l.targetId === A.id))) { log.push({ k: 'warn', m: `Lien déjà existant entre « ${a} » et « ${b} » : ignoré` }); return; }
                     D.links.push({ id: uid('link-'), sourceId: A.id, targetId: B.id, relationTypeId: rel ? rel.id : '' }); lk++; changed = true;
                 };
-                // createLink: type, name: "Nom", color: "#hex" [, from x to y ...]   |   newLink: type, from x to y, from x to z ...
+                // createLink: name: "Nom", color: "#hex"   |   newLink: typeLink: "Nom", from x to y, from x to z ...
                 const cmd = st => {
-                    const kind = st[0].v.toLowerCase(), tt = st[2];
-                    if (!tt || tt.t === 'sym') throw Error('type de lien manquant après « : »');
-                    const key = tt.v; let i = 3, name = null, color = null; const pairs = [];
+                    const kind = st[0].v.toLowerCase(); let i = 2, name = null, color = null, tl = null; const pairs = [];
                     while (i < st.length) {
                         const t = st[i], w = t.v.toLowerCase();
                         if (sy(t, ',')) { i++; continue; }
                         if (t.t === 'w' && w === 'from') { const a = st[i + 1], to = st[i + 2], b = st[i + 3]; if (!a || !b || !to || to.v.toLowerCase() !== 'to') throw Error('syntaxe attendue : from X to Y'); pairs.push([a.v, b.v]); i += 4; continue; }
-                        if (t.t === 'w' && (w === 'name' || w === 'color') && (sy(st[i + 1], ':') || sy(st[i + 1], '='))) { const v = st[i + 2]; if (!v) throw Error(`valeur manquante après ${w}`); if (w === 'name') name = v.v; else color = v.v; i += 3; continue; }
+                        if (t.t === 'w' && (w === 'name' || w === 'color' || w === 'typelink') && (sy(st[i + 1], ':') || sy(st[i + 1], '='))) { const v = st[i + 2]; if (!v || v.t === 'sym') throw Error(`valeur manquante après ${t.v}`); if (w === 'name') name = v.v; else if (w === 'color') color = v.v; else tl = v.v; i += 3; continue; }
                         throw Error(`élément inattendu « ${t.v} »`);
                     }
-                    const k = key.toLowerCase();
-                    let rel = types[k] || D.relationTypes.find(r => r.id === key || idn(r.name) === idn(key) || r.name.toLowerCase() === k);
-                    if (!rel && !(kind === 'createlink' || name || color) && !/^(none|aucun)$/i.test(key)) throw Error(`type de lien « ${key} » inconnu : crée-le d'abord avec createLink`);
-                    if (kind === 'createlink' || name || color) {
-                        if (rel) { if (name) rel.name = name; if (color) rel.color = color; log.push({ k: 'ok', m: `Type de lien « ${rel.name} » mis à jour` }); }
-                        else { rel = { id: uid('rel-'), name: name || pretty(key), color: color || PAL[D.relationTypes.length % PAL.length] }; D.relationTypes.push(rel); log.push({ k: 'ok', m: `Type de lien « ${rel.name} » ajouté à la légende` }); }
-                        changed = true;
+                    if (kind === 'createlink') {
+                        if (!name) throw Error('createLink : name: "…" est obligatoire');
+                        if (!color) throw Error('createLink : color: "#……" est obligatoire');
+                        if (!/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(color)) throw Error(`couleur « ${color} » invalide (attendu : #RRGGBB)`);
+                        if (pairs.length) throw Error('createLink ne crée pas de lien : utilise newLink');
+                        let rel = D.relationTypes.find(r => r.name.toLowerCase() === name.toLowerCase());
+                        if (rel) { rel.color = color; log.push({ k: 'warn', m: `Le type « ${rel.name} » existait déjà : couleur mise à jour` }); }
+                        else { rel = { id: uid('rel-'), name, color }; D.relationTypes.push(rel); log.push({ k: 'ok', m: `Type de lien « ${name} » ajouté à la légende` }); }
+                        changed = true; return;
                     }
-                    if (rel) types[k] = rel;
+                    if (!tl) throw Error('newLink : typeLink: "…" est obligatoire');
+                    if (!pairs.length) throw Error('newLink : from X to Y attendu');
+                    const rel = D.relationTypes.find(r => r.name.toLowerCase() === tl.toLowerCase() || r.id === tl);
+                    if (!rel && !/^(none|aucun)$/i.test(tl)) throw Error(`type de lien « ${tl} » inconnu : crée-le d'abord avec createLink`);
                     pairs.forEach(([a, b]) => link(rel, a, b));
                 };
                 const exec = st => {
-                    if (st[0].t === 'meta') return;
+                    if (st[0].t === 'meta' || /^use$/i.test(st[0].v)) return;
+                    if (/^alter$/i.test(st[0].v)) {
+                        const k = st.findIndex(t => t.t === 'w' && /^add$/i.test(t.v)); let j = k + 1;
+                        if (k < 0 || !st[j]) throw Error('ALTER TABLE nom ADD COLUMN colonne type attendu');
+                        if (/^column$/i.test(st[j].v)) j++;
+                        getF(st[j].v, tmap(st.slice(j + 1).map(t => t.v).join(' '))); changed = true; return;
+                    }
                     if (isCmd(st)) return cmd(st);
                     const w0 = st[0].v.toUpperCase(); let i = 1;
                     if (w0 === 'CREATE') {
-                        if (/^table$/i.test(st[i].v)) i++;
+                        if (/^(table|card)$/i.test(st[i].v)) i++;
                         if (/^if$/i.test(st[i].v)) i += 3;
                         i++;
                         if (!sy(st[i], '(')) throw Error('« ( » attendue après le nom de la table');
@@ -3624,13 +3633,46 @@ container.addEventListener('touchstart', (e) => {
                 return { D, log, results, changed };
             }
 
+            // routage : CREATE TABLE|CARD crée une nouvelle carte (les instructions suivantes la visent), USE désigne une autre carte ; sans CREATE tout vise la carte courante
+            function runAll(S) {
+                const G = [{ ident: currentCard.name || '', label: 'carte actuelle', base: currentCard, st: [] }];
+                let act = G[0], title = null, made = false;
+                const find = n => G.find(g => idn(g.ident) === idn(n) || idn(g.label) === idn(n));
+                const tn = st => {
+                    const u = st[0].v.toUpperCase(); let i = 1;
+                    if (u === 'INSERT') { if (/^into$/i.test(st[i].v)) i++; return st[i]; }
+                    if (u === 'UPDATE') return st[1];
+                    if (u === 'DELETE') { if (/^from$/i.test(st[i].v)) i++; return st[i]; }
+                    if (u === 'SELECT') return st[st.findIndex(t => t.t === 'w' && /^from$/i.test(t.v)) + 1];
+                    return null;
+                };
+                S.forEach(st => {
+                    if (st[0].t === 'meta') { title = st[0].v; return; }
+                    const u = st[0].t === 'w' ? st[0].v.toUpperCase() : '';
+                    try {
+                        if (u === 'CREATE') {
+                            let j = 1; if (/^(table|card)$/i.test(st[j].v)) j++; if (/^if$/i.test(st[j].v)) j += 3;
+                            const nt = st[j]; if (!nt) throw Error('nom de la table manquant');
+                            act = { ident: nt.v, label: title || (nt.t === 'w' ? pretty(nt.v) : nt.v), base: {}, st: [st], isNew: true }; G.push(act); made = true; title = null; return;
+                        }
+                        if (u === 'USE') { let j = 1; if (/^(table|card)$/i.test(st[j].v)) j++; const g = st[j] && find(st[j].v); if (!g) throw Error(`carte « ${st[j] ? st[j].v : ''} » inconnue`); act = g; return; }
+                        let g = act; const t = tn(st);
+                        if (t && t.t !== 'sym') { const f = find(t.v); if (f) g = f; else if (made) throw Error(`table « ${t.v} » inconnue : crée-la d'abord ou utilise USE`); }
+                        g.st.push(st);
+                    } catch (e) { throw Error(`Ligne ${st[0].ln} : ${e.message}`); }
+                });
+                const outs = G.map(g => ({ g, r: run(g.st, g.base) })), log = [], results = [];
+                outs.forEach(o => { o.r.log.forEach(l => log.push(G.length > 1 ? { ...l, m: `« ${o.g.label} » : ${l.m}` } : l)); results.push(...o.r.results); });
+                return { cur: outs[0].r, news: outs.slice(1).map(o => ({ label: o.g.label, D: o.r.D })), log, results };
+            }
+
             // un script (une ou plusieurs tables) -> une carte par CREATE TABLE
             function toCards(src, fname) {
                 const segs = []; let cur = null, title = null;
                 split(tok(src)).forEach(st => {
                     if (st[0].t === 'meta') { title = st[0].v; return; }
                     if (st[0].t === 'w' && /^create$/i.test(st[0].v)) {
-                        let j = st.findIndex(t => t.t === 'w' && /^table$/i.test(t.v)) + 1;
+                        let j = st.findIndex(t => t.t === 'w' && /^(table|card)$/i.test(t.v)) + 1;
                         if (st[j] && /^if$/i.test(st[j].v)) j += 3;
                         cur = { title, tn: st[j] ? st[j].v : '', st: [] }; segs.push(cur); title = null;
                     } else if (!cur) { cur = { title, tn: '', st: [] }; segs.push(cur); }
@@ -3652,15 +3694,15 @@ container.addEventListener('touchstart', (e) => {
                     const hasId = t.rows.some(r => r.id !== undefined);
                     const cd = [...(hasId ? ['  "id" TEXT PRIMARY KEY'] : []), ...t.cols.map(c => `  ${cn(c)} ${ty[c.type] || 'TEXT'}`), ...(xy ? ['  "_x" NUMERIC', '  "_y" NUMERIC'] : [])];
                     const names = [...(hasId ? ['"id"'] : []), ...t.cols.map(cn), ...(xy ? ['"_x"', '"_y"'] : [])].join(', ');
-                    if (o.mobius) out.push(`\n-- @card ${qs(t.title || t.name)}`);
-                    out.push(`\nCREATE TABLE ${qi(t.name)} (\n${cd.join(',\n')}\n);`);
+                    if (o.mobius && !o.noCreate) out.push(`\n-- @card ${qs(t.title || t.name)}`);
+                    if (o.noCreate) { out.push(''); t.cols.forEach(c => out.push(`ALTER TABLE ${qi(t.name)} ADD COLUMN ${cn(c)} ${ty[c.type] || 'TEXT'};`)); } else out.push(`\nCREATE TABLE ${qi(t.name)} (\n${cd.join(',\n')}\n);`);
                     t.rows.forEach(r => out.push(`INSERT INTO ${qi(t.name)} (${names}) VALUES (${[...(hasId ? [lit(r.id)] : []), ...r.vals.map(lit), ...(xy ? [lit(r.x), lit(r.y)] : [])].join(', ')});`));
                     const rels = t.rels || (t.card && t.card.relationTypes) || [], lks = t.links || (t.card && t.card.links) || [];
                     if (o.mobius && (rels.length || lks.length)) {
-                        const key = {}, used = new Set(), g = {}; out.push('');
-                        rels.forEach(r => { let k = idn(r.name) || 'lien'; while (used.has(k)) k += '_'; used.add(k); key[r.id] = k; out.push(`createLink: ${k}, name: ${qs(r.name)}, color: ${qs(r.color || '#5246EE')};`); });
+                        const key = {}, g = {}; out.push('');
+                        rels.forEach(r => { key[r.id] = r.name; out.push(`createLink: name: ${qs(r.name)}, color: ${qs(r.color || '#5246EE')};`); });
                         lks.forEach(l => (g[key[l.relationTypeId] || 'none'] ||= []).push(`from ${lit(l.sourceId)} to ${lit(l.targetId)}`));
-                        Object.entries(g).forEach(([k, a]) => out.push(`newLink: ${k}, ${a.join(', ')};`));
+                        Object.entries(g).forEach(([k, a]) => out.push(`newLink: typeLink: ${k === 'none' ? 'none' : qs(k)}, ${a.join(', ')};`));
                     }
                 });
                 return out.join('\n') + '\n';
@@ -3733,24 +3775,25 @@ container.addEventListener('touchstart', (e) => {
             }
 
             // ---------- interface : console SQL ----------
-            const EXAMPLE = `-- Une personne = une ligne, un champ de l'inspecteur = une colonne
-CREATE TABLE equipe (id TEXT PRIMARY KEY, "Prénom" TEXT, "Nom" TEXT, "Poste" TEXT);
+            const EXAMPLE = `-- CREATE CARD (ou CREATE TABLE) crée une nouvelle carte dans l'arborescence
+CREATE CARD equipe (id TEXT PRIMARY KEY, "Prénom" TEXT, "Nom" TEXT, "Poste" TEXT);
 INSERT INTO equipe (id, "Prénom", "Nom", "Poste") VALUES
   ('a', 'Alice', 'Martin', 'Cheffe de projet'),
   ('b', 'Bruno', 'Durand', 'Développeur'),
   ('c', 'Chloé', 'Petit', 'Designer');
 
--- Légende puis liens
-createLink: collegue, name: "Collègue", color: "#5246EE";
-createLink: ami, name: "Ami";
-newLink: collegue, from a to b, from a to c;
-newLink: ami, from b to c;
+-- Types de lien (name et color obligatoires), puis liens
+createLink: name: "Collègue", color: "#5246EE";
+createLink: name: "Ami", color: "#10b981";
+newLink: typeLink: "Collègue", from a to b, from a to c;
+newLink: typeLink: "Ami", from b to c;
 `;
-            const HELP = `<p><b>SQL</b> : CREATE TABLE, INSERT INTO, UPDATE … SET … WHERE, DELETE FROM … WHERE, SELECT … WHERE / ORDER BY / LIMIT. Une colonne = un champ de l'inspecteur (créé s'il n'existe pas), une ligne = une personne. Colonnes spéciales : <code>id</code>, <code>_x</code>, <code>_y</code> (position, sinon placement automatique).</p>
-<p class="mt-2"><b>createLink: type, name: "Nom", color: "#hex"</b> crée un type dans la légende (nom et couleur facultatifs, on peut ajouter des <code>from x to y</code>).</p>
-<p class="mt-2"><b>newLink: type, from x to y, from x to z</b> crée un ou plusieurs liens du même type entre des personnes différentes. x et y sont des id ou des « Prénom Nom ». Type <code>none</code> : lien sans type.</p>
-<p class="mt-2">Les instructions finissent par « ; » (ou à la fin de la ligne pour createLink / newLink). Tout est exécuté ou rien : en cas d'erreur, la carte n'est pas modifiée. Annulable avec Ctrl+Z.</p>
-<p class="mt-2">Dépose un fichier <b>.sql, .csv, .xlsx, .json</b> : il est converti en SQL dans l'éditeur, tu vérifies puis tu exécutes. Seuls le SQL « format Mobius », le JSON et le .mobius gardent les liens, leurs types et leurs noms.</p>`;
+            const HELP = `<p><b>SQL</b> : CREATE TABLE (ou CREATE CARD), INSERT INTO, UPDATE … SET … WHERE, DELETE FROM … WHERE, SELECT … WHERE / ORDER BY / LIMIT. Une colonne = un champ de l'inspecteur, une ligne = une personne. Colonnes spéciales : <code>id</code>, <code>_x</code>, <code>_y</code> (position, sinon placement automatique).</p>
+<p class="mt-2"><b>Où ça s'exécute</b> : sans CREATE, tout s'exécute dans la carte où tu as ouvert cette console. Avec CREATE, une nouvelle carte est ajoutée à l'arborescence avec tout son contenu, et les instructions qui suivent (dont createLink / newLink) s'appliquent à elle. Pour revenir à une autre carte : <code>USE CARD nom;</code> ou nomme-la dans l'instruction (<code>INSERT INTO nom …</code>).</p>
+<p class="mt-2"><b>createLink: name: "Nom", color: "#RRGGBB"</b> crée un type de lien dans la légende (name et color obligatoires).</p>
+<p class="mt-2"><b>newLink: typeLink: "Nom", from x to y, from x to z</b> crée un ou plusieurs liens du type choisi (la liste des types apparaît pendant la saisie, Tab pour valider). x et y sont des id ou des « Prénom Nom ». <code>typeLink: none</code> : lien sans type.</p>
+<p class="mt-2">Les instructions finissent par « ; » (ou à la fin de la ligne pour createLink / newLink). Tout est exécuté ou rien : en cas d'erreur, rien n'est modifié. Annulable avec Ctrl+Z pour la carte courante.</p>
+<p class="mt-2">Dépose un fichier <b>.sql, .csv, .xlsx, .json</b> : il est converti en SQL dans l'éditeur (donc il s'ajoute à la carte ouverte, sauf si tu écris CREATE CARD), tu relis puis tu exécutes. Importé dans l'arborescence, il crée une nouvelle carte. Seuls le SQL format Mobius, le JSON et le .mobius gardent les liens, leurs types et leurs noms.</p>`;
             let keyH = null;
             function close() { const o = document.getElementById('mt-page'); if (o) o.remove(); if (keyH) document.removeEventListener('keydown', keyH); keyH = null; }
             function open() {
@@ -3770,10 +3813,10 @@ newLink: ami, from b to c;
                                 <button id="mt-ex" class="${bt}"><i data-lucide="lightbulb" class="w-3.5 h-3.5"></i> Exemple</button>
                                 <button id="mt-clear" class="${bt}"><i data-lucide="eraser" class="w-3.5 h-3.5"></i> Effacer</button>
                                 <span class="flex-1"></span>
-                                ${projectData ? `<button id="mt-cards" class="${bt}" title="Crée une carte par table dans l'arborescence"><i data-lucide="sticky-note" class="w-3.5 h-3.5"></i> Créer comme nouvelle(s) carte(s)</button>` : ''}
                                 <button id="mt-run" class="px-4 py-2 rounded-xl bg-[#5246EE] hover:bg-[#4538d8] text-white font-semibold flex items-center gap-1.5"><i data-lucide="play" class="w-3.5 h-3.5"></i> Exécuter <span class="opacity-60 font-normal hidden sm:inline">Ctrl+Entrée</span></button>
                             </div>
                             <textarea id="mt-src" spellcheck="false" placeholder="Écris du SQL, ou dépose ici un fichier .sql / .csv / .xlsx / .json" class="flex-1 min-h-[220px] w-full font-mono text-[12px] leading-relaxed p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-[#5246EE] resize-none"></textarea>
+                            <div id="mt-ac" class="hidden absolute left-3 bottom-3 max-w-[90%] flex flex-wrap gap-1.5 p-2 rounded-xl shadow-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 z-10"></div>
                             <div id="mt-dz" class="hidden absolute inset-0 rounded-2xl border-2 border-dashed border-[#5246EE] bg-[#5246EE]/10 flex items-center justify-center font-semibold text-[#5246EE] pointer-events-none">Dépose ton fichier ici</div>
                         </section>
                         <aside class="lg:w-96 shrink-0 min-h-0 overflow-y-auto space-y-3">
@@ -3791,20 +3834,26 @@ newLink: ami, from b to c;
                         r.results.map(t => `<div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800"><table class="w-full text-left"><thead class="bg-slate-50 dark:bg-slate-900"><tr>${t.cols.map(c => `<th class="px-2 py-1.5 font-semibold whitespace-nowrap">${e(String(c))}</th>`).join('')}</tr></thead><tbody>${t.rows.map(r => `<tr class="border-t border-slate-100 dark:border-slate-800">${r.map(v => `<td class="px-2 py-1.5 whitespace-nowrap">${v == null ? '<span class="text-slate-300">NULL</span>' : e(String(v))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`).join('');
                 };
                 const runIt = async () => {
-                    let r;
-                    try { r = run(split(tok(src.value)), currentCard); } catch (err) { msg('err', err.message); return; }
-                    if (r.changed) {
-                        if (!requireEdit()) return;
-                        currentCard.nodes = r.D.nodes; currentCard.links = r.D.links; currentCard.relationTypes = r.D.relationTypes; currentCard.fields = r.D.fields;
+                    let R;
+                    try { R = runAll(split(tok(src.value))); } catch (err) { msg('err', err.message); return; }
+                    if (R.news.length && !projectData) { msg('err', "Créer une carte nécessite d'être dans un projet (arborescence). Rien n'a été modifié."); return; }
+                    if ((R.cur.changed || R.news.length) && !requireEdit()) return;
+                    if (R.cur.changed) {
+                        const D = R.cur.D;
+                        currentCard.nodes = D.nodes; currentCard.links = D.links; currentCard.relationTypes = D.relationTypes; currentCard.fields = D.fields;
                         selectedNodeIds = selectedNodeIds.filter(id => currentCard.nodes.some(n => n.id === id));
                         await saveCurrentMapState(); renderCanvasNodes(); renderLegendList(); renderInspector();
                     }
-                    show(r);
+                    if (R.news.length) {
+                        R.news.forEach(g => treeInsert({ id: 'item_' + Date.now() + Math.random().toString(36).slice(2, 7), name: g.label, type: 'card', links: g.D.links, nodes: g.D.nodes, content: '', relationTypes: g.D.relationTypes, fields: g.D.fields }, { folderId: typeof treeSelectedId !== 'undefined' ? treeSelectedId : null }));
+                        refreshTree(); showToast(`${R.news.length} carte(s) créée(s) dans l'arborescence.`);
+                    }
+                    show(R);
                 };
                 const load = async files => {
                     const parts = [];
                     for (const f of files) {
-                        try { parts.push(/\.(sql|txt)$/i.test(f.name) ? await f.text() : emit(await fileTables(f), { mobius: true, head: `-- Importé depuis ${f.name}` })); }
+                        try { parts.push(/\.(sql|txt)$/i.test(f.name) ? await f.text() : emit(await fileTables(f), { mobius: true, noCreate: true, head: `-- Importé depuis ${f.name}` })); }
                         catch (err) { msg('err', `« ${f.name} » : ${err.message}`); return; }
                     }
                     src.value = parts.join('\n\n'); msg('info', 'Fichier converti en SQL : relis le script puis clique sur Exécuter.');
@@ -3814,15 +3863,21 @@ newLink: ami, from b to c;
                 $('mt-ex').onclick = () => { src.value = EXAMPLE; };
                 $('mt-clear').onclick = () => { src.value = ''; };
                 $('mt-file').onchange = ev => { load([...ev.target.files]); ev.target.value = ''; };
-                if ($('mt-cards')) $('mt-cards').onclick = () => {
-                    if (!requireEdit()) return;
-                    try {
-                        const cs = toCards(src.value, 'Carte SQL'); if (!cs.length) { msg('err', 'Aucune table à convertir.'); return; }
-                        cs.forEach(c => treeInsert(c, { folderId: typeof treeSelectedId !== 'undefined' ? treeSelectedId : null })); refreshTree();
-                        msg('info', `${cs.length} carte(s) créée(s) dans l'arborescence.`); showToast(`${cs.length} carte(s) créée(s).`);
-                    } catch (err) { msg('err', err.message); }
+                                src.addEventListener('keydown', ev => { if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); runIt(); } });
+                const ac = $('mt-ac');
+                const names = before => { const l = [], re = /createLink\s*:\s*name\s*[:=]\s*["«“'‘]([^"»”'’]+)["»”'’]/gi; let m; while ((m = re.exec(before))) l.push(m[1]); (currentCard.relationTypes || []).forEach(r => l.push(r.name)); return [...new Set(l)]; };
+                const upd = () => {
+                    const p = src.selectionStart, before = src.value.slice(0, p), line = before.slice(before.lastIndexOf('\n') + 1);
+                    const m = line.match(/^\s*newLink\s*:\s*typeLink\s*[:=]\s*(["«“'‘]?)([^"»”'’,;]*)$/i);
+                    if (!m) { ac.classList.add('hidden'); return; }
+                    const typed = m[2].toLowerCase(), list = names(before).filter(n => n.toLowerCase().includes(typed));
+                    ac.innerHTML = list.map(n => `<button type="button" data-n="${e(n)}" class="px-2 py-1 rounded-lg bg-[#5246EE]/10 text-[#5246EE] font-semibold">${e(n)}</button>`).join('');
+                    ac.classList.toggle('hidden', !list.length); ac._c = { start: p - m[2].length, end: p, q: m[1] };
                 };
-                src.addEventListener('keydown', ev => { if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); runIt(); } });
+                const pick = n => { const c = ac._c; if (!c) return; const op = c.q || '"'; src.setRangeText((c.q ? '' : op) + n + (CL[op] || '"'), c.start, c.end, 'end'); ac.classList.add('hidden'); src.focus(); };
+                ac.addEventListener('mousedown', ev => { const b = ev.target.closest('button'); if (b) { ev.preventDefault(); pick(b.dataset.n); } });
+                ['input', 'click', 'keyup'].forEach(t => src.addEventListener(t, upd));
+                src.addEventListener('keydown', ev => { if (ev.key === 'Tab' && !ac.classList.contains('hidden') && ac.firstChild) { ev.preventDefault(); pick(ac.firstChild.dataset.n); } });
                 const dz = $('mt-dz'), isF = ev => ev.dataTransfer && [...ev.dataTransfer.types].includes('Files');
                 const dr = $('mt-drop');
                 dr.addEventListener('dragover', ev => { if (isF(ev)) { ev.preventDefault(); dz.classList.remove('hidden'); } });
@@ -3832,7 +3887,7 @@ newLink: ami, from b to c;
                 document.addEventListener('keydown', keyH);
                 src.focus();
             }
-            return { open, close, run, tok, split, toCards, emit, fileTables, fileToCards, isTabularJson };
+            return { open, close, run, runAll, tok, split, toCards, emit, fileTables, fileToCards, isTabularJson };
         })();
         window.MT = MT;
         /* ===== MOBIUS-TABULAR:END ===== */
