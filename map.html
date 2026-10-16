@@ -111,7 +111,7 @@
                 </div>
             </div>
 
-            <button onclick="MT.open()" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition" title="Console SQL"><i data-lucide="terminal" class="w-3.5 h-3.5 text-[#5246EE]"></i><span class="hidden sm:inline">SQL</span></button>
+            <button onclick="MT.open()" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition" title="Console MQL (compatible SQL)"><i data-lucide="terminal" class="w-3.5 h-3.5 text-[#5246EE]"></i><span class="hidden sm:inline">MQL</span></button>
             <div class="relative">
                 <button onclick="toggleDownloadDropdown()" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition">
                     <i data-lucide="download" class="w-3.5 h-3.5 text-emerald-500"></i>
@@ -128,7 +128,7 @@
                     <div class="exp-sub group relative">
                         <button onclick="toggleExportSub(this,event)" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="table" class="w-4 h-4 text-emerald-500"></i> Tabulation <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400 ml-auto"></i></button>
                         <div class="exp-flyout hidden group-hover:block sm:absolute sm:right-full sm:top-0 sm:pr-1 z-50">
-                            <div class="w-full sm:w-48 sm:bg-white sm:dark:bg-slate-900 sm:rounded-2xl sm:shadow-2xl sm:border sm:border-slate-200 sm:dark:border-slate-800 p-1 space-y-0.5"><button onclick="exportMap('xlsx')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-spreadsheet" class="w-4 h-4 text-slate-400"></i> Export Excel (.xlsx)</button><button onclick="exportMap('csv')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4 text-slate-400"></i> Export CSV</button><button onclick="exportMap('json')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="braces" class="w-4 h-4 text-slate-400"></i> Export JSON</button><button onclick="exportMap('sql')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="database" class="w-4 h-4 text-slate-400"></i> Export SQL</button></div>
+                            <div class="w-full sm:w-48 sm:bg-white sm:dark:bg-slate-900 sm:rounded-2xl sm:shadow-2xl sm:border sm:border-slate-200 sm:dark:border-slate-800 p-1 space-y-0.5"><button onclick="exportMap('xlsx')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-spreadsheet" class="w-4 h-4 text-slate-400"></i> Export Excel (.xlsx)</button><button onclick="exportMap('csv')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4 text-slate-400"></i> Export CSV</button><button onclick="exportMap('json')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="braces" class="w-4 h-4 text-slate-400"></i> Export JSON</button><button onclick="exportMap('mql')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="terminal" class="w-4 h-4 text-[#5246EE]"></i> Export MQL <span class="text-[9px] bg-purple-100 dark:bg-purple-950 text-purple-600 px-1.5 py-0.5 rounded font-bold ml-auto">Natif</span></button><button onclick="exportMap('sql')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="database" class="w-4 h-4 text-slate-400"></i> Export SQL</button></div>
                         </div>
                     </div>
                 </div>
@@ -182,7 +182,7 @@
                     <button id="tree-import-btn" title="Importer un fichier" class="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-medium flex items-center gap-1"><i data-lucide="file-up" class="w-3.5 h-3.5 text-[#5246EE]"></i>Importer</button>
                 </div>
                 <div id="tree-dest" class="mt-1.5 text-[10px] text-slate-400 truncate"></div>
-                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx,.mobtext,.mobscen,.sql,.csv,.xlsx,.xls" multiple>
+                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx,.mobtext,.mobscen,.mql,.sql,.csv,.xlsx,.xls" multiple>
             </div>
             <div id="tree-sidebar-content" class="flex-1 p-3 overflow-y-auto space-y-1 text-xs"></div>
             <div class="p-3 border-t border-slate-200 dark:border-slate-800 relative">
@@ -192,7 +192,7 @@
                     <div class="exp-sub group relative">
                         <button onclick="toggleExportSub(this,event)" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="table" class="w-4 h-4 text-emerald-500"></i> Tabulation <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400 ml-auto"></i></button>
                         <div class="exp-flyout hidden group-hover:block sm:absolute sm:left-full sm:bottom-0 sm:pl-1 z-50">
-                            <div class="w-full sm:w-52 sm:bg-white sm:dark:bg-slate-900 sm:rounded-2xl sm:shadow-2xl sm:border sm:border-slate-200 sm:dark:border-slate-800 p-1 space-y-0.5"><button onclick="openExportPage('xlsx','project')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-spreadsheet" class="w-4 h-4 text-slate-400"></i> Export Excel (.xlsx)</button><button onclick="openExportPage('csv','project')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4 text-slate-400"></i> Export CSV</button><button onclick="openExportPage('json','project')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="braces" class="w-4 h-4 text-slate-400"></i> Export JSON</button><button onclick="openExportPage('sql','project')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="database" class="w-4 h-4 text-slate-400"></i> Export SQL</button></div>
+                            <div class="w-full sm:w-52 sm:bg-white sm:dark:bg-slate-900 sm:rounded-2xl sm:shadow-2xl sm:border sm:border-slate-200 sm:dark:border-slate-800 p-1 space-y-0.5"><button onclick="openExportPage('xlsx','project')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-spreadsheet" class="w-4 h-4 text-slate-400"></i> Export Excel (.xlsx)</button><button onclick="openExportPage('csv','project')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4 text-slate-400"></i> Export CSV</button><button onclick="openExportPage('json','project')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="braces" class="w-4 h-4 text-slate-400"></i> Export JSON</button><button onclick="openExportPage('mql','project')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="terminal" class="w-4 h-4 text-[#5246EE]"></i> Export MQL <span class="text-[9px] bg-purple-100 dark:bg-purple-950 text-purple-600 px-1.5 py-0.5 rounded font-bold ml-auto">Natif</span></button><button onclick="openExportPage('sql','project')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="database" class="w-4 h-4 text-slate-400"></i> Export SQL</button></div>
                         </div>
                     </div>
                 </div>
@@ -1372,8 +1372,8 @@
             if (format === 'json') {
                 const out = { tables: tables.map(t => ({ table: t.name, title: t.title, relationTypes: (t.card && t.card.relationTypes) || [], links: (t.card && t.card.links) || [], columns: [{ name: 'id', label: 'id', type: 'text' }, ...t.cols.map(c => ({ name: c.name, label: c.label, type: c.type === 'line' ? 'text' : c.type }))], rows: t.rows.map(r => ({ id: r.id, _x: r.x, _y: r.y, ...Object.fromEntries(t.cols.map((c, i) => [c.name, r.vals[i]])) })) })) };
                 dlBlob(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }), base + '.json');
-            } else if (format === 'sql' && opts && opts.mobius) {
-                dlBlob(new Blob([MT.emit(tables, { mobius: true, head: '-- Export Mobius (format Mobius : commandes createLink / newLink, à exécuter dans Mobius)' })], { type: 'application/sql' }), base + '_mobius.sql');
+            } else if (format === 'mql') {
+                dlBlob(new Blob([MT.emit(tables, { mobius: true, head: '-- MQL (Mobius Query Language) : SQL compatible + commandes de relations Mobius' })], { type: 'text/plain;charset=utf-8' }), base + '.mql');
             } else if (format === 'sql') {
                 const ty = { line: 'TEXT', text: 'TEXT', number: 'NUMERIC', bool: 'BOOLEAN', date: 'DATE' };
                 const sql = ['-- Export Mobius : une carte = une table', ...tables.map(t =>
@@ -1407,6 +1407,7 @@
             xlsx: { label: 'Excel', ext: '.xlsx', icon: 'file-spreadsheet', desc: "Classeur Excel natif : une feuille par carte, une colonne par champ de l'inspecteur, avec les nombres et les cases oui/non gardés comme tels.", use: "Idéal pour trier, filtrer, faire des calculs ou des graphiques dans Excel, LibreOffice ou Google Sheets." },
             csv:  { label: 'CSV', ext: '.csv', icon: 'file-text', desc: "Texte brut en UTF-8, séparateur « ; », une ligne d'en-tête avec le nom des champs. Un fichier par carte (regroupés dans un .zip s'il y en a plusieurs).", use: "Format universel pour importer dans une base de données, Notion, Airtable, Python/pandas ou n'importe quel tableur." },
             json: { label: 'JSON', ext: '.json', icon: 'braces', desc: "Fichier structuré : pour chaque carte, la description des colonnes (nom, type) puis les lignes sous forme d'objets typés (nombres, booléens, dates).", use: "Pensé pour les développeurs : API, scripts, applications web, échanges entre logiciels." },
+            mql: { label: 'MQL', ext: '.mql', icon: 'terminal', desc: "Format natif Mobius Query Language : tables, champs, personnes, positions, types de relations et liens (createLink / newLink).", use: "À importer et exécuter dans la console MQL de Mobius. Compatible avec les instructions SQL prises en charge par Mobius." },
             sql:  { label: 'SQL', ext: '.sql', icon: 'database', desc: "Script SQL standard : un CREATE TABLE par carte (colonnes typées TEXT, NUMERIC, BOOLEAN, DATE) suivi des INSERT de chaque personne.", use: "À exécuter tel quel dans PostgreSQL, SQLite, MySQL/MariaDB pour recréer vos cartes comme tables dans une vraie base." }
         };
         let EX = null;
@@ -1480,7 +1481,6 @@
                             <div class="font-bold text-sm flex items-center gap-2"><i data-lucide="${F.icon}" class="w-4 h-4 text-[#5246EE]"></i> ${F.label} <span class="text-slate-400 font-normal">${F.ext}</span></div>
                             <p class="text-slate-600 dark:text-slate-300">${F.desc}</p>
                             <p class="text-slate-500"><span class="font-semibold">Utilité :</span> ${F.use}</p>
-                            ${EX.fmt === 'sql' ? `<label class="flex items-start gap-2 pt-2 cursor-pointer"><input type="checkbox" data-act="mobius" ${EX.mobius ? 'checked' : ''} class="w-4 h-4 mt-0.5 accent-[#5246EE] shrink-0"><span><span class="font-semibold">SQL format Mobius</span> : ajoute les commandes createLink / newLink (types de la légende, liens, noms) et la position des personnes. Fichier <code>nom_mobius.sql</code>, à exécuter dans Mobius (la console SQL de la carte).</span></label>` : ''}
                         </div>
                         <div class="font-bold uppercase tracking-wider text-[10px] text-slate-500">Champs à enregistrer</div>
                         ${fields}
@@ -1503,7 +1503,6 @@
             if (a === 'close') { closeExportPage(); return; }
             if (a === 'go') { exportFromPage(); return; }
             if (a === 'fmt') EX.fmt = t.dataset.fmt;
-            else if (a === 'mobius') EX.mobius = t.checked;
             else if (a === 'card') { if (t.checked) EX.sel.add(id); else EX.sel.delete(id); }
             else if (a === 'cards-all') EX.sel = new Set(EX.cards.keys());
             else if (a === 'cards-none') EX.sel = new Set();
@@ -1515,7 +1514,7 @@
         async function exportFromPage() {
             const entries = [...EX.cards.keys()].filter(id => EX.sel.has(id)).map(id => ({ card: EX.cards.get(id), fieldIds: EX.fl[id] }));
             if (!entries.length) return;
-            await exportTable(EX.fmt, entries, { mobius: !!EX.mobius });
+            await exportTable(EX.fmt, entries);
         }
 
         document.addEventListener('click', e => { const m = document.getElementById('proj-export-menu'); if (m && !e.target.closest('#proj-export-menu')) m.classList.add('hidden'); });
@@ -3510,8 +3509,8 @@ container.addEventListener('touchstart', (e) => {
         /* ---------- Import (mêmes formats / conversions que le dashboard) ---------- */
         async function treeImport(files, dest) {
             if (!requireEdit()) return;
-            const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx|mobtext|mobscen|sql|csv|xlsx|xls)$/i.test(f.name));
-            if (accepted.length < files.length) showToast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx, .mobius, .mobtext, .mobscen, .sql, .csv et .xlsx.');
+            const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx|mobtext|mobscen|mql|sql|csv|xlsx|xls)$/i.test(f.name));
+            if (accepted.length < files.length) showToast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx, .mobius, .mobtext, .mobscen, .mql, .sql, .csv et .xlsx.');
             let t = dest, added = 0;
             const put = (item) => {
                 treeInsert(item, t); added++;
@@ -3519,7 +3518,7 @@ container.addEventListener('touchstart', (e) => {
             };
             for (const file of accepted) {
                 try {
-                    if (/\.(sql|csv|xlsx|xls)$/i.test(file.name) || (/\.json$/i.test(file.name) && await MT.isTabularJson(file))) {
+                    if (/\.(mql|sql|csv|xlsx|xls)$/i.test(file.name) || (/\.json$/i.test(file.name) && await MT.isTabularJson(file))) {
                         const cs = await MT.fileToCards(file);
                         cs.forEach(c => put(c));
                         showToast(`« ${file.name} » : ${cs.length} carte${cs.length > 1 ? 's' : ''} créée${cs.length > 1 ? 's' : ''}.`);
@@ -3738,7 +3737,7 @@ container.addEventListener('touchstart', (e) => {
             });
         }
 
-        /* ===== MOBIUS-TABULAR:START (bloc autonome : console SQL Mobius, imports sql/csv/xlsx/json) ===== */
+        /* ===== MOBIUS-TABULAR:START (bloc autonome : console MQL Mobius, imports mql/sql/csv/xlsx/json) ===== */
         const MT = (() => {
             const CL = { "'": "'", '"': '"', '«': '»', '“': '”', '‘': '’' };
             const PAL = ['#5246EE', '#ef4444', '#10b981', '#f59e0b', '#3b82f6', '#ec4899', '#14b8a6', '#8b5cf6'];
@@ -3886,11 +3885,31 @@ container.addEventListener('touchstart', (e) => {
                         if (!isKey && isRef(t)) {
                             let j = i; const hasFrom = kw(st[j]) === 'from'; if (hasFrom) j++;
                             const srcs = [], tgs = [];
-                            const fmt = 'syntaxe attendue : from X [with Y …] to Z (sens unique) ou X [with Y …] and Z (lien normal)';
+                            const fmt = 'syntaxe attendue : from X [with Y,Z …] to A,B (sens unique) ou X [with Y,Z …] and A,B (lien normal)';
                             if (!isRef(st[j])) throw Error(fmt);
                             srcs.push(st[j++].v);
-                            while (kw(st[j]) === 'with') { j++; if (!isRef(st[j])) throw Error('with : une personne est attendue après « with »'); srcs.push(st[j++].v); }
-                            while (kw(st[j]) === 'to' || kw(st[j]) === 'and') { const d = kw(st[j]) === 'to'; j++; if (!isRef(st[j])) throw Error(`« ${d ? 'to' : 'and'} » : une personne est attendue après`); tgs.push([st[j++].v, d]); }
+                            // Sources : syntaxes longues, courtes et mixtes acceptées (with b with c / with b,c / with b,c with d).
+                            while (kw(st[j]) === 'with') {
+                                j++;
+                                if (!isRef(st[j])) throw Error('with : une personne est attendue après « with »');
+                                srcs.push(st[j++].v);
+                                while (sy(st[j], ',') && isRef(st[j + 1]) && !['to', 'and', 'with'].includes(kw(st[j + 1]))) {
+                                    j++;
+                                    srcs.push(st[j++].v);
+                                }
+                            }
+                            // Cibles : « to e,f,g » / « and e,f,g », ainsi que les répétitions historiques.
+                            while (kw(st[j]) === 'to' || kw(st[j]) === 'and') {
+                                const d = kw(st[j]) === 'to'; j++;
+                                if (!isRef(st[j])) throw Error(`« ${d ? 'to' : 'and'} » : une personne est attendue après`);
+                                tgs.push([st[j++].v, d]);
+                                while (sy(st[j], ',') && isRef(st[j + 1]) &&
+                                       !['from', 'to', 'and', 'with', 'name', 'color', 'typelink'].includes(kw(st[j + 1])) &&
+                                       !['to', 'and', 'with'].includes(kw(st[j + 2]))) {
+                                    j++;
+                                    tgs.push([st[j++].v, d]);
+                                }
+                            }
                             if (!tgs.length) throw Error(fmt);
                             if (new Set(tgs.map(x => x[1])).size > 1) throw Error('ne mélange pas « to » et « and » dans la même clause : sépare-les par une virgule');
                             if (tgs[0][1] && !hasFrom) throw Error('un lien à sens unique s\'écrit « from X to Y »');
@@ -3913,7 +3932,7 @@ container.addEventListener('touchstart', (e) => {
                     }
                     const cn = kind === 'link' ? 'link' : 'newLink';
                     if (!tl) throw Error(`${cn} : typeLink: "…" est obligatoire`);
-                    if (!pairs.length) throw Error(`${cn} : from X [with Y …] to Z (sens unique) ou X [with Y …] and Z (lien normal) attendu`);
+                    if (!pairs.length) throw Error(`${cn} : from X [with Y,Z …] to A,B (sens unique) ou X [with Y,Z …] and A,B (lien normal) attendu`);
                     const rel = D.relationTypes.find(r => r.name.toLowerCase() === tl.toLowerCase() || r.id === tl);
                     if (!rel && !/^(none|aucun)$/i.test(tl)) throw Error(`type de lien « ${tl} » inconnu : crée-le d'abord avec createLink`);
                     if (kind === 'link') {
@@ -4157,7 +4176,7 @@ container.addEventListener('touchstart', (e) => {
                 try { const d = JSON.parse(await file.text()); return !(d && Array.isArray(d.nodes) && Array.isArray(d.links)) && (Array.isArray(d.tables) || (Array.isArray(d) && d.length > 0 && typeof d[0] === 'object')); } catch (e) { return false; }
             }
             async function fileToCards(file) {
-                if (/\.sql$/i.test(file.name)) return toCards(await file.text(), file.name);
+                if (/\.(?:mql|sql)$/i.test(file.name)) return toCards(await file.text(), file.name);
                 return toCards(emit(await fileTables(file), { mobius: true }), file.name);
             }
 
@@ -4179,15 +4198,15 @@ newLink: (typeLink: "Ami", b and c);
 -- sens unique (avec from) : from a with b to c  =  a vers c + b vers c
 newLink: (typeLink: "Mentor", from a with b to c);
 `;
-            const HELP = `<p><b>SQL</b> : CREATE TABLE (ou CREATE CARD), INSERT INTO, UPDATE … SET … WHERE, DELETE FROM … WHERE, SELECT … WHERE / ORDER BY / LIMIT. Une colonne = un champ de l'inspecteur, une ligne = une personne. Colonnes spéciales : <code>id</code>, <code>_x</code>, <code>_y</code> (position, sinon placement automatique).</p>
+            const HELP = `<p><b>MQL</b> (Mobius Query Language) : accepte le SQL pris en charge par Mobius et ajoute les commandes spécifiques aux relations. <b>SQL compatible</b> : CREATE TABLE (ou CREATE CARD), INSERT INTO, UPDATE … SET … WHERE, DELETE FROM … WHERE, SELECT … WHERE / ORDER BY / LIMIT. Une colonne = un champ de l'inspecteur, une ligne = une personne. Colonnes spéciales : <code>id</code>, <code>_x</code>, <code>_y</code> (position, sinon placement automatique).</p>
 <p class="mt-2"><b>Où ça s'exécute</b> : sans CREATE, tout s'exécute dans la carte où tu as ouvert cette console. Avec CREATE, une nouvelle carte est ajoutée à l'arborescence avec tout son contenu, et les instructions qui suivent (dont createLink / newLink) s'appliquent à elle. Pour revenir à une autre carte : <code>USE CARD nom;</code> ou nomme-la dans l'instruction (<code>INSERT INTO nom …</code>).</p>
 <p class="mt-2"><b>createLink: (name: "Nom", color: "#RRGGBB");</b> crée un type de lien dans la légende (name et color obligatoires).</p>
 <p class="mt-2"><b>newLink: (typeLink: "Nom", x and y, from x to z);</b> crée un ou plusieurs liens du type choisi (la liste des types apparaît pendant la saisie, Tab pour valider). x et y sont des id ou des « Prénom Nom ». <code>typeLink: none</code> : lien sans type.</p>
 <p class="mt-2"><code>and</code> = lien normal (dans les deux sens). <code>to</code> = lien à sens unique : <code>from x to y</code> trace une flèche de x vers y. Si tu crées <code>from x to y</code> puis <code>from y to x</code> avec le même type, les deux fusionnent en un lien normal. Les parenthèses sont facultatives.</p>
-<p class="mt-2"><b>Raccourcis</b> : <code>with</code> ajoute des sources, on peut enchaîner des cibles, et chaque source est reliée à chaque cible (jamais entre elles). <code>from a with b to c</code> = a→c, b→c. <code>from a with b with c to d to e</code> = a→d, a→e, b→d, b→e, c→d, c→e. Pareil avec <code>and</code>, mais <b>sans</b> <code>from</code> : <code>a with b and c</code> = a–c, b–c. <code>from</code> est obligatoire avec <code>to</code> et interdit avec <code>and</code>. On ne mélange pas <code>to</code> et <code>and</code> dans une même clause : sépare-les par une virgule.</p>
+<p class="mt-2"><b>Raccourcis</b> : <code>with</code> ajoute des sources, on peut enchaîner des cibles, et chaque source est reliée à chaque cible (jamais entre elles). <code>from a with b to c</code> = a→c, b→c. <code>from a with b,c to d,e</code> = a→d, a→e, b→d, b→e, c→d, c→e. Les formes longues (<code>with b with c</code>, <code>to d to e</code>, <code>and d and e</code>), courtes (<code>with b,c</code>, <code>to d,e</code>, <code>and d,e</code>) et mixtes (<code>with b,c with d</code>, <code>to e,f to g</code>) sont toutes équivalentes et restent acceptées. Pareil avec <code>and</code>, mais <b>sans</b> <code>from</code> : <code>a with b and c</code> = a–c, b–c. <code>from</code> est obligatoire avec <code>to</code> et interdit avec <code>and</code>. On ne mélange pas <code>to</code> et <code>and</code> dans une même clause : sépare-les par une virgule.</p>
 <p class="mt-2"><b>link: (typeLink: "Nom", a and b);</b> <b>modifie</b> le lien déjà existant entre a et b (type et sens) au lieu d'en créer un, avec la même syntaxe que newLink : <code>link: (typeLink: "Ami", a and b)</code> le rend normal et de type Ami, <code>link: (typeLink: "Mentor", from a to b)</code> le rend à sens unique a→b (même avec <code>with</code> / plusieurs cibles). S'il n'y a aucun lien, rien n'est créé (un avertissement t'invite à utiliser newLink). S'il y en a plusieurs entre les deux personnes, <code>and</code> vise le lien normal et <code>from a to b</code> le lien a→b ; sinon une erreur te demande de préciser.</p>
 <p class="mt-2">Les instructions finissent par « ; » (ou à la fin de la ligne pour createLink / newLink). Tout est exécuté ou rien : en cas d'erreur, rien n'est modifié. Annulable avec Ctrl+Z pour la carte courante.</p>
-<p class="mt-2">Dépose un fichier <b>.sql, .csv, .xlsx, .json</b> : il est converti en SQL dans l'éditeur (donc il s'ajoute à la carte ouverte, sauf si tu écris CREATE CARD), tu relis puis tu exécutes. Importé dans l'arborescence, il crée une nouvelle carte. Seuls le SQL format Mobius, le JSON et le .mobius gardent les liens, leurs types et leurs noms.</p>`;
+<p class="mt-2">Dépose un fichier <b>.mql, .sql, .csv, .xlsx, .json</b> : il est converti en MQL dans l'éditeur (donc il s'ajoute à la carte ouverte, sauf si tu écris CREATE CARD), tu relis puis tu exécutes. Importé dans l'arborescence, il crée une nouvelle carte. Seuls le MQL, le JSON et le .mobius gardent les liens, leurs types et leurs noms.</p>`;
 const HLRE = /(--[^\n]*)|("(?:[^"]|"")*"|'(?:[^']|'')*'|«[^»]*»|“[^”]*”)|\b(createLink|newLink|link)\b|\b(name|color|typeLink|to)\b|\b(CREATE|TABLE|CARD|USE|INSERT|INTO|VALUES|UPDATE|SET|DELETE|FROM|WITH|WHERE|SELECT|ORDER|BY|LIMIT|AND|OR|NOT|NULL|LIKE|IS|ALTER|ADD|COLUMN|PRIMARY|KEY|IF|EXISTS|ASC|DESC|TRUE|FALSE)\b|\b(TEXT|NUMERIC|BOOLEAN|DATE|INTEGER|INT)\b|(\b\d+(?:\.\d+)?\b)/gi;
             const HLC = ['text-slate-400', 'text-emerald-600 dark:text-emerald-400', 'text-pink-600 dark:text-pink-400 font-bold', 'text-sky-600 dark:text-sky-400', 'text-[#5246EE] dark:text-indigo-400 font-semibold', 'text-violet-500', 'text-amber-600 dark:text-amber-400'];
             const hl = (t, nl = true) => {
@@ -4204,13 +4223,13 @@ const HLRE = /(--[^\n]*)|("(?:[^"]|"")*"|'(?:[^']|'')*'|«[^»]*»|“[^”]*”
                 const bt = 'px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 font-medium flex items-center gap-1.5';
                 ov.innerHTML = `
                     <div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-200 dark:border-slate-800">
-                        <div class="flex items-center gap-2 font-bold text-sm"><i data-lucide="terminal" class="w-4 h-4 text-[#5246EE]"></i> Console SQL Mobius</div>
+                        <div class="flex items-center gap-2 font-bold text-sm"><i data-lucide="terminal" class="w-4 h-4 text-[#5246EE]"></i> Console MQL Mobius</div>
                         <button id="mt-close" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-slate-800"><i data-lucide="x" class="w-4 h-4 pointer-events-none"></i></button>
                     </div>
                     <div class="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 p-4 lg:p-5">
                         <section id="mt-drop" class="flex-1 min-w-0 flex flex-col gap-2 relative">
                             <div class="flex flex-wrap gap-2">
-                                <label class="${bt} cursor-pointer"><i data-lucide="file-up" class="w-3.5 h-3.5"></i> Importer un fichier<input id="mt-file" type="file" multiple accept=".sql,.csv,.xlsx,.xls,.json,.mobius" class="hidden"></label>
+                                <label class="${bt} cursor-pointer"><i data-lucide="file-up" class="w-3.5 h-3.5"></i> Importer un fichier<input id="mt-file" type="file" multiple accept=".mql,.sql,.csv,.xlsx,.xls,.json,.mobius" class="hidden"></label>
                                 <button id="mt-ex" class="${bt}"><i data-lucide="lightbulb" class="w-3.5 h-3.5"></i> Exemple</button>
                                 <button id="mt-clear" class="${bt}"><i data-lucide="eraser" class="w-3.5 h-3.5"></i> Effacer</button>
                                 <span class="flex-1"></span>
@@ -4218,7 +4237,7 @@ const HLRE = /(--[^\n]*)|("(?:[^"]|"")*"|'(?:[^']|'')*'|«[^»]*»|“[^”]*”
                             </div>
                             <div class="relative flex-1 min-h-[220px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 focus-within:ring-1 focus-within:ring-[#5246EE]">
                                 <pre id="mt-hl" aria-hidden="true" class="absolute inset-0 m-0 p-3 overflow-x-hidden overflow-y-scroll pointer-events-none font-mono text-[12px] leading-relaxed whitespace-pre-wrap break-words text-slate-700 dark:text-slate-200" style="tab-size:2"></pre>
-                                <textarea id="mt-src" spellcheck="false" placeholder="Écris du SQL, ou dépose ici un fichier .sql / .csv / .xlsx / .json" class="absolute inset-0 w-full h-full m-0 p-3 bg-transparent font-mono text-[12px] leading-relaxed whitespace-pre-wrap break-words resize-none focus:outline-none caret-slate-800 dark:caret-white" style="color:transparent;tab-size:2"></textarea>
+                                <textarea id="mt-src" spellcheck="false" placeholder="Écris du MQL ou du SQL, ou importe un fichier .mql / .sql / .csv / .xlsx / .json" class="absolute inset-0 w-full h-full m-0 p-3 bg-transparent font-mono text-[12px] leading-relaxed whitespace-pre-wrap break-words resize-none focus:outline-none caret-slate-800 dark:caret-white" style="color:transparent;tab-size:2"></textarea>
                                 <div id="mt-ac" class="hidden absolute z-10 max-w-[90%] flex flex-wrap gap-1.5 p-2 rounded-xl shadow-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></div>
                             </div>
                             <div id="mt-dz" class="hidden absolute inset-0 rounded-2xl border-2 border-dashed border-[#5246EE] bg-[#5246EE]/10 flex items-center justify-center font-semibold text-[#5246EE] pointer-events-none">Dépose ton fichier ici</div>
@@ -4257,10 +4276,10 @@ const HLRE = /(--[^\n]*)|("(?:[^"]|"")*"|'(?:[^']|'')*'|«[^»]*»|“[^”]*”
                 const load = async files => {
                     const parts = [];
                     for (const f of files) {
-                        try { parts.push(/\.(sql|txt)$/i.test(f.name) ? await f.text() : emit(await fileTables(f), { mobius: true, noCreate: true, head: `-- Importé depuis ${f.name}` })); }
+                        try { parts.push(/\.(mql|sql|txt)$/i.test(f.name) ? await f.text() : emit(await fileTables(f), { mobius: true, noCreate: true, head: `-- Importé depuis ${f.name}` })); }
                         catch (err) { msg('err', `« ${f.name} » : ${err.message}`); return; }
                     }
-                    src.value = parts.join('\n\n'); upd(); msg('info', 'Fichier converti en SQL : relis le script puis clique sur Exécuter.');
+                    src.value = parts.join('\n\n'); upd(); msg('info', 'Fichier chargé en MQL : relis le script puis clique sur Exécuter.');
                 };
                 $('mt-close').onclick = close;
                 $('mt-run').onclick = runIt;
