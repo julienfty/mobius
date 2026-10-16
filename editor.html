@@ -106,7 +106,7 @@
 <style>.ed-page [data-a=left]{text-align:left}.ed-page [data-a=center]{text-align:center}.ed-page [data-a=right]{text-align:right}.ed-page [data-a=justify]{text-align:justify}</style>
 <style>
 .ed-row{position:relative}.ed-page.script{background-image:none}
-.nv-tab{padding:.35rem .6rem;border-radius:.6rem;font-size:11px;font-weight:600;color:#64748b}.nv-tab.on{background:#5246EE;color:#fff}
+.nv-tab{padding:.35rem .6rem;border-radius:.6rem;font-size:11px;font-weight:600;color:#64748b}#nav-tabs{display:flex;flex-wrap:nowrap;flex:1 1 0;min-width:0;gap:2px}#nav-tabs .nv-tab{flex:1 1 auto;min-width:0;padding:.35rem .3rem;font-size:10.5px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nv-tab.on{background:#5246EE;color:#fff}
 .nv-row{display:flex;align-items:center;gap:.4rem;padding:.4rem .5rem;border-radius:.6rem;cursor:pointer}.nv-row:hover{background:#f1f5f9}.dark .nv-row:hover{background:#1e293b}
 .nv-act{font-weight:700;text-transform:uppercase;font-size:10.5px;letter-spacing:.04em;color:#475569;margin-top:.5rem}.dark .nv-act{color:#cbd5e1}
 .nv-chip{font-size:10px;padding:.1rem .4rem;border-radius:999px;background:#eef0f4;color:#475569;flex-shrink:0}.dark .nv-chip{background:#1e293b;color:#cbd5e1}.nv-chip.man{background:rgba(82,70,238,.15);color:#5246EE}
@@ -173,7 +173,7 @@
     <div class="flex-1 flex overflow-hidden relative min-h-0">
         <aside id="tree-sidebar" class="hidden md:flex flex-col w-full md:w-72 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-20 shadow-md">
             <div class="p-2 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
-                <div id="nav-tabs" class="flex gap-1 flex-wrap"></div>
+                <div id="nav-tabs"></div>
                 <button onclick="closeTreeSidebar()" title="Replier le menu" class="w-7 h-7 shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
             </div>
             <div id="tree-pane" class="flex-1 flex flex-col min-h-0">
@@ -2250,4 +2250,3 @@ async function removeCollaborator(idx){
     </script>
 </body>
 </html>
-
