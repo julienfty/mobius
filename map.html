@@ -108,6 +108,7 @@
                 </div>
             </div>
 
+            <button onclick="MT.open()" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition" title="Console SQL"><i data-lucide="terminal" class="w-3.5 h-3.5 text-[#5246EE]"></i><span class="hidden sm:inline">SQL</span></button>
             <div class="relative">
                 <button onclick="toggleDownloadDropdown()" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition">
                     <i data-lucide="download" class="w-3.5 h-3.5 text-emerald-500"></i>
@@ -154,11 +155,20 @@
                     <button id="tree-import-btn" title="Importer un fichier" class="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-medium flex items-center gap-1"><i data-lucide="file-up" class="w-3.5 h-3.5 text-[#5246EE]"></i>Importer</button>
                 </div>
                 <div id="tree-dest" class="mt-1.5 text-[10px] text-slate-400 truncate"></div>
-                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx,.mobtext,.mobscen" multiple>
+                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx,.mobtext,.mobscen,.sql,.csv,.xlsx,.xls" multiple>
             </div>
             <div id="tree-sidebar-content" class="flex-1 p-3 overflow-y-auto space-y-1 text-xs"></div>
-            <div class="p-3 border-t border-slate-200 dark:border-slate-800">
-                <button onclick="downloadProject()" class="w-full px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-2 transition"><i data-lucide="download" class="w-4 h-4 text-red-500"></i> Télécharger le projet (.mobpro)</button>
+            <div class="p-3 border-t border-slate-200 dark:border-slate-800 relative">
+                <button onclick="event.stopPropagation(); document.getElementById('proj-export-menu').classList.toggle('hidden')" class="w-full px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-2 transition"><i data-lucide="download" class="w-4 h-4 text-red-500"></i> Exporter le projet <i data-lucide="chevron-up" class="w-3.5 h-3.5 text-slate-400"></i></button>
+                <div id="proj-export-menu" class="hidden absolute bottom-full left-3 right-3 mb-1 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 space-y-1">
+                    <button onclick="document.getElementById('proj-export-menu').classList.add('hidden'); downloadProject()" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="folder-archive" class="w-4 h-4 text-red-500"></i> Projet (.mobpro) <span class="text-[9px] bg-red-100 dark:bg-red-950 text-red-600 px-1.5 py-0.5 rounded font-bold ml-auto">Natif</span></button>
+                    <div class="exp-sub group relative">
+                        <button onclick="toggleExportSub(this,event)" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="table" class="w-4 h-4 text-emerald-500"></i> Tabulation <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400 ml-auto"></i></button>
+                        <div class="exp-flyout hidden group-hover:block sm:absolute sm:left-full sm:bottom-0 sm:pl-1 z-50">
+                            <div class="w-full sm:w-52 sm:bg-white sm:dark:bg-slate-900 sm:rounded-2xl sm:shadow-2xl sm:border sm:border-slate-200 sm:dark:border-slate-800 p-1 space-y-0.5"><button onclick="openExportPage('xlsx','project')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-spreadsheet" class="w-4 h-4 text-slate-400"></i> Export Excel (.xlsx)</button><button onclick="openExportPage('csv','project')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4 text-slate-400"></i> Export CSV</button><button onclick="openExportPage('json','project')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="braces" class="w-4 h-4 text-slate-400"></i> Export JSON</button><button onclick="openExportPage('sql','project')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="database" class="w-4 h-4 text-slate-400"></i> Export SQL</button></div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </aside>
 
@@ -1211,9 +1221,15 @@
         async function deleteField(id) {
             if (!requireEdit()) return;
             const f = getFields().find(x => x.id === id); if (!f) return;
-            if (!(await treeConfirm(`Supprimer le champ « ${f.label} » de cette carte (inspecteur et exports) ?`))) return;
+            if (!(await treeConfirm(`Supprimer le champ « ${f.label} » ? Sa valeur sera effacée pour toutes les personnes de cette carte (Ctrl+Z pour annuler).`))) return;
+            recordHistory(); lastHistoryTime = 0;     // étape d'annulation distincte
+            (currentCard.nodes || []).forEach(n => {
+                if (f.key) { n[f.key] = ''; if (f.key === 'birthdate') n.age = ''; }
+                else if (n.custom) delete n.custom[f.id];
+            });
             currentCard.fields = getFields().filter(x => x.id !== id);
-            scheduleSave(); renderInspector();
+            scheduleSave(); renderInspector(); renderCanvasNodes();
+            showToast("Champ supprimé (Ctrl+Z pour annuler).");
         }
 
         // ===== EXPORTS =====
@@ -1261,21 +1277,21 @@
         }
 
         // tableaux : une carte = une table, un champ de l'inspecteur = une colonne
-        function buildTables(cards) {
+        function buildTables(entries) {
             const usedT = new Set();
-            return cards.map(c => {
+            return entries.map(({ card: c, fieldIds }) => {
                 let tn = sqlIdent(c.name, 'carte'), base = tn, i = 2;
                 while (usedT.has(tn)) tn = base + '_' + i++;
                 usedT.add(tn);
                 const usedC = new Set(['id']);
-                const cols = cardFields(c).map(f => {
+                const cols = cardFields(c).filter(f => !fieldIds || fieldIds.has(f.id)).map(f => {
                     let n = sqlIdent(f.label, 'champ'), b = n, k = 2;
                     while (usedC.has(n)) n = b + '_' + k++;
                     usedC.add(n);
                     return { name: n, label: f.label, type: f.type, f };
                 });
                 const rows = (c.nodes || []).map(node => ({
-                    id: node.id,
+                    id: node.id, x: node.x, y: node.y,
                     vals: cols.map(col => {
                         const v = fieldVal(node, col.f);
                         if (col.type === 'bool') return v === true;
@@ -1283,29 +1299,21 @@
                         return col.type === 'number' ? Number(v) : String(v);
                     })
                 }));
-                return { name: tn, title: c.name || tn, cols, rows };
+                return { name: tn, title: c.name || tn, cols, rows, card: c };
             });
-        }
-        async function chooseExportCards() {
-            const others = projectData ? allOtherCards() : [];
-            if (!others.length) return [currentCard];
-            const r = await dlg({ title: 'Exporter le tableur', message: 'Une carte = une table.', buttons: [
-                { label: 'Cette carte uniquement', value: 'one', primary: true },
-                { label: `Toutes les cartes du projet (${others.length + 1})`, value: 'all' },
-                { label: 'Annuler', value: null }] });
-            if (!r || !r.value) return null;
-            return r.value === 'one' ? [currentCard] : [currentCard, ...others];
         }
         const csvCell = v => { const s = v === null || v === undefined ? '' : String(v); return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
         const sqlVal = v => v === null ? 'NULL' : typeof v === 'boolean' ? (v ? 'TRUE' : 'FALSE') : typeof v === 'number' ? (isFinite(v) ? String(v) : 'NULL') : "'" + String(v).replace(/'/g, "''") + "'";
 
-        async function exportTable(format) {
-            const cards = await chooseExportCards(); if (!cards) return;
-            const tables = buildTables(cards);
+        async function exportTable(format, entries, opts) {
+            const cards = entries.map(e => e.card);
+            const tables = buildTables(entries);
             const base = cards.length > 1 ? slug((projectData && projectData.name) || 'projet', 'projet') : tables[0].name;
             if (format === 'json') {
-                const out = { tables: tables.map(t => ({ table: t.name, title: t.title, columns: [{ name: 'id', label: 'id', type: 'text' }, ...t.cols.map(c => ({ name: c.name, label: c.label, type: c.type === 'line' ? 'text' : c.type }))], rows: t.rows.map(r => ({ id: r.id, ...Object.fromEntries(t.cols.map((c, i) => [c.name, r.vals[i]])) })) })) };
+                const out = { tables: tables.map(t => ({ table: t.name, title: t.title, relationTypes: (t.card && t.card.relationTypes) || [], links: (t.card && t.card.links) || [], columns: [{ name: 'id', label: 'id', type: 'text' }, ...t.cols.map(c => ({ name: c.name, label: c.label, type: c.type === 'line' ? 'text' : c.type }))], rows: t.rows.map(r => ({ id: r.id, _x: r.x, _y: r.y, ...Object.fromEntries(t.cols.map((c, i) => [c.name, r.vals[i]])) })) })) };
                 dlBlob(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }), base + '.json');
+            } else if (format === 'sql' && opts && opts.mobius) {
+                dlBlob(new Blob([MT.emit(tables, { mobius: true, head: '-- Export Mobius (format Mobius : commandes createLink / newLink, à exécuter dans Mobius)' })], { type: 'application/sql' }), base + '_mobius.sql');
             } else if (format === 'sql') {
                 const ty = { line: 'TEXT', text: 'TEXT', number: 'NUMERIC', bool: 'BOOLEAN', date: 'DATE' };
                 const sql = ['-- Export Mobius : une carte = une table', ...tables.map(t =>
@@ -1333,6 +1341,124 @@
             showToast(`Export ${format.toUpperCase()} terminé (${tables.length} table${tables.length > 1 ? 's' : ''}).`);
         }
 
+
+        // ===== PAGE D'EXPORT TABULATION =====
+        const EX_FORMATS = {
+            xlsx: { label: 'Excel', ext: '.xlsx', icon: 'file-spreadsheet', desc: "Classeur Excel natif : une feuille par carte, une colonne par champ de l'inspecteur, avec les nombres et les cases oui/non gardés comme tels.", use: "Idéal pour trier, filtrer, faire des calculs ou des graphiques dans Excel, LibreOffice ou Google Sheets." },
+            csv:  { label: 'CSV', ext: '.csv', icon: 'file-text', desc: "Texte brut en UTF-8, séparateur « ; », une ligne d'en-tête avec le nom des champs. Un fichier par carte (regroupés dans un .zip s'il y en a plusieurs).", use: "Format universel pour importer dans une base de données, Notion, Airtable, Python/pandas ou n'importe quel tableur." },
+            json: { label: 'JSON', ext: '.json', icon: 'braces', desc: "Fichier structuré : pour chaque carte, la description des colonnes (nom, type) puis les lignes sous forme d'objets typés (nombres, booléens, dates).", use: "Pensé pour les développeurs : API, scripts, applications web, échanges entre logiciels." },
+            sql:  { label: 'SQL', ext: '.sql', icon: 'database', desc: "Script SQL standard : un CREATE TABLE par carte (colonnes typées TEXT, NUMERIC, BOOLEAN, DATE) suivi des INSERT de chaque personne.", use: "À exécuter tel quel dans PostgreSQL, SQLite, MySQL/MariaDB pour recréer vos cartes comme tables dans une vraie base." }
+        };
+        let EX = null;
+
+        async function openExportPage(fmt, scope) {
+            const dd = document.getElementById('download-dropdown'); if (dd) dd.classList.add('hidden');
+            const pm = document.getElementById('proj-export-menu'); if (pm) pm.classList.add('hidden');
+            if (scope === 'project' && projectData && projectData.pwd) {
+                const r = await treeAsk('Mot de passe requis pour exporter :', 'Mot de passe', '', 'password');
+                if (r === null) return;
+                if (r !== projectData.pwd) { showToast('Mot de passe incorrect.'); return; }
+            }
+            const hasProject = !!(projectId && projectData);
+            if (hasProject) updateCardInTree(projectData.tree, currentCard);
+            const tree = hasProject ? projectData.tree : [{ id: currentCard.id, type: 'card', name: currentCard.name }];
+            const cards = new Map();
+            (function walk(list) { (list || []).forEach(it => { if (it.type === 'card') cards.set(it.id, it.id === currentCard.id ? currentCard : it); if (it.children) walk(it.children); }); })(tree);
+            if (!cards.has(currentCard.id)) cards.set(currentCard.id, currentCard);
+            EX = { fmt, tree, hasProject, cards, sel: new Set(scope === 'project' ? [...cards.keys()] : [currentCard.id]), fl: {} };
+            cards.forEach((c, id) => { EX.fl[id] = new Set(cardFields(c).map(f => f.id)); });
+            renderExportPage();
+        }
+
+        function exTreeHtml(items) {
+            return (items || []).map(it => {
+                const nm = escapeHtml(it.id === currentCard.id ? currentCard.name : it.name);
+                if (it.type === 'folder') return `<div><div class="flex items-center gap-1.5 p-2 text-slate-400 font-semibold cursor-not-allowed" title="Dossier (non exportable)"><i data-lucide="folder" class="w-3.5 h-3.5 shrink-0"></i><span class="truncate">${nm}</span></div><div class="pl-3 ml-2 border-l border-slate-100 dark:border-slate-800 space-y-1">${exTreeHtml(it.children)}</div></div>`;
+                if (it.type === 'card') {
+                    const on = EX.sel.has(it.id);
+                    return `<label class="flex items-center gap-2 p-2 rounded-xl cursor-pointer ${on ? 'bg-[#5246EE]/10 text-[#5246EE] font-semibold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}"><input type="checkbox" data-act="card" data-id="${escapeHtml(it.id)}" ${on ? 'checked' : ''} class="w-4 h-4 accent-[#5246EE] shrink-0"><i data-lucide="sticky-note" class="w-3.5 h-3.5 shrink-0 text-indigo-500"></i><span class="truncate flex-1">${nm}</span>${it.id === currentCard.id ? '<span class="text-[9px] bg-indigo-50 dark:bg-indigo-950 text-indigo-500 px-1.5 py-0.5 rounded font-bold">ouverte</span>' : ''}</label>`;
+                }
+                return `<div class="flex items-center gap-1.5 p-2 text-slate-300 dark:text-slate-600 cursor-not-allowed" title="Non exportable en tabulation"><i data-lucide="file-text" class="w-3.5 h-3.5 shrink-0 ml-6"></i><span class="truncate">${nm}</span></div>`;
+            }).join('');
+        }
+
+        function renderExportPage() {
+            if (!EX) return;
+            let ov = document.getElementById('export-page');
+            if (!ov) {
+                ov = document.createElement('div');
+                ov.id = 'export-page';
+                ov.className = 'fixed inset-0 z-[90] bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col text-xs';
+                ov.addEventListener('click', exportPageClick);
+                document.body.appendChild(ov);
+            }
+            const sc = [...ov.querySelectorAll('[data-sc]')].map(e => e.scrollTop);
+            const F = EX_FORMATS[EX.fmt];
+            const selIds = [...EX.cards.keys()].filter(id => EX.sel.has(id));
+            const tabs = Object.entries(EX_FORMATS).map(([k, f]) => `<button data-act="fmt" data-fmt="${k}" class="px-4 py-2 rounded-xl font-semibold flex items-center gap-2 transition ${k === EX.fmt ? 'bg-[#5246EE] text-white shadow' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}"><i data-lucide="${f.icon}" class="w-4 h-4"></i>${f.label}</button>`).join('');
+            const fields = selIds.length ? selIds.map(id => {
+                const c = EX.cards.get(id), set = EX.fl[id];
+                return `<div class="rounded-2xl border border-slate-200 dark:border-slate-800 p-3 space-y-2">
+                    <div class="flex items-center justify-between gap-2"><div class="font-bold truncate">${escapeHtml(id === currentCard.id ? currentCard.name : c.name)} <span class="font-normal text-slate-400">· ${set.size}/${cardFields(c).length} champs</span></div>
+                    <div class="flex gap-3 text-[10px] shrink-0"><button data-act="fall" data-id="${escapeHtml(id)}" class="text-[#5246EE] hover:underline">Tout</button><button data-act="fnone" data-id="${escapeHtml(id)}" class="text-slate-400 hover:underline">Aucun</button></div></div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5">${cardFields(c).map(f => `<label class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 cursor-pointer"><input type="checkbox" data-act="field" data-id="${escapeHtml(id)}" data-fid="${f.id}" ${set.has(f.id) ? 'checked' : ''} class="w-4 h-4 accent-[#5246EE] shrink-0"><span class="truncate">${escapeHtml(f.label)}</span><span class="text-[9px] text-slate-400 ml-auto shrink-0">${FIELD_TYPES[f.type]}</span></label>`).join('') || '<span class="text-slate-400">Cette carte n\'a plus aucun champ (seule la colonne id sera exportée).</span>'}</div></div>`;
+            }).join('') : '<div class="text-center text-slate-400 py-10">Coche au moins une carte à gauche.</div>';
+            const nRows = selIds.reduce((n, id) => n + (EX.cards.get(id).nodes || []).length, 0);
+            ov.innerHTML = `
+                <div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-200 dark:border-slate-800">
+                    <div class="flex items-center gap-2 font-bold text-sm"><i data-lucide="table" class="w-4 h-4 text-emerald-500"></i> Exporter en tabulation</div>
+                    <button data-act="close" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-slate-800"><i data-lucide="x" class="w-4 h-4 pointer-events-none"></i></button>
+                </div>
+                <div class="px-5 pt-4 flex flex-wrap gap-2">${tabs}</div>
+                <div class="flex-1 min-h-0 flex flex-col md:flex-row gap-4 p-5">
+                    <aside class="md:w-72 shrink-0 max-h-48 md:max-h-none flex flex-col rounded-2xl border border-slate-200 dark:border-slate-800 min-h-0">
+                        <div class="flex items-center justify-between px-3 py-2.5 border-b border-slate-100 dark:border-slate-800"><span class="font-bold uppercase tracking-wider text-[10px] text-slate-500">${EX.hasProject ? 'Cartes du projet' : 'Carte'}</span>${EX.hasProject ? '<span class="flex gap-3 text-[10px]"><button data-act="cards-all" class="text-[#5246EE] hover:underline">Tout</button><button data-act="cards-none" class="text-slate-400 hover:underline">Aucune</button></span>' : ''}</div>
+                        <div data-sc class="flex-1 overflow-y-auto p-2 space-y-1">${exTreeHtml(EX.tree)}</div>
+                    </aside>
+                    <section data-sc class="flex-1 min-w-0 overflow-y-auto space-y-4">
+                        <div class="rounded-2xl bg-slate-50 dark:bg-slate-900 p-4 space-y-1.5">
+                            <div class="font-bold text-sm flex items-center gap-2"><i data-lucide="${F.icon}" class="w-4 h-4 text-[#5246EE]"></i> ${F.label} <span class="text-slate-400 font-normal">${F.ext}</span></div>
+                            <p class="text-slate-600 dark:text-slate-300">${F.desc}</p>
+                            <p class="text-slate-500"><span class="font-semibold">Utilité :</span> ${F.use}</p>
+                            ${EX.fmt === 'sql' ? `<label class="flex items-start gap-2 pt-2 cursor-pointer"><input type="checkbox" data-act="mobius" ${EX.mobius ? 'checked' : ''} class="w-4 h-4 mt-0.5 accent-[#5246EE] shrink-0"><span><span class="font-semibold">SQL format Mobius</span> : ajoute les commandes createLink / newLink (types de la légende, liens, noms) et la position des personnes. Fichier <code>nom_mobius.sql</code>, à exécuter dans Mobius (la console SQL de la carte).</span></label>` : ''}
+                        </div>
+                        <div class="font-bold uppercase tracking-wider text-[10px] text-slate-500">Champs à enregistrer</div>
+                        ${fields}
+                    </section>
+                </div>
+                <div class="px-5 py-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+                    <span class="text-slate-400">${selIds.length} carte${selIds.length > 1 ? 's' : ''} · ${nRows} ligne${nRows > 1 ? 's' : ''}</span>
+                    <button data-act="go" ${selIds.length ? '' : 'disabled'} class="px-5 py-2.5 rounded-xl bg-[#5246EE] hover:bg-[#4538d8] disabled:opacity-40 text-white font-semibold flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> Télécharger ${F.ext}</button>
+                </div>`;
+            [...ov.querySelectorAll('[data-sc]')].forEach((e, i) => { if (sc[i]) e.scrollTop = sc[i]; });
+            lucide.createIcons();
+        }
+
+        function closeExportPage() { const ov = document.getElementById('export-page'); if (ov) ov.remove(); EX = null; }
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && EX && !document.querySelector('.fixed.z-\\[100\\]')) closeExportPage(); });
+
+        function exportPageClick(e) {
+            const t = e.target.closest('[data-act]'); if (!t || !EX) return;
+            const a = t.dataset.act, id = t.dataset.id;
+            if (a === 'close') { closeExportPage(); return; }
+            if (a === 'go') { exportFromPage(); return; }
+            if (a === 'fmt') EX.fmt = t.dataset.fmt;
+            else if (a === 'mobius') EX.mobius = t.checked;
+            else if (a === 'card') { if (t.checked) EX.sel.add(id); else EX.sel.delete(id); }
+            else if (a === 'cards-all') EX.sel = new Set(EX.cards.keys());
+            else if (a === 'cards-none') EX.sel = new Set();
+            else if (a === 'field') { if (t.checked) EX.fl[id].add(t.dataset.fid); else EX.fl[id].delete(t.dataset.fid); }
+            else if (a === 'fall') EX.fl[id] = new Set(cardFields(EX.cards.get(id)).map(f => f.id));
+            else if (a === 'fnone') EX.fl[id] = new Set();
+            renderExportPage();
+        }
+        async function exportFromPage() {
+            const entries = [...EX.cards.keys()].filter(id => EX.sel.has(id)).map(id => ({ card: EX.cards.get(id), fieldIds: EX.fl[id] }));
+            if (!entries.length) return;
+            await exportTable(EX.fmt, entries, { mobius: !!EX.mobius });
+        }
+
+        document.addEventListener('click', e => { const m = document.getElementById('proj-export-menu'); if (m && !e.target.closest('#proj-export-menu')) m.classList.add('hidden'); });
         window.toggleExportSub = function(btn, ev) { ev.stopPropagation(); btn.closest('.exp-sub').classList.toggle('open'); };
 
         async function exportMap(format) {
@@ -1357,7 +1483,7 @@
                 img.onerror = () => showToast("Échec de l'export PNG.");
                 img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(r.svg);
             } else {
-                await exportTable(format);
+                await openExportPage(format, 'card');
             }
         }
 
@@ -3046,8 +3172,8 @@ container.addEventListener('touchstart', (e) => {
         /* ---------- Import (mêmes formats / conversions que le dashboard) ---------- */
         async function treeImport(files, dest) {
             if (!requireEdit()) return;
-            const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx|mobtext|mobscen)$/i.test(f.name));
-            if (accepted.length < files.length) showToast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx, .mobius, .mobtext et .mobscen.');
+            const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx|mobtext|mobscen|sql|csv|xlsx|xls)$/i.test(f.name));
+            if (accepted.length < files.length) showToast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx, .mobius, .mobtext, .mobscen, .sql, .csv et .xlsx.');
             let t = dest, added = 0;
             const put = (item) => {
                 treeInsert(item, t); added++;
@@ -3055,6 +3181,12 @@ container.addEventListener('touchstart', (e) => {
             };
             for (const file of accepted) {
                 try {
+                    if (/\.(sql|csv|xlsx|xls)$/i.test(file.name) || (/\.json$/i.test(file.name) && await MT.isTabularJson(file))) {
+                        const cs = await MT.fileToCards(file);
+                        cs.forEach(c => put(c));
+                        showToast(`« ${file.name} » : ${cs.length} carte${cs.length > 1 ? 's' : ''} créée${cs.length > 1 ? 's' : ''}.`);
+                        continue;
+                    }
                     if (/\.(mobtext|mobscen)$/i.test(file.name)) {
                         const d = JSON.parse(await file.text());
                         if (!d || typeof d !== 'object') { showToast(`« ${file.name} » n'est pas un fichier Mobius valide.`); continue; }
@@ -3266,6 +3398,444 @@ container.addEventListener('touchstart', (e) => {
                 if (id) treeMoveTo(id, t.id ? { id: t.id, pos: t.pos } : { id: null });
             });
         }
+
+        /* ===== MOBIUS-TABULAR:START (bloc autonome : console SQL Mobius, imports sql/csv/xlsx/json) ===== */
+        const MT = (() => {
+            const CL = { "'": "'", '"': '"', '«': '»', '“': '”', '‘': '’' };
+            const PAL = ['#5246EE', '#ef4444', '#10b981', '#f59e0b', '#3b82f6', '#ec4899', '#14b8a6', '#8b5cf6'];
+            const ALIAS = { prenom: 'firstname', first_name: 'firstname', nom: 'lastname', last_name: 'lastname', surnom: 'nickname', date_de_naissance: 'birthdate', lieu_de_residence: 'location' };
+            const idn = s => sqlIdent(s, 'x');
+            const pretty = s => /[A-Z\s]|[^\x00-\x7f]/.test(s) ? String(s) : String(s).replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
+            const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+            const qi = s => '"' + String(s).replace(/"/g, '""') + '"';
+            const qs = s => '"' + String(s).replace(/"/g, "'") + '"';
+            const lit = v => v == null ? 'NULL' : typeof v === 'boolean' ? (v ? 'TRUE' : 'FALSE') : typeof v === 'number' ? (isFinite(v) ? String(v) : 'NULL') : "'" + String(v).replace(/'/g, "''") + "'";
+            const sy = (t, v) => !!t && t.t === 'sym' && t.v === v;
+            const tmap = t => /int|num|dec|float|real|doub/i.test(t) ? 'number' : /bool/i.test(t) ? 'bool' : /date|time/i.test(t) ? 'date' : 'line';
+            const isCmd = c => c.length > 1 && c[0].t === 'w' && /^(createlink|newlink)$/i.test(c[0].v) && sy(c[1], ':');
+
+            // ---------- analyse ----------
+            function tok(src) {
+                const T = [], n = src.length; let i = 0, ln = 1;
+                while (i < n) {
+                    const c = src[i];
+                    if (c === '\n') { ln++; i++; continue; }
+                    if (/\s/.test(c)) { i++; continue; }
+                    if (c === '-' && src[i + 1] === '-') {
+                        let j = i; while (j < n && src[j] !== '\n') j++;
+                        const m = src.slice(i, j).match(/^--\s*@card\s+(.+?)\s*$/);
+                        if (m) T.push({ t: 'meta', v: m[1].replace(/^["«“'](.*)["»”']$/, '$1'), ln });
+                        i = j; continue;
+                    }
+                    if (c === '/' && src[i + 1] === '*') { const e = src.indexOf('*/', i + 2), j = e < 0 ? n : e + 2; ln += (src.slice(i, j).match(/\n/g) || []).length; i = j; continue; }
+                    if (CL[c]) {
+                        const cl = CL[c], l0 = ln; let j = i + 1, s = '';
+                        for (;;) {
+                            if (j >= n) throw Error(`Ligne ${l0} : guillemet non fermé`);
+                            const d = src[j];
+                            if (d === cl) { if (cl === c && src[j + 1] === c) { s += c; j += 2; continue; } break; }
+                            if (d === '\n') ln++;
+                            s += d; j++;
+                        }
+                        T.push({ t: c === '"' ? 'qid' : 'str', v: s, ln: l0 }); i = j + 1; continue;
+                    }
+                    const m2 = src.substr(i, 2);
+                    if (m2 === '<=' || m2 === '>=' || m2 === '<>' || m2 === '!=') { T.push({ t: 'sym', v: m2, ln }); i += 2; continue; }
+                    if ('(),;:=<>*'.includes(c)) { T.push({ t: 'sym', v: c, ln }); i++; continue; }
+                    let j = i; while (j < n && !/[\s(),;:=<>*'"«»“”‘’]/.test(src[j])) j++;
+                    if (j === i) j++;
+                    T.push({ t: 'w', v: src.slice(i, j), ln }); i = j;
+                }
+                return T;
+            }
+            // une instruction se termine par « ; » ; une commande createLink / newLink peut aussi se terminer à la fin de la ligne
+            function split(T) {
+                const S = []; let cur = [];
+                const flush = () => { if (cur.length) S.push(cur); cur = []; };
+                for (const t of T) {
+                    if (t.t === 'meta') { flush(); S.push([t]); continue; }
+                    if (sy(t, ';')) { flush(); continue; }
+                    if (isCmd(cur)) { const p = cur[cur.length - 1]; if (t.ln > p.ln && !sy(p, ',')) flush(); }
+                    cur.push(t);
+                }
+                flush(); return S;
+            }
+
+            // ---------- exécution (sur une copie : tout ou rien) ----------
+            function run(S, base) {
+                const cp = x => JSON.parse(JSON.stringify(x));
+                const D = { nodes: cp(base.nodes || []), links: cp(base.links || []), relationTypes: cp(base.relationTypes || []), fields: cp(Array.isArray(base.fields) ? base.fields : DEFAULT_FIELDS()) };
+                const log = [], results = [], types = {}; let ins = 0, upd = 0, del = 0, lk = 0, changed = false;
+                const val = t => { if (!t) throw Error('valeur manquante'); if (t.t !== 'w') return t.v; const u = t.v.toUpperCase(); if (u === 'NULL') return null; if (u === 'TRUE') return true; if (u === 'FALSE') return false; return /^-?\d+(\.\d+)?$/.test(t.v) ? Number(t.v) : t.v; };
+                const findF = c => { const k = idn(c); return D.fields.find(f => idn(f.label) === k || f.key === k) || D.fields.find(f => f.key && f.key === ALIAS[k]); };
+                const getF = (c, type) => findF(c) || (() => { const f = { id: uid('f_'), label: pretty(c), type: type || 'line' }; D.fields.push(f); return f; })();
+                const setV = (n, f, v) => {
+                    if (v !== null && v !== '') {
+                        if (f.type === 'number') { v = Number(v); if (!isFinite(v)) throw Error(`« ${f.label} » attend un nombre`); }
+                        else if (f.type === 'bool') v = v === true || /^(true|1|oui|vrai)$/i.test(String(v));
+                        else v = String(v);
+                    }
+                    if (f.key) { n[f.key] = v == null ? '' : v; if (f.key === 'birthdate') n.age = computeAge(n.birthdate || ''); }
+                    else (n.custom ||= {})[f.id] = v;
+                };
+                const getV = (n, c) => { const u = c.toLowerCase(); if (u === 'id') return n.id; if (u === '_x') return n.x; if (u === '_y') return n.y; const f = findF(c); if (!f) throw Error(`colonne « ${c} » inconnue`); return fieldVal(n, f); };
+                const ref = r => {
+                    let n = D.nodes.find(x => x.id === r); if (n) return n;
+                    const k = String(r).toLowerCase().trim(), m = D.nodes.filter(x => `${x.firstname || ''} ${x.lastname || ''}`.trim().toLowerCase() === k);
+                    if (m.length === 1) return m[0];
+                    throw Error(m.length ? `« ${r} » est ambigu (${m.length} personnes) : utilise l'id` : `personne « ${r} » introuvable`);
+                };
+                const place = n => {
+                    if (isFinite(n.x) && isFinite(n.y)) return;
+                    for (let i = D.nodes.length; ; i++) { const x = 60 + (i % 6) * 200, y = 60 + Math.floor(i / 6) * 150; if (!D.nodes.some(o => Math.abs(o.x - x) < 180 && Math.abs(o.y - y) < 120)) { n.x = x; n.y = y; return; } }
+                };
+                const cmp = (a, op, b) => {
+                    if (op === 'LIKE') return new RegExp('^' + String(b).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.') + '$', 'i').test(String(a ?? ''));
+                    const na = Number(a), nb = Number(b), num = a !== null && a !== '' && b !== null && isFinite(na) && isFinite(nb);
+                    const x = num ? na : String(a ?? '').toLowerCase(), y = num ? nb : String(b ?? '').toLowerCase();
+                    switch (op) { case '=': return x === y; case '!=': case '<>': return x !== y; case '<': return x < y; case '>': return x > y; case '<=': return x <= y; case '>=': return x >= y; }
+                    throw Error(`opérateur « ${op} » non géré`);
+                };
+                const where = (tk, i) => {
+                    const ors = [[]];
+                    while (tk[i] && !/^(order|limit)$/i.test(tk[i].v)) {
+                        const col = tk[i++].v; let op = tk[i] && tk[i].v.toUpperCase(), neg = false, f;
+                        if (op === 'IS') { i++; if (tk[i] && /^not$/i.test(tk[i].v)) { neg = true; i++; } i++; f = n => { const v = getV(n, col); return (v == null || v === '') !== neg; }; }
+                        else { if (op === 'NOT') { neg = true; i++; op = tk[i].v.toUpperCase(); } i++; const v = val(tk[i++]); f = n => cmp(getV(n, col), op, v) !== neg; }
+                        ors[ors.length - 1].push(f);
+                        const nx = tk[i];
+                        if (nx && /^and$/i.test(nx.v)) i++; else if (nx && /^or$/i.test(nx.v)) { i++; ors.push([]); } else break;
+                    }
+                    return [n => ors.some(a => a.every(f => f(n))), i];
+                };
+                const link = (rel, a, b) => {
+                    const A = ref(a), B = ref(b);
+                    if (A === B) throw Error('une personne ne peut pas être reliée à elle-même');
+                    if (D.links.some(l => (l.sourceId === A.id && l.targetId === B.id) || (l.sourceId === B.id && l.targetId === A.id))) { log.push({ k: 'warn', m: `Lien déjà existant entre « ${a} » et « ${b} » : ignoré` }); return; }
+                    D.links.push({ id: uid('link-'), sourceId: A.id, targetId: B.id, relationTypeId: rel ? rel.id : '' }); lk++; changed = true;
+                };
+                // createLink: type, name: "Nom", color: "#hex" [, from x to y ...]   |   newLink: type, from x to y, from x to z ...
+                const cmd = st => {
+                    const kind = st[0].v.toLowerCase(), tt = st[2];
+                    if (!tt || tt.t === 'sym') throw Error('type de lien manquant après « : »');
+                    const key = tt.v; let i = 3, name = null, color = null; const pairs = [];
+                    while (i < st.length) {
+                        const t = st[i], w = t.v.toLowerCase();
+                        if (sy(t, ',')) { i++; continue; }
+                        if (t.t === 'w' && w === 'from') { const a = st[i + 1], to = st[i + 2], b = st[i + 3]; if (!a || !b || !to || to.v.toLowerCase() !== 'to') throw Error('syntaxe attendue : from X to Y'); pairs.push([a.v, b.v]); i += 4; continue; }
+                        if (t.t === 'w' && (w === 'name' || w === 'color') && (sy(st[i + 1], ':') || sy(st[i + 1], '='))) { const v = st[i + 2]; if (!v) throw Error(`valeur manquante après ${w}`); if (w === 'name') name = v.v; else color = v.v; i += 3; continue; }
+                        throw Error(`élément inattendu « ${t.v} »`);
+                    }
+                    const k = key.toLowerCase();
+                    let rel = types[k] || D.relationTypes.find(r => r.id === key || idn(r.name) === idn(key) || r.name.toLowerCase() === k);
+                    if (!rel && !(kind === 'createlink' || name || color) && !/^(none|aucun)$/i.test(key)) throw Error(`type de lien « ${key} » inconnu : crée-le d'abord avec createLink`);
+                    if (kind === 'createlink' || name || color) {
+                        if (rel) { if (name) rel.name = name; if (color) rel.color = color; log.push({ k: 'ok', m: `Type de lien « ${rel.name} » mis à jour` }); }
+                        else { rel = { id: uid('rel-'), name: name || pretty(key), color: color || PAL[D.relationTypes.length % PAL.length] }; D.relationTypes.push(rel); log.push({ k: 'ok', m: `Type de lien « ${rel.name} » ajouté à la légende` }); }
+                        changed = true;
+                    }
+                    if (rel) types[k] = rel;
+                    pairs.forEach(([a, b]) => link(rel, a, b));
+                };
+                const exec = st => {
+                    if (st[0].t === 'meta') return;
+                    if (isCmd(st)) return cmd(st);
+                    const w0 = st[0].v.toUpperCase(); let i = 1;
+                    if (w0 === 'CREATE') {
+                        if (/^table$/i.test(st[i].v)) i++;
+                        if (/^if$/i.test(st[i].v)) i += 3;
+                        i++;
+                        if (!sy(st[i], '(')) throw Error('« ( » attendue après le nom de la table');
+                        i++; let n = 0;
+                        while (i < st.length) {
+                            const nm = st[i++]; if (sy(nm, ')')) break;
+                            let depth = 0, ty = '';
+                            while (i < st.length && !(depth === 0 && (sy(st[i], ',') || sy(st[i], ')')))) { if (sy(st[i], '(')) depth++; if (sy(st[i], ')')) depth--; ty += ' ' + st[i].v; i++; }
+                            if (sy(st[i], ',')) i++;
+                            const u = nm.v.toLowerCase();
+                            if (u === 'id' || u === '_x' || u === '_y' || /^(primary|foreign|unique|constraint|check)$/.test(u)) continue;
+                            getF(nm.v, tmap(ty)); n++;
+                        }
+                        log.push({ k: 'ok', m: `Table : ${n} colonne(s) prises en compte` }); changed = true; return;
+                    }
+                    if (w0 === 'INSERT') {
+                        if (/^into$/i.test(st[i].v)) i++;
+                        i++; let cols;
+                        if (sy(st[i], '(')) { cols = []; i++; while (!sy(st[i], ')')) { if (!sy(st[i], ',')) cols.push(st[i].v); i++; } i++; }
+                        else cols = ['id', ...D.fields.map(f => f.label)];
+                        if (!/^values$/i.test(st[i].v)) throw Error('VALUES attendu');
+                        i++;
+                        while (sy(st[i], '(')) {
+                            i++; const vs = [];
+                            while (!sy(st[i], ')')) { if (!sy(st[i], ',')) vs.push(val(st[i])); i++; }
+                            i++;
+                            if (vs.length !== cols.length) throw Error(`${cols.length} colonnes mais ${vs.length} valeurs`);
+                            const nd = {}; let id = null;
+                            cols.forEach((c, k) => { const u = c.toLowerCase(); if (u === 'id') id = vs[k]; else if (u === '_x') nd.x = Number(vs[k]); else if (u === '_y') nd.y = Number(vs[k]); });
+                            nd.id = id != null && id !== '' ? String(id) : uid('node-');
+                            if (D.nodes.some(x => x.id === nd.id)) throw Error(`id « ${nd.id} » déjà utilisé`);
+                            cols.forEach((c, k) => { const u = c.toLowerCase(); if (u !== 'id' && u !== '_x' && u !== '_y') setV(nd, getF(c), vs[k]); });
+                            place(nd); D.nodes.push(nd); ins++; changed = true;
+                            if (sy(st[i], ',')) i++;
+                        }
+                        return;
+                    }
+                    if (w0 === 'UPDATE') {
+                        i = 2; if (!/^set$/i.test(st[i].v)) throw Error('SET attendu');
+                        i++; const sets = [];
+                        for (;;) { const c = st[i++].v; i++; sets.push([c, val(st[i++])]); if (sy(st[i], ',')) i++; else break; }
+                        let f = () => true; if (st[i] && /^where$/i.test(st[i].v)) [f, i] = where(st, i + 1);
+                        const hit = D.nodes.filter(f);
+                        hit.forEach(n => sets.forEach(([c, v]) => { const u = c.toLowerCase(); if (u === '_x') n.x = Number(v); else if (u === '_y') n.y = Number(v); else if (u === 'id') throw Error("l'id ne peut pas être modifié"); else setV(n, getF(c), v); }));
+                        upd += hit.length; changed = true; return;
+                    }
+                    if (w0 === 'DELETE') {
+                        if (/^from$/i.test(st[i].v)) i++;
+                        i++; let f = () => true; if (st[i] && /^where$/i.test(st[i].v)) [f, i] = where(st, i + 1);
+                        const ids = new Set(D.nodes.filter(f).map(n => n.id));
+                        D.nodes = D.nodes.filter(n => !ids.has(n.id)); D.links = D.links.filter(l => !ids.has(l.sourceId) && !ids.has(l.targetId));
+                        del += ids.size; changed = true; return;
+                    }
+                    if (w0 === 'SELECT') {
+                        const cols = [];
+                        while (!/^from$/i.test(st[i].v)) { if (!sy(st[i], ',')) cols.push(st[i].v); i++; }
+                        i += 2; let f = () => true; if (st[i] && /^where$/i.test(st[i].v)) [f, i] = where(st, i + 1);
+                        let ord = null, desc = false, lim = Infinity;
+                        while (st[i]) {
+                            const u = st[i].v.toUpperCase();
+                            if (u === 'ORDER') { i += 2; ord = st[i++].v; if (st[i] && /^(asc|desc)$/i.test(st[i].v)) desc = st[i++].v.toUpperCase() === 'DESC'; }
+                            else if (u === 'LIMIT') { lim = Number(st[i + 1].v); i += 2; }
+                            else throw Error(`« ${st[i].v} » inattendu`);
+                        }
+                        const cs = cols[0] === '*' ? ['id', ...D.fields.map(x => x.label)] : cols;
+                        let rs = D.nodes.filter(f);
+                        if (ord) rs = rs.slice().sort((a, b) => { const x = getV(a, ord), y = getV(b, ord); return (x > y ? 1 : x < y ? -1 : 0) * (desc ? -1 : 1); });
+                        rs = rs.slice(0, lim);
+                        results.push({ cols: cs, rows: rs.map(n => cs.map(c => getV(n, c))) });
+                        log.push({ k: 'ok', m: `SELECT : ${rs.length} ligne(s)` }); return;
+                    }
+                    throw Error(`instruction non reconnue : ${st[0].v}`);
+                };
+                S.forEach(st => { try { exec(st); } catch (e) { throw Error(`Ligne ${st[0].ln} : ${e instanceof TypeError ? 'syntaxe invalide' : e.message}`); } });
+                if (ins) log.push({ k: 'ok', m: `${ins} personne(s) ajoutée(s)` });
+                if (upd) log.push({ k: 'ok', m: `${upd} personne(s) modifiée(s)` });
+                if (del) log.push({ k: 'ok', m: `${del} personne(s) supprimée(s)` });
+                if (lk) log.push({ k: 'ok', m: `${lk} lien(s) créé(s)` });
+                return { D, log, results, changed };
+            }
+
+            // un script (une ou plusieurs tables) -> une carte par CREATE TABLE
+            function toCards(src, fname) {
+                const segs = []; let cur = null, title = null;
+                split(tok(src)).forEach(st => {
+                    if (st[0].t === 'meta') { title = st[0].v; return; }
+                    if (st[0].t === 'w' && /^create$/i.test(st[0].v)) {
+                        let j = st.findIndex(t => t.t === 'w' && /^table$/i.test(t.v)) + 1;
+                        if (st[j] && /^if$/i.test(st[j].v)) j += 3;
+                        cur = { title, tn: st[j] ? st[j].v : '', st: [] }; segs.push(cur); title = null;
+                    } else if (!cur) { cur = { title, tn: '', st: [] }; segs.push(cur); }
+                    cur.st.push(st);
+                });
+                const base = String(fname || 'Carte importée').replace(/\.[^.]+$/, '');
+                return segs.map(s => {
+                    const r = run(s.st, {});
+                    return { id: 'item_' + Date.now() + Math.random().toString(36).slice(2, 7), name: s.title || (segs.length === 1 ? base : pretty(s.tn)), type: 'card', links: r.D.links, nodes: r.D.nodes, content: '', relationTypes: r.D.relationTypes, fields: r.D.fields };
+                });
+            }
+
+            // ---------- tables -> SQL (format Mobius : labels exacts, positions, légende et liens) ----------
+            function emit(tables, o = {}) {
+                const ty = { line: 'TEXT', text: 'TEXT', number: 'NUMERIC', bool: 'BOOLEAN', date: 'DATE' };
+                const out = [o.head || '-- Mobius'];
+                tables.forEach(t => {
+                    const cn = c => qi(o.mobius ? c.label : c.name), xy = o.mobius && t.rows.some(r => typeof r.x === 'number');
+                    const hasId = t.rows.some(r => r.id !== undefined);
+                    const cd = [...(hasId ? ['  "id" TEXT PRIMARY KEY'] : []), ...t.cols.map(c => `  ${cn(c)} ${ty[c.type] || 'TEXT'}`), ...(xy ? ['  "_x" NUMERIC', '  "_y" NUMERIC'] : [])];
+                    const names = [...(hasId ? ['"id"'] : []), ...t.cols.map(cn), ...(xy ? ['"_x"', '"_y"'] : [])].join(', ');
+                    if (o.mobius) out.push(`\n-- @card ${qs(t.title || t.name)}`);
+                    out.push(`\nCREATE TABLE ${qi(t.name)} (\n${cd.join(',\n')}\n);`);
+                    t.rows.forEach(r => out.push(`INSERT INTO ${qi(t.name)} (${names}) VALUES (${[...(hasId ? [lit(r.id)] : []), ...r.vals.map(lit), ...(xy ? [lit(r.x), lit(r.y)] : [])].join(', ')});`));
+                    const rels = t.rels || (t.card && t.card.relationTypes) || [], lks = t.links || (t.card && t.card.links) || [];
+                    if (o.mobius && (rels.length || lks.length)) {
+                        const key = {}, used = new Set(), g = {}; out.push('');
+                        rels.forEach(r => { let k = idn(r.name) || 'lien'; while (used.has(k)) k += '_'; used.add(k); key[r.id] = k; out.push(`createLink: ${k}, name: ${qs(r.name)}, color: ${qs(r.color || '#5246EE')};`); });
+                        lks.forEach(l => (g[key[l.relationTypeId] || 'none'] ||= []).push(`from ${lit(l.sourceId)} to ${lit(l.targetId)}`));
+                        Object.entries(g).forEach(([k, a]) => out.push(`newLink: ${k}, ${a.join(', ')};`));
+                    }
+                });
+                return out.join('\n') + '\n';
+            }
+
+            // ---------- fichiers csv / xlsx / json -> tables ----------
+            const csvParse = (t, sep) => {
+                const R = []; let r = [], c = '', q = false;
+                for (let i = 0; i < t.length; i++) {
+                    const ch = t[i];
+                    if (q) { if (ch === '"') { if (t[i + 1] === '"') { c += '"'; i++; } else q = false; } else c += ch; }
+                    else if (ch === '"') q = true;
+                    else if (ch === sep) { r.push(c); c = ''; }
+                    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && t[i + 1] === '\n') i++; r.push(c); c = ''; R.push(r); r = []; }
+                    else c += ch;
+                }
+                if (c !== '' || r.length) { r.push(c); R.push(r); }
+                return R.filter(x => x.some(v => String(v).trim() !== ''));
+            };
+            function aoaTable(aoa, name) {
+                if (!aoa || !aoa.length) return null;
+                const H = aoa[0].map(h => String(h == null ? '' : h).trim()), idI = H.findIndex(h => h.toLowerCase() === 'id');
+                const idx = H.map((h, k) => k).filter(k => H[k] && k !== idI);
+                const cast = v => v instanceof Date ? v.toISOString().slice(0, 10) : (v === '' || v === undefined ? null : v);
+                const rows = aoa.slice(1).map(r => ({ id: idI >= 0 && r[idI] != null && r[idI] !== '' ? String(r[idI]) : undefined, raw: idx.map(k => cast(r[k])) }));
+                const cols = idx.map((k, j) => {
+                    const vs = rows.map(r => r.raw[j]).filter(v => v !== null); let type = 'line';
+                    if (vs.length) {
+                        if (vs.every(v => typeof v === 'number' || (typeof v === 'string' && v.trim() !== '' && isFinite(Number(v.replace(',', '.'))) && !/^0\d/.test(v.trim())))) type = 'number';
+                        else if (vs.every(v => typeof v === 'boolean' || /^(true|false|vrai|faux)$/i.test(String(v)))) type = 'bool';
+                        else if (vs.every(v => /^\d{4}-\d{2}-\d{2}$/.test(String(v)))) type = 'date';
+                    }
+                    return { name: idn(H[k]), label: H[k], type };
+                });
+                rows.forEach(r => { r.vals = r.raw.map((v, j) => v === null ? null : cols[j].type === 'number' ? Number(String(v).replace(',', '.')) : cols[j].type === 'bool' ? (v === true || /^(true|vrai)$/i.test(String(v))) : String(v)); });
+                return { name: idn(name), title: name, cols, rows };
+            }
+            function jsonTables(d, base) {
+                if (d && Array.isArray(d.tables)) return d.tables.map(t => {
+                    const cols = (t.columns || []).filter(c => c.name !== 'id').map(c => ({ name: c.name, label: c.label || c.name, type: c.type === 'text' ? 'line' : (c.type || 'line') }));
+                    return { name: t.table || idn(t.title || base), title: t.title || t.table || base, cols, rows: (t.rows || []).map(r => ({ id: r.id, x: r._x, y: r._y, vals: cols.map(c => r[c.name] ?? null) })), rels: t.relationTypes, links: t.links };
+                });
+                if (d && Array.isArray(d.nodes) && Array.isArray(d.links)) return buildTables([{ card: { ...d, name: d.name || base }, fieldIds: null }]);
+                if (!Array.isArray(d) || !d.length || typeof d[0] !== 'object') throw Error("JSON non reconnu (attendu : tables Mobius, carte ou tableau d'objets)");
+                const keys = [...new Set(d.flatMap(o => Object.keys(o)))];
+                return [aoaTable([keys, ...d.map(o => keys.map(k => o[k] == null ? null : typeof o[k] === 'object' ? JSON.stringify(o[k]) : o[k]))], base)];
+            }
+            async function fileTables(file) {
+                const ext = ((file.name.match(/\.([^.]+)$/) || [])[1] || '').toLowerCase(), base = file.name.replace(/\.[^.]+$/, '');
+                if (ext === 'csv') {
+                    const t = (await file.text()).replace(/^\ufeff/, ''), l = t.split(/\r?\n/)[0] || '';
+                    const sep = [';', '\t', ','].map(s => [s, l.split(s).length]).sort((a, b) => b[1] - a[1])[0][0];
+                    const tb = aoaTable(csvParse(t, sep), base); if (!tb) throw Error('fichier vide'); return [tb];
+                }
+                if (ext === 'xlsx' || ext === 'xls') {
+                    if (typeof XLSX === 'undefined') throw Error('bibliothèque Excel non chargée');
+                    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+                    const out = wb.SheetNames.map(n => aoaTable(XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null }), wb.SheetNames.length > 1 ? n : base)).filter(Boolean);
+                    if (!out.length) throw Error('classeur vide'); return out;
+                }
+                if (ext === 'json' || ext === 'mobius') return jsonTables(JSON.parse((await file.text()).replace(/^\ufeff/, '')), base);
+                throw Error('format non géré');
+            }
+            async function isTabularJson(file) {
+                try { const d = JSON.parse(await file.text()); return !(d && Array.isArray(d.nodes) && Array.isArray(d.links)) && (Array.isArray(d.tables) || (Array.isArray(d) && d.length > 0 && typeof d[0] === 'object')); } catch (e) { return false; }
+            }
+            async function fileToCards(file) {
+                if (/\.sql$/i.test(file.name)) return toCards(await file.text(), file.name);
+                return toCards(emit(await fileTables(file), { mobius: true }), file.name);
+            }
+
+            // ---------- interface : console SQL ----------
+            const EXAMPLE = `-- Une personne = une ligne, un champ de l'inspecteur = une colonne
+CREATE TABLE equipe (id TEXT PRIMARY KEY, "Prénom" TEXT, "Nom" TEXT, "Poste" TEXT);
+INSERT INTO equipe (id, "Prénom", "Nom", "Poste") VALUES
+  ('a', 'Alice', 'Martin', 'Cheffe de projet'),
+  ('b', 'Bruno', 'Durand', 'Développeur'),
+  ('c', 'Chloé', 'Petit', 'Designer');
+
+-- Légende puis liens
+createLink: collegue, name: "Collègue", color: "#5246EE";
+createLink: ami, name: "Ami";
+newLink: collegue, from a to b, from a to c;
+newLink: ami, from b to c;
+`;
+            const HELP = `<p><b>SQL</b> : CREATE TABLE, INSERT INTO, UPDATE … SET … WHERE, DELETE FROM … WHERE, SELECT … WHERE / ORDER BY / LIMIT. Une colonne = un champ de l'inspecteur (créé s'il n'existe pas), une ligne = une personne. Colonnes spéciales : <code>id</code>, <code>_x</code>, <code>_y</code> (position, sinon placement automatique).</p>
+<p class="mt-2"><b>createLink: type, name: "Nom", color: "#hex"</b> crée un type dans la légende (nom et couleur facultatifs, on peut ajouter des <code>from x to y</code>).</p>
+<p class="mt-2"><b>newLink: type, from x to y, from x to z</b> crée un ou plusieurs liens du même type entre des personnes différentes. x et y sont des id ou des « Prénom Nom ». Type <code>none</code> : lien sans type.</p>
+<p class="mt-2">Les instructions finissent par « ; » (ou à la fin de la ligne pour createLink / newLink). Tout est exécuté ou rien : en cas d'erreur, la carte n'est pas modifiée. Annulable avec Ctrl+Z.</p>
+<p class="mt-2">Dépose un fichier <b>.sql, .csv, .xlsx, .json</b> : il est converti en SQL dans l'éditeur, tu vérifies puis tu exécutes. Seuls le SQL « format Mobius », le JSON et le .mobius gardent les liens, leurs types et leurs noms.</p>`;
+            let keyH = null;
+            function close() { const o = document.getElementById('mt-page'); if (o) o.remove(); if (keyH) document.removeEventListener('keydown', keyH); keyH = null; }
+            function open() {
+                if (document.getElementById('mt-page')) return;
+                const ov = document.createElement('div');
+                ov.id = 'mt-page'; ov.className = 'fixed inset-0 z-[90] bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col text-xs';
+                const bt = 'px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 font-medium flex items-center gap-1.5';
+                ov.innerHTML = `
+                    <div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-200 dark:border-slate-800">
+                        <div class="flex items-center gap-2 font-bold text-sm"><i data-lucide="terminal" class="w-4 h-4 text-[#5246EE]"></i> Console SQL Mobius</div>
+                        <button id="mt-close" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-slate-800"><i data-lucide="x" class="w-4 h-4 pointer-events-none"></i></button>
+                    </div>
+                    <div class="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 p-4 lg:p-5">
+                        <section id="mt-drop" class="flex-1 min-w-0 flex flex-col gap-2 relative">
+                            <div class="flex flex-wrap gap-2">
+                                <label class="${bt} cursor-pointer"><i data-lucide="file-up" class="w-3.5 h-3.5"></i> Importer un fichier<input id="mt-file" type="file" multiple accept=".sql,.csv,.xlsx,.xls,.json,.mobius" class="hidden"></label>
+                                <button id="mt-ex" class="${bt}"><i data-lucide="lightbulb" class="w-3.5 h-3.5"></i> Exemple</button>
+                                <button id="mt-clear" class="${bt}"><i data-lucide="eraser" class="w-3.5 h-3.5"></i> Effacer</button>
+                                <span class="flex-1"></span>
+                                ${projectData ? `<button id="mt-cards" class="${bt}" title="Crée une carte par table dans l'arborescence"><i data-lucide="sticky-note" class="w-3.5 h-3.5"></i> Créer comme nouvelle(s) carte(s)</button>` : ''}
+                                <button id="mt-run" class="px-4 py-2 rounded-xl bg-[#5246EE] hover:bg-[#4538d8] text-white font-semibold flex items-center gap-1.5"><i data-lucide="play" class="w-3.5 h-3.5"></i> Exécuter <span class="opacity-60 font-normal hidden sm:inline">Ctrl+Entrée</span></button>
+                            </div>
+                            <textarea id="mt-src" spellcheck="false" placeholder="Écris du SQL, ou dépose ici un fichier .sql / .csv / .xlsx / .json" class="flex-1 min-h-[220px] w-full font-mono text-[12px] leading-relaxed p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-[#5246EE] resize-none"></textarea>
+                            <div id="mt-dz" class="hidden absolute inset-0 rounded-2xl border-2 border-dashed border-[#5246EE] bg-[#5246EE]/10 flex items-center justify-center font-semibold text-[#5246EE] pointer-events-none">Dépose ton fichier ici</div>
+                        </section>
+                        <aside class="lg:w-96 shrink-0 min-h-0 overflow-y-auto space-y-3">
+                            <div class="font-bold uppercase tracking-wider text-[10px] text-slate-500">Résultat</div>
+                            <div id="mt-out" class="space-y-2"><div class="text-slate-400">Rien d'exécuté pour l'instant.</div></div>
+                            <details class="rounded-2xl bg-slate-50 dark:bg-slate-900 p-3 text-slate-600 dark:text-slate-300"><summary class="cursor-pointer font-semibold">Syntaxe et aide</summary><div class="mt-2">${HELP}</div></details>
+                        </aside>
+                    </div>`;
+                document.body.appendChild(ov); lucide.createIcons();
+                const $ = id => ov.querySelector('#' + id), src = $('mt-src'), out = $('mt-out'), e = escapeHtml;
+                const msg = (k, m) => { out.innerHTML = `<div class="rounded-xl p-3 ${k === 'err' ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-600' : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300'}">${e(m)}${k === 'err' ? '<div class="mt-1 opacity-70">Rien n\'a été modifié.</div>' : ''}</div>`; };
+                const show = r => {
+                    const C = { ok: 'text-emerald-600', warn: 'text-amber-600' };
+                    out.innerHTML = (r.log.map(l => `<div class="${C[l.k]}">${l.k === 'ok' ? '✓' : '⚠'} ${e(l.m)}</div>`).join('') || '<div class="text-slate-400">Aucune instruction.</div>') +
+                        r.results.map(t => `<div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800"><table class="w-full text-left"><thead class="bg-slate-50 dark:bg-slate-900"><tr>${t.cols.map(c => `<th class="px-2 py-1.5 font-semibold whitespace-nowrap">${e(String(c))}</th>`).join('')}</tr></thead><tbody>${t.rows.map(r => `<tr class="border-t border-slate-100 dark:border-slate-800">${r.map(v => `<td class="px-2 py-1.5 whitespace-nowrap">${v == null ? '<span class="text-slate-300">NULL</span>' : e(String(v))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`).join('');
+                };
+                const runIt = async () => {
+                    let r;
+                    try { r = run(split(tok(src.value)), currentCard); } catch (err) { msg('err', err.message); return; }
+                    if (r.changed) {
+                        if (!requireEdit()) return;
+                        currentCard.nodes = r.D.nodes; currentCard.links = r.D.links; currentCard.relationTypes = r.D.relationTypes; currentCard.fields = r.D.fields;
+                        selectedNodeIds = selectedNodeIds.filter(id => currentCard.nodes.some(n => n.id === id));
+                        await saveCurrentMapState(); renderCanvasNodes(); renderLegendList(); renderInspector();
+                    }
+                    show(r);
+                };
+                const load = async files => {
+                    const parts = [];
+                    for (const f of files) {
+                        try { parts.push(/\.(sql|txt)$/i.test(f.name) ? await f.text() : emit(await fileTables(f), { mobius: true, head: `-- Importé depuis ${f.name}` })); }
+                        catch (err) { msg('err', `« ${f.name} » : ${err.message}`); return; }
+                    }
+                    src.value = parts.join('\n\n'); msg('info', 'Fichier converti en SQL : relis le script puis clique sur Exécuter.');
+                };
+                $('mt-close').onclick = close;
+                $('mt-run').onclick = runIt;
+                $('mt-ex').onclick = () => { src.value = EXAMPLE; };
+                $('mt-clear').onclick = () => { src.value = ''; };
+                $('mt-file').onchange = ev => { load([...ev.target.files]); ev.target.value = ''; };
+                if ($('mt-cards')) $('mt-cards').onclick = () => {
+                    if (!requireEdit()) return;
+                    try {
+                        const cs = toCards(src.value, 'Carte SQL'); if (!cs.length) { msg('err', 'Aucune table à convertir.'); return; }
+                        cs.forEach(c => treeInsert(c, { folderId: typeof treeSelectedId !== 'undefined' ? treeSelectedId : null })); refreshTree();
+                        msg('info', `${cs.length} carte(s) créée(s) dans l'arborescence.`); showToast(`${cs.length} carte(s) créée(s).`);
+                    } catch (err) { msg('err', err.message); }
+                };
+                src.addEventListener('keydown', ev => { if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); runIt(); } });
+                const dz = $('mt-dz'), isF = ev => ev.dataTransfer && [...ev.dataTransfer.types].includes('Files');
+                const dr = $('mt-drop');
+                dr.addEventListener('dragover', ev => { if (isF(ev)) { ev.preventDefault(); dz.classList.remove('hidden'); } });
+                dr.addEventListener('dragleave', ev => { if (!dr.contains(ev.relatedTarget)) dz.classList.add('hidden'); });
+                dr.addEventListener('drop', ev => { if (!isF(ev)) return; ev.preventDefault(); dz.classList.add('hidden'); load([...ev.dataTransfer.files]); });
+                keyH = ev => { if (ev.key === 'Escape' && !document.querySelector('.fixed.z-\\[100\\]')) close(); };
+                document.addEventListener('keydown', keyH);
+                src.focus();
+            }
+            return { open, close, run, tok, split, toCards, emit, fileTables, fileToCards, isTabularJson };
+        })();
+        window.MT = MT;
+        /* ===== MOBIUS-TABULAR:END ===== */
 
         function escapeHtml(str) {
             if (!str) return '';
