@@ -2,29 +2,48 @@
 <html lang="fr" class="h-full"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Centrale - Mobius</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://unpkg.com/lucide@latest"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>tailwind.config={darkMode:'class'};if(localStorage.getItem('theme')==='dark')document.documentElement.classList.add('dark')</script>
-<style>.person{user-select:none}.sel{box-shadow:0 0 0 2px #5246EE;background:rgba(82,70,238,.08)}#box{position:fixed;border:1.5px dashed #5246EE;background:rgba(82,70,238,.1);pointer-events:none;display:none;z-index:40}</style>
-</head>
+<style>
+.person{user-select:none}
+@keyframes wob{0%,100%{transform:rotate(-1.4deg) scale(1)}50%{transform:rotate(1.4deg) scale(1.035)}}
+.sel{animation:wob .8s ease-in-out infinite;box-shadow:0 0 0 2px #5246EE,0 6px 16px rgba(82,70,238,.25)}
+@media (prefers-reduced-motion:reduce){.sel{animation:none}}
+.dragover{outline:2px dashed #5246EE;outline-offset:2px;background:rgba(82,70,238,.08)}
+#box{position:fixed;border:1.5px dashed #5246EE;background:rgba(82,70,238,.1);pointer-events:none;display:none;z-index:40}
+</style></head>
 <body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 text-xs flex flex-col">
 <header class="flex items-center gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex-wrap">
-  <a id="back" class="px-2 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">←</a>
-  <h1 id="title" class="font-bold text-sm text-violet-600 mr-2">Centrale</h1>
+  <a id="back" class="px-2.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700"><i data-lucide="arrow-left" class="w-3.5 h-3.5"></i></a>
+  <h1 id="title" class="font-bold text-sm text-violet-600 mr-1">Centrale</h1>
   <span id="scope" class="text-slate-400"></span>
   <div class="flex-1"></div>
-  <input id="q" placeholder="Rechercher…" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none w-40">
-  <button data-v="grid" class="vb px-2 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">▦ Carrés</button>
-  <button data-v="list" class="vb px-2 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">☰ Liste</button>
-  <button id="bGroup" class="px-3 py-1.5 rounded-lg bg-violet-600 text-white hidden">Créer un groupe</button>
-  <button id="bField" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">+ / − Champ</button>
-  <button id="bCard" class="px-3 py-1.5 rounded-lg bg-[#5246EE] text-white">+ Nouvelle carte liée</button>
-  <button id="bSub" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hidden"></button>
-  <button id="bCards" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">Cartes</button>
-  <button id="bExp" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">.mobius</button>
+  <input id="q" placeholder="Rechercher…" class="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none w-40">
+  <div class="bg-gray-200/70 dark:bg-gray-800 p-1 rounded-xl flex items-center">
+    <button data-view="grid" class="view-btn w-8 h-8 rounded-lg text-xs flex items-center justify-center transition-all"><i class="fa-solid fa-border-all"></i></button>
+    <button data-view="list" class="view-btn w-8 h-8 rounded-lg text-xs flex items-center justify-center transition-all"><i class="fa-solid fa-list"></i></button>
+  </div>
+  <button id="bGroup" class="hidden px-3 py-2 rounded-xl bg-violet-600 text-white font-medium"></button>
+  <button id="bCard" class="px-3 py-2 rounded-xl bg-[#5246EE] text-white font-medium">+ Nouvelle carte liée</button>
+  <button id="bSub" class="hidden px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-medium"></button>
+  <button id="bMql" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition" title="Console MQL (compatible SQL)"><i data-lucide="terminal" class="w-3.5 h-3.5 text-[#5246EE]"></i><span class="hidden sm:inline">MQL</span></button>
+  <div class="relative">
+    <button id="bExp" class="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition"><i data-lucide="download" class="w-3.5 h-3.5 text-emerald-500"></i><span class="hidden sm:inline">Exporter</span></button>
+    <div id="expm" class="hidden absolute right-0 mt-2 w-56 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 space-y-1">
+      <button data-ex="mobius" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-code" class="w-4 h-4 text-purple-500"></i> Exporter en .mobius <span class="text-[9px] bg-purple-100 dark:bg-purple-950 text-purple-600 px-1.5 py-0.5 rounded font-bold ml-auto">Natif</span></button>
+      <button data-ex="csv" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="table" class="w-4 h-4 text-emerald-500"></i> Liste des personnes (.csv)</button>
+    </div>
+  </div>
 </header>
 <div class="flex-1 flex min-h-0">
-  <main class="flex-1 overflow-auto p-4"><div id="groups" class="flex gap-2 flex-wrap mb-3"></div><div id="plist" class="relative min-h-[60vh]"></div></main>
-  <aside id="side" class="w-96 max-w-[45vw] border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-auto p-4 hidden"></aside>
+  <nav class="w-56 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-auto p-2">
+    <div class="flex items-center justify-between px-2 py-1 mb-1"><span class="font-bold text-slate-400 uppercase tracking-wider text-[10px]">Groupes</span><button id="gNew" class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700" title="Nouveau groupe (dans le groupe ouvert)">+</button></div>
+    <div id="gtree"></div>
+  </nav>
+  <main class="flex-1 overflow-auto p-4"><div id="plist" class="relative min-h-[60vh]"></div></main>
+  <aside id="side" class="w-80 max-w-[40vw] shrink-0 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-auto p-4"></aside>
 </div>
 <div id="box"></div><div id="mod" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"><div id="modc" class="bg-white dark:bg-slate-900 rounded-2xl p-5 w-96 max-w-full space-y-3 shadow-2xl"></div></div>
 <script>
@@ -63,69 +82,124 @@ function reach(pid){const all=[];walk(P.tree,i=>{if(i.type==='card')(i.nodes||[]
   const ix=new Map(all.map(e=>[e.c.id+'|'+e.n.id,e])),seen=new Set(),out=[],q=all.filter(e=>e.n.pid===pid);
   while(q.length){const e=q.pop(),d=e.c.id+'|'+e.n.id;if(seen.has(d))continue;seen.add(d);e.n.pid=pid;out.push(e);(e.n.crossLinks||[]).forEach(l=>{const o=ix.get(l.cardId+'|'+l.nodeId);if(o)q.push(o)})}return out}
 function modal(title,body,ok){$('modc').innerHTML=`<h3 class="font-bold text-sm">${title}</h3>${body}<div class="flex justify-end gap-2 pt-2"><button id="mx" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">Annuler</button><button id="mo" class="px-3 py-1.5 rounded-lg bg-[#5246EE] text-white">OK</button></div>`;$('mod').classList.remove('hidden');
-  $('mx').onclick=()=>$('mod').classList.add('hidden');$('mo').onclick=()=>{if(ok($('modc'))!==false)$('mod').classList.add('hidden')}}
+  $('mx').onclick=()=>$('mod').classList.add('hidden');$('mo').onclick=()=>{if(ok($('modc'))!==false)$('mod').classList.add('hidden')};const f=$('modc').querySelector('input[type=text],input:not([type])');if(f)f.focus()}
 const inp='class="w-full px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none"';
-function render(){const{list,total}=persons(),q=$('q').value.toLowerCase();
-  $('title').textContent=C.name;$('scope').textContent=`${total} carte(s) · ${list.length} personne(s)`+(C.mode==='root'?' · racine (analyse seule, cartes non reliées)':C.mode==='folder'?' · dossier (cartes reliées)':' · cartes centralisées (reliées)');
+const ask=(t,v,cb)=>modal(t,`<input id="an" value="${esc(v||'')}" ${inp}>`,m=>{const x=m.querySelector('#an').value.trim();if(!x)return false;cb(x)});
+let curCard=null,vg=null,DR=null;
+// ---------- groupes (système de dossiers : une personne = un seul groupe) ----------
+const G=()=>C.groups||(C.groups=[]),kids=id=>G().filter(g=>(g.parent||null)===id),gid=id=>G().find(g=>g.id===id);
+const deepKeys=g=>[...g.keys,...kids(g.id).flatMap(deepKeys)],rootOf=g=>g.parent&&gid(g.parent)?rootOf(gid(g.parent)):g;
+const isDesc=(a,b)=>{let g=gid(b);while(g){if(g.id===a)return true;g=g.parent?gid(g.parent):null}return false};
+function moveKeys(keys,t){G().forEach(g=>g.keys=g.keys.filter(k=>!keys.includes(k)));if(t)gid(t).keys.push(...keys)}
+function layout(c,g,cx,cy){const by=new Map((c.nodes||[]).map(n=>[n.id,n])),mem=g.keys.filter(k=>by.has(k)),subs=kids(g.id).filter(s=>deepKeys(s).some(k=>by.has(k))),u=mem.length+subs.length;if(!u)return;
+  const r=u>1?Math.max(130,u*(subs.length?95:40)):0;let i=0;
+  mem.forEach(k=>{const a=2*Math.PI*i++/u,n=by.get(k);n.x=Math.max(20,Math.round(cx+r*Math.cos(a)));n.y=Math.max(20,Math.round(cy+r*Math.sin(a)))});
+  subs.forEach(s=>{const a=2*Math.PI*i++/u;layout(c,s,cx+r*Math.cos(a),cy+r*Math.sin(a))})}
+function applyGroup(g){g=rootOf(g);cards().forEach(c=>{const by=new Map((c.nodes||[]).map(n=>[n.id,n])),ns=deepKeys(g).map(k=>by.get(k)).filter(Boolean);if(ns.length<2)return;
+  layout(c,g,Math.max(200,ns.reduce((s,n)=>s+n.x,0)/ns.length),Math.max(200,ns.reduce((s,n)=>s+n.y,0)/ns.length))});save()}
+function newGroup(name,keys,parent){const g={id:'g_'+Date.now().toString(36)+Math.random().toString(36).slice(2,4),name,parent:parent||null,keys:[]};G().push(g);if(keys&&keys.length)moveKeys(keys,g.id);if(keys&&keys.length)applyGroup(g);else save();return g}
+// ---------- scénario : liste des actes / scènes du scénario lié ----------
+function docs(){const o=[];walk(P.tree,i=>{if(!['card','folder','central'].includes(i.type))o.push(i)});return o}
+function parts(){const d=C.scenarioId&&find(C.scenarioId);if(!d)return[];const out=[];
+  if(d.doc&&d.doc.html){const dom=new DOMParser().parseFromString('<div>'+d.doc.html+'</div>','text/html');dom.querySelectorAll('[data-s="act"],[data-s="scene"]').forEach(e=>out.push({id:e.dataset.id,label:e.textContent.trim()||'(sans titre)',kind:e.dataset.s}))}
+  else String(d.content||'').split(/\r?\n/).forEach((l,i)=>{l=l.trim();if(/^#+\s/.test(l))out.push({id:'L'+i,label:l.replace(/^#+\s*/,''),kind:'act'});else if(/^(INT|EXT|INT\.?\/EXT|I\/E|\.[^.])/i.test(l))out.push({id:'L'+i,label:l.replace(/^\./,''),kind:'scene'})});return out}
+function partSelect(t){const l=(C.links||{})[t]||{},ps=parts();if(!C.scenarioId)return'';let h=`<select data-lp="${t}" class="w-full bg-slate-100 dark:bg-slate-800 rounded-lg p-1.5"><option value="">Non lié à une partie</option>`,open=false;
+  ps.forEach(p=>{if(p.kind==='act'){if(open)h+='</optgroup>';h+=`<optgroup label="${esc(p.label)}"><option value="${p.id}" ${l.part===p.id?'selected':''}>${esc(p.label)} (acte entier)</option>`;open=true}else h+=`<option value="${p.id}" ${l.part===p.id?'selected':''}>${esc(p.label)}</option>`});if(open)h+='</optgroup>';return h+'</select>'}
+function scenarioSelect(){return`<div class="mb-3"><div class="font-semibold mb-1">Scénario lié</div><select id="scn" class="w-full bg-slate-100 dark:bg-slate-800 rounded-lg p-1.5"><option value="">Aucun</option>${docs().map(d=>`<option value="${d.id}" ${C.scenarioId===d.id?'selected':''}>${esc(d.name)}</option>`).join('')}</select></div>`}
+// ---------- rendu ----------
+const BTN='class="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"';
+function render(){const{list,total}=persons(),q=$('q').value.toLowerCase(),pm=new Map(list.map(p=>[p.k,p]));G().forEach(g=>{g.keys=g.keys.filter(k=>pm.has(k))});
+  $('title').textContent=C.name;$('scope').textContent=`${total} carte(s) · ${list.length} personne(s)`+(C.mode==='root'?' · analyse seule (cartes non reliées)':' · cartes reliées');
   $('bSub').classList.toggle('hidden',C.mode!=='folder');$('bSub').textContent=C.includeSub?'Sous-dossiers : inclus':'Sous-dossiers : exclus';
   $('bGroup').classList.toggle('hidden',sel.size<1);$('bGroup').textContent=`Créer un groupe (${sel.size})`;
-  document.querySelectorAll('.vb').forEach(b=>b.classList.toggle('ring-2',b.dataset.v===view));
-  $('groups').innerHTML=(C.groups||[]).map(g=>`<span class="px-2.5 py-1 rounded-full bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 font-semibold">${esc(g.name)} · ${g.keys.length} <button data-ga="${g.id}" title="Rapprocher sur les cartes">⇢</button> <button data-gd="${g.id}" title="Supprimer le groupe">×</button></span>`).join('');
-  const gOf=k=>(C.groups||[]).filter(g=>g.keys.includes(k)).map(g=>g.name);
-  $('plist').className=(view==='grid'?'grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3':'flex flex-col gap-1.5')+' relative min-h-[60vh]';
-  $('plist').innerHTML=list.filter(p=>!q||p.name.toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name)).map(p=>{const part=p.at.length<total,gs=gOf(p.k);
-    return`<div class="person cursor-pointer rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 ${view==='list'?'flex items-center gap-3':''} ${sel.has(p.k)?'sel':''}" data-k="${esc(p.k)}"><div class="font-semibold truncate flex-1">${esc(p.name)}</div><div class="mt-1 ${part?'text-amber-600':'text-emerald-600'}" title="${part?'Uniquement sur : '+esc(p.at.map(a=>a.c.name).join(', ')):'Présent sur toutes les cartes'}">${part?`⚠ ${p.at.length}/${total} cartes`:`✓ ${total} cartes`}</div>${gs.length?`<div class="text-violet-600 truncate">${esc(gs.join(', '))}</div>`:''}</div>`}).join('')||'<div class="text-slate-400 py-10 text-center">Aucune personne.</div>';
-  sheet()}
-function sheet(){const s=$('side');if(!cur){s.classList.add('hidden');return}const p=persons().list.find(x=>x.k===cur);if(!p){cur=null;s.classList.add('hidden');return}
-  s.classList.remove('hidden');const fl=[],seen=new Set();p.at.forEach(a=>fieldsOf(a.c).forEach(f=>{if(!seen.has(f.label)){seen.add(f.label);fl.push(f)}}));
-  const nCards=p.at.length;
-  s.innerHTML=`<h2 class="font-bold text-sm mb-1">${esc(p.name)}</h2><div class="mb-2 text-slate-400">ID (MQL) : <code class="select-all">${esc(p.k)}</code></div><p class="text-slate-400 mb-3">Sur ${nCards} carte(s) : ${esc(p.at.map(a=>a.c.name).join(', '))}</p>`+fl.map(f=>{const a=p.at.find(x=>fieldsOf(x.c).some(g=>g.label===f.label)),g=fieldsOf(a.c).find(g=>g.label===f.label),v=fv(a.n,g)??'';
-    return`<label class="block mb-2"><span class="text-slate-500">${esc(f.label)}</span>${f.type==='text'?`<textarea data-f="${esc(f.label)}" rows="3" ${inp}>${esc(v)}</textarea>`:`<input data-f="${esc(f.label)}" type="${f.type==='number'?'number':f.type==='date'?'date':f.type==='bool'?'checkbox':'text'}" ${f.type==='bool'?(v?'checked':''):`value="${esc(v)}"`} ${f.type==='bool'?'':inp}>`}</label>`}).join('')+
-  `<div class="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800"><div class="font-semibold mb-1">Lier au scénario</div>${links()}</div>`}
-function links(){const docs=[];walk(P.tree,i=>{if(!['card','folder','central'].includes(i.type))docs.push(i)});
-  const tg=[...cards()];if(C.folderId){const f=find(C.folderId);(f?.children||[]).forEach(i=>{if(i.type==='folder')tg.push(i)})}
-  C.links=C.links||{};return tg.map(t=>{const l=C.links[t.id]||{};return`<div class="flex gap-1 mb-1 items-center"><span class="w-24 truncate" title="${esc(t.name)}">${t.type==='folder'?'📁':'🗺'} ${esc(t.name)}</span><select data-ld="${t.id}" class="flex-1 bg-slate-100 dark:bg-slate-800 rounded p-1"><option value="">— scénario —</option>${docs.map(d=>`<option value="${d.id}" ${l.doc===d.id?'selected':''}>${esc(d.name)}</option>`).join('')}</select><input data-lp="${t.id}" value="${esc(l.part||'')}" placeholder="Acte 1" class="w-20 bg-slate-100 dark:bg-slate-800 rounded p-1"></div>`}).join('')||'<span class="text-slate-400">Aucune carte.</span>'}
-$('side').addEventListener('input',e=>{const t=e.target,lb=t.dataset.f,ld=t.dataset.ld||t.dataset.lp;
-  if(lb){const p=persons().list.find(x=>x.k===cur);const kf=p.at.map(a=>fieldsOf(a.c).find(f=>f.label===lb)).find(f=>f&&(f.key==='firstname'||f.key==='lastname'));if(kf)reach(cur).forEach(e=>{e.n[kf.key]=t.value});p.at.forEach(a=>{const f=fieldsOf(a.c).find(f=>f.label===lb);if(f)setv(a.n,f,t.type==='checkbox'?t.checked:t.value)});save()}
-  if(ld){const id=t.dataset.ld||t.dataset.lp;const l=C.links[id]=C.links[id]||{};if(t.dataset.ld)l.doc=t.value;else l.part=t.value;save()}});
-$('side').addEventListener('change',()=>render());
-// sélection rectangulaire
-let dr=null;$('plist').addEventListener('mousedown',e=>{if(e.button===0)dr={x:e.clientX,y:e.clientY,mv:false,add:e.shiftKey||e.ctrlKey||e.metaKey}});
+  document.querySelectorAll('.view-btn').forEach(b=>{const a=b.dataset.view===view;b.className=`view-btn w-8 h-8 rounded-lg text-xs flex items-center justify-center transition-all ${a?'bg-white dark:bg-gray-900 shadow-sm':'text-gray-500 dark:text-gray-400'}`});
+  const grid=view==='grid'?'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3':'flex flex-col gap-1.5';
+  const ph=p=>{const part=p.at.length<total;return`<div class="person cursor-grab rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 ${view==='list'?'flex items-center gap-3':''} ${sel.has(p.k)||cur===p.k?'sel':''}" draggable="true" data-k="${esc(p.k)}"><div class="font-semibold truncate flex-1">${esc(p.name||'Sans nom')}</div><div class="${part?'text-amber-600':'text-emerald-600'}" title="${part?'Uniquement sur : '+esc(p.at.map(a=>a.c.name).join(', ')):'Présente sur toutes les cartes'}">${part?`⚠ ${p.at.length}/${total}`:`✓ ${total}/${total}`}</div></div>`};
+  const vis=ks=>ks.map(k=>pm.get(k)).filter(p=>p&&(!q||p.name.toLowerCase().includes(q)));
+  const box=g=>`<div class="gbox rounded-2xl border-2 border-violet-300/60 dark:border-violet-800 bg-violet-50/40 dark:bg-violet-950/20 p-3 mb-3" data-g="${g.id}"><div class="flex items-center gap-2 mb-2 font-bold text-violet-700 dark:text-violet-300"><i class="fa-solid fa-folder-open"></i><span>${esc(g.name)}</span><span class="font-normal text-slate-400">${deepKeys(g).length}</span><button data-ga="${g.id}" title="Rapprocher les membres sur les cartes" class="ml-auto px-2 py-0.5 rounded bg-white/70 dark:bg-slate-800">⇢ Rapprocher</button></div><div class="${grid}">${vis(g.keys).map(ph).join('')||'<div class="text-slate-400">Glisse des personnes ici.</div>'}</div><div class="mt-3">${kids(g.id).map(box).join('')}</div></div>`;
+  const grouped=new Set(G().flatMap(g=>g.keys)),free=vis(list.map(p=>p.k).filter(k=>!grouped.has(k)));
+  const vgo=vg&&gid(vg);if(vg&&!vgo)vg=null;
+  $('plist').innerHTML=vgo?box(vgo):kids(null).map(box).join('')+`<div class="gbox" data-g=""><div class="font-bold text-slate-400 mb-2">${G().length?'Sans groupe':'Personnes'} · ${free.length}</div><div class="${grid}">${free.map(ph).join('')}</div></div>`;
+  const tr=(p,d)=>kids(p).map(g=>`<div><div class="trow flex items-center gap-1.5 py-1.5 pr-1 rounded-lg cursor-pointer ${vg===g.id?'bg-[#5246EE]/10 text-[#5246EE] font-semibold':'hover:bg-slate-100 dark:hover:bg-slate-800'}" style="padding-left:${8+d*14}px" draggable="true" data-g="${g.id}"><i class="fa-solid fa-folder text-violet-500"></i><span class="flex-1 truncate">${esc(g.name)}</span><span class="text-slate-400">${deepKeys(g).length}</span><button data-gren="${g.id}" title="Renommer">✎</button><button data-gdel="${g.id}" title="Supprimer">×</button></div>${tr(g.id,d+1)}</div>`).join('');
+  $('gtree').innerHTML=`<div class="trow flex items-center gap-1.5 px-2 py-1.5 rounded-lg cursor-pointer ${!vg?'bg-[#5246EE]/10 text-[#5246EE] font-semibold':'hover:bg-slate-100 dark:hover:bg-slate-800'}" data-g=""><i class="fa-solid fa-users"></i><span class="flex-1">Toutes les personnes</span><span class="text-slate-400">${list.length}</span></div>`+tr(null,0);
+  side(list,total);lucide.createIcons()}
+function fieldRows(p){const fl=[],seen=new Set();p.at.forEach(a=>fieldsOf(a.c).forEach(f=>{if(!seen.has(f.label)){seen.add(f.label);fl.push(f)}}));
+  return fl.map(f=>{const a=p.at.find(x=>fieldsOf(x.c).some(g=>g.label===f.label)),g=fieldsOf(a.c).find(g=>g.label===f.label),v=fv(a.n,g)??'';
+    const el=f.type==='text'?`<textarea data-f="${esc(f.label)}" rows="3" ${inp}>${esc(v)}</textarea>`:`<input data-f="${esc(f.label)}" type="${f.type==='number'?'number':f.type==='date'?'date':f.type==='bool'?'checkbox':'text'}" ${f.type==='bool'?(v?'checked':''):`value="${esc(v)}"`} ${f.type==='bool'?'':inp}>`;
+    return`<label class="block mb-2"><span class="flex items-center text-slate-500">${esc(f.label)}<button type="button" data-fdel="${esc(f.label)}" class="ml-auto text-slate-300 hover:text-rose-500" title="Supprimer ce champ">🗑</button></span>${el}</label>`}).join('')}
+function side(list,total){const s=$('side'),p=cur&&list.find(x=>x.k===cur);if(cur&&!p)cur=null;
+  if(p){s.innerHTML=`<h2 class="font-bold text-sm">${esc(p.name||'Sans nom')}</h2><div class="mb-3 text-slate-400">ID : <code class="select-all font-mono">${esc(p.k)}</code> <span title="Identique sur toutes les cartes, non modifiable (MQL)">🔒</span></div>${fieldRows(p)}<button data-fadd class="text-[#5246EE] font-medium mb-4">+ Ajouter un champ</button>
+    <div class="pt-3 border-t border-slate-200 dark:border-slate-800"><div class="font-semibold mb-1">Apparaît sur ${p.at.length}/${total} carte(s)</div>${cards().map(c=>{const on=p.at.some(a=>a.c.id===c.id);return`<button data-cc="${c.id}" ${BTN}><span>${on?'🗺':'<span class="opacity-40">🗺</span>'}</span><span class="truncate ${on?'':'text-slate-400 line-through'}">${esc(c.name)}</span></button>`}).join('')}</div>`;return}
+  const c=curCard&&find(curCard);
+  if(c){const ns=c.nodes||[],l=(C.links||{})[c.id];s.innerHTML=`<button data-cback class="mb-2 text-slate-400">← Cartes</button><h2 class="font-bold text-sm mb-1">🗺 ${esc(c.name)}</h2><a class="text-[#5246EE] underline" href="map.html?projectId=${encodeURIComponent(pid)}&cardId=${encodeURIComponent(c.id)}">Ouvrir la carte</a>
+    <div class="mt-3">${C.scenarioId?`<div class="font-semibold mb-1">Partie du scénario</div>${partSelect(c.id)}`:'<div class="text-slate-400">Choisis d\'abord un scénario (liste des cartes).</div>'}</div>
+    <div class="mt-4 font-semibold">${ns.length} personne(s)</div>${ns.map(n=>`<button data-pp="${esc(n.pid||n.id)}" ${BTN}>👤 <span class="truncate">${esc(((n.firstname||'')+' '+(n.lastname||'')).trim()||'Sans nom')}</span></button>`).join('')}
+    ${C.mode==='cards'?`<button data-rmc="${c.id}" class="mt-4 text-rose-500">Retirer cette carte de la centrale</button>`:''}`;return}
+  const fo=[];if(C.mode==='folder'){const f=find(C.folderId);const go=(l,d)=>(l||[]).forEach(i=>{if(i.type==='folder'&&d){fo.push(i);go(i.children,d)}});go(f&&f.children,C.includeSub)}
+  s.innerHTML=`<h2 class="font-bold text-sm mb-3">Cartes liées</h2>${scenarioSelect()}`+(cards().map(c=>`<div class="mb-2"><button data-cc="${c.id}" ${BTN}>🗺 <span class="truncate">${esc(c.name)}</span><span class="ml-auto text-slate-400">${(c.nodes||[]).length}</span></button>${C.scenarioId?partSelect(c.id):''}</div>`).join('')||'<div class="text-slate-400">Aucune carte.</div>')
+   +(fo.length&&C.scenarioId?`<h3 class="font-semibold mt-4 mb-1">Dossiers</h3>`+fo.map(f=>`<div class="mb-2"><div class="px-2.5">📁 ${esc(f.name)}</div>${partSelect(f.id)}</div>`).join(''):'')}
+// ---------- champs (depuis l'inspecteur) ----------
+function fieldModal(add,label){const cs=cards(),p=persons().list.find(x=>x.k===cur),mine=new Set(p?p.at.map(a=>a.c.id):[]);
+  modal(add?'Ajouter un champ':`Supprimer « ${esc(label)} »`,(add?`<input id="fl" placeholder="Nom du champ" ${inp}><select id="ft" ${inp}><option value="line">Texte court</option><option value="text">Zone textuelle</option><option value="number">Numérique</option><option value="bool">Booléen</option><option value="date">Date</option></select>`:`<input id="fl" type="hidden" value="${esc(label)}">`)+`<div class="text-slate-400">Cartes concernées (le champ sera modifié pour toutes leurs personnes) :</div><div class="max-h-36 overflow-auto">${cs.map(c=>`<label class="block"><input type="checkbox" class="cc" value="${c.id}" ${mine.has(c.id)||!mine.size?'checked':''}> ${esc(c.name)}</label>`).join('')}</div>`,m=>{
+    const lb=m.querySelector('#fl').value.trim(),ids=[...m.querySelectorAll('.cc:checked')].map(i=>i.value),tg=cs.filter(c=>ids.includes(c.id));if(!lb||!tg.length)return false;
+    if(!confirm(`Attention : ce champ sera ${add?'ajouté à':'supprimé de'} TOUTES les personnes de ${tg.length} carte(s) (${tg.reduce((s,c)=>s+(c.nodes||[]).length,0)} fiches). Continuer ?`))return false;
+    tg.forEach(c=>{const fs=fieldsOf(c);if(add){if(!fs.some(f=>f.label===lb))fs.push({id:'f_'+Date.now()+Math.random().toString(36).slice(2,5),label:lb,type:m.querySelector('#ft').value})}else{const f=fs.find(f=>f.label===lb);if(f){c.fields=fs.filter(x=>x!==f);(c.nodes||[]).forEach(n=>{if(f.key)delete n[f.key];else if(n.custom)delete n.custom[f.id]})}}});save();render()})}
+// ---------- événements ----------
+$('side').addEventListener('input',e=>{const t=e.target,lb=t.dataset.f;if(!lb)return;const p=persons().list.find(x=>x.k===cur);if(!p)return;
+  const kf=p.at.map(a=>fieldsOf(a.c).find(f=>f.label===lb)).find(f=>f&&(f.key==='firstname'||f.key==='lastname'));if(kf)reach(cur).forEach(x=>{x.n[kf.key]=t.value});
+  p.at.forEach(a=>{const f=fieldsOf(a.c).find(f=>f.label===lb);if(f)setv(a.n,f,t.type==='checkbox'?t.checked:t.value)});save()});
+$('side').addEventListener('change',e=>{const t=e.target;
+  if(t.id==='scn'){if(Object.keys(C.links||{}).length&&!confirm('Changer de scénario supprime les liens aux parties actuelles. Continuer ?')){render();return}C.scenarioId=t.value||null;C.links={};save()}
+  else if(t.dataset.lp){C.links=C.links||{};const ps=parts().find(p=>p.id===t.value);if(t.value)C.links[t.dataset.lp]={part:t.value,label:ps?ps.label:''};else delete C.links[t.dataset.lp];save()}
+  render()});
+$('side').addEventListener('click',e=>{const d=e.target.closest('button');if(!d)return;
+  if(d.dataset.fadd!==undefined)fieldModal(true);else if(d.dataset.fdel)fieldModal(false,d.dataset.fdel);
+  else if(d.dataset.cc){cur=null;curCard=d.dataset.cc;render()}else if(d.dataset.cback!==undefined){curCard=null;render()}
+  else if(d.dataset.pp){curCard=null;cur=d.dataset.pp;render()}
+  else if(d.dataset.rmc){const c=find(d.dataset.rmc);if(confirm(`« ${c.name} » ne sera plus liée à cette centrale. Continuer ?`)){C.cardIds=C.cardIds.filter(x=>x!==c.id);curCard=null;save();render()}}});
+$('plist').addEventListener('click',e=>{const el=e.target.closest('.person');
+  if(e.target.dataset.ga){applyGroup(gid(e.target.dataset.ga));render();return}
+  if(!el)return;if(e.ctrlKey||e.metaKey||e.shiftKey){sel.has(el.dataset.k)?sel.delete(el.dataset.k):sel.add(el.dataset.k)}else{sel.clear();cur=el.dataset.k;curCard=null}render()});
+$('gtree').addEventListener('click',e=>{const b=e.target.closest('button'),r=e.target.closest('.trow');
+  if(b&&b.dataset.gren){const g=gid(b.dataset.gren);ask('Renommer le groupe',g.name,n=>{g.name=n;save();render()});return}
+  if(b&&b.dataset.gdel){const g=gid(b.dataset.gdel);if(confirm(`Supprimer le groupe « ${g.name} » ? Ses personnes et sous-groupes remontent d'un niveau.`)){kids(g.id).forEach(k=>k.parent=g.parent||null);const up=g.parent?gid(g.parent):null;if(up)up.keys.push(...g.keys);C.groups=G().filter(x=>x!==g);if(vg===g.id)vg=g.parent||null;save();render()}return}
+  if(r){vg=r.dataset.g||null;render()}});
+$('gNew').onclick=()=>ask('Nom du nouveau groupe'+(vg?` (dans « ${gid(vg).name} »)`:''),'',n=>{newGroup(n,[],vg);render()});
+$('bGroup').onclick=()=>ask('Nom du groupe (Famille 1, Amis 1, Collègues…)','',n=>{newGroup(n,[...sel],vg);sel.clear();render()});
+// glisser-déposer : personnes → groupes, groupes → groupes
+document.addEventListener('dragstart',e=>{const p=e.target.closest&&e.target.closest('.person'),t=e.target.closest&&e.target.closest('.trow[data-g]:not([data-g=""])');
+  if(p){const k=p.dataset.k;DR={t:'p',keys:sel.has(k)?[...sel]:[k]}}else if(t)DR={t:'g',id:t.dataset.g};else return;e.dataTransfer.setData('text/plain','m');e.dataTransfer.effectAllowed='move'});
+document.addEventListener('dragover',e=>{if(!DR)return;const t=e.target.closest('[data-g]');document.querySelectorAll('.dragover').forEach(x=>x.classList.remove('dragover'));if(t){e.preventDefault();t.classList.add('dragover')}});
+document.addEventListener('drop',e=>{if(!DR)return;const t=e.target.closest('[data-g]');document.querySelectorAll('.dragover').forEach(x=>x.classList.remove('dragover'));if(!t){DR=null;return}e.preventDefault();const tg=t.dataset.g||null,d=DR;DR=null;
+  if(d.t==='p'){moveKeys(d.keys,tg);if(tg)applyGroup(gid(tg));else save();sel.clear()}
+  else{if(tg===d.id||(tg&&isDesc(d.id,tg)))return;gid(d.id).parent=tg;applyGroup(gid(d.id));save()}render()});
+document.addEventListener('dragend',()=>{DR=null;document.querySelectorAll('.dragover').forEach(x=>x.classList.remove('dragover'))});
+// sélection rectangulaire (depuis une zone vide)
+let dr=null;$('plist').addEventListener('mousedown',e=>{if(e.button===0&&!e.target.closest('.person,button'))dr={x:e.clientX,y:e.clientY,mv:false,add:e.shiftKey||e.ctrlKey||e.metaKey}});
 addEventListener('mousemove',e=>{if(!dr)return;if(Math.abs(e.clientX-dr.x)+Math.abs(e.clientY-dr.y)>6)dr.mv=true;if(dr.mv){const b=$('box').style;b.display='block';b.left=Math.min(e.clientX,dr.x)+'px';b.top=Math.min(e.clientY,dr.y)+'px';b.width=Math.abs(e.clientX-dr.x)+'px';b.height=Math.abs(e.clientY-dr.y)+'px'}});
 addEventListener('mouseup',e=>{if(!dr)return;const d=dr;dr=null;$('box').style.display='none';
   if(d.mv){const x1=Math.min(e.clientX,d.x),x2=Math.max(e.clientX,d.x),y1=Math.min(e.clientY,d.y),y2=Math.max(e.clientY,d.y);if(!d.add)sel.clear();
     document.querySelectorAll('.person').forEach(el=>{const r=el.getBoundingClientRect();if(r.left<x2&&r.right>x1&&r.top<y2&&r.bottom>y1)sel.add(el.dataset.k)});render()}
-  else{const el=e.target.closest&&e.target.closest('.person');if(el){if(d.add){sel.has(el.dataset.k)?sel.delete(el.dataset.k):sel.add(el.dataset.k)}else{sel.clear();cur=el.dataset.k}render()}else if(e.target.closest('#plist')){sel.clear();cur=null;render()}}});
-// groupes : rapproche les membres sur chaque carte (cercle autour du barycentre, écart minimum pour garder les liens lisibles)
-function applyGroup(g){cards().forEach(c=>{const ns=(c.nodes||[]).filter(n=>g.keys.includes(n.pid));if(ns.length<2)return;
-  const cx=ns.reduce((s,n)=>s+n.x,0)/ns.length,cy=ns.reduce((s,n)=>s+n.y,0)/ns.length,r=Math.max(120,ns.length*38);
-  ns.forEach((n,i)=>{const a=2*Math.PI*i/ns.length;n.x=Math.max(20,Math.round(cx+r*Math.cos(a)));n.y=Math.max(20,Math.round(cy+r*Math.sin(a)))})});save();render()}
-$('groups').onclick=e=>{const a=e.target.dataset.ga,d=e.target.dataset.gd;if(a)applyGroup(C.groups.find(g=>g.id===a));if(d&&confirm('Supprimer ce groupe ? (les positions sur les cartes ne changent pas)')){C.groups=C.groups.filter(g=>g.id!==d);save();render()}};
-$('bGroup').onclick=()=>modal('Nouveau groupe',`<input id="gn" placeholder="Famille 1, Amis 1, Collègues…" ${inp}><p class="text-slate-400">${sel.size} personne(s). Elles seront rapprochées sur les cartes.</p>`,m=>{const n=m.querySelector('#gn').value.trim();if(!n)return false;const g={id:'g_'+Date.now(),name:n,keys:[...sel]};(C.groups=C.groups||[]).push(g);sel.clear();applyGroup(g)});
-// champs : ajout / suppression sur une ou plusieurs cartes
-$('bField').onclick=()=>{const cs=cards(),all=new Set();cs.forEach(c=>fieldsOf(c).forEach(f=>all.add(f.label)));
-  const chk=cs.map(c=>`<label class="block"><input type="checkbox" class="cc" value="${c.id}" checked> ${esc(c.name)}</label>`).join('');
-  modal('Ajouter / supprimer un champ',`<select id="fa" ${inp}><option value="add">Ajouter un champ</option><option value="del">Supprimer un champ</option></select><input id="fl" placeholder="Nom du champ" ${inp}><select id="ft" ${inp}><option value="line">Texte court</option><option value="text">Zone textuelle</option><option value="number">Numérique</option><option value="bool">Booléen</option><option value="date">Date</option></select><div class="text-slate-400">Datalist : ${esc([...all].join(', '))}</div><div class="max-h-32 overflow-auto">${chk}</div>`,m=>{
-    const lb=m.querySelector('#fl').value.trim(),add=m.querySelector('#fa').value==='add',ids=[...m.querySelectorAll('.cc:checked')].map(i=>i.value),tg=cs.filter(c=>ids.includes(c.id));if(!lb||!tg.length)return false;
-    const np=tg.reduce((s,c)=>s+(c.nodes||[]).length,0);
-    if(!confirm(`Attention : ce champ sera ${add?'ajouté à':'supprimé de'} TOUTES les personnes de ${tg.length} carte(s) (${np} fiches). Continuer ?`))return false;
-    tg.forEach(c=>{const fs=fieldsOf(c);if(add){if(!fs.some(f=>f.label===lb))fs.push({id:'f_'+Date.now()+Math.random().toString(36).slice(2,5),label:lb,type:m.querySelector('#ft').value})}else{const f=fs.find(f=>f.label===lb);if(f){c.fields=fs.filter(x=>x!==f);(c.nodes||[]).forEach(n=>{if(f.key)delete n[f.key];else if(n.custom)delete n.custom[f.id]})}}});save();render()})};
-// nouvelle carte liée : mêmes personnes
-$('bCard').onclick=()=>modal('Nouvelle carte liée',`<input id="cn" placeholder="Nom de la carte" ${inp}><p class="text-slate-400">Toutes les personnes de la centrale y seront recopiées.</p>`,m=>{const n=m.querySelector('#cn').value.trim();if(!n)return false;
+  else{sel.clear();cur=null;curCard=null;render()}});
+// en-tête
+$('bCard').onclick=()=>modal('Nouvelle carte liée',`<input id="cn" placeholder="Nom de la carte" ${inp}><p class="text-slate-400">Toutes les personnes de la centrale y seront recopiées (mêmes ID).</p>`,m=>{const n=m.querySelector('#cn').value.trim();if(!n)return false;
   const ps=persons().list,i0=ps.map(p=>p.at[0]),cols=Math.ceil(Math.sqrt(ps.length||1));
-  const card={id:'id_'+Date.now()+Math.random().toString(36).slice(2,5),type:'card',name:n,content:'',links:[],relationTypes:[],fields:JSON.parse(JSON.stringify(fieldsOf(i0[0]?.c||{fields:null}))),
+  const card={id:'id_'+Date.now()+Math.random().toString(36).slice(2,5),type:'card',name:n,content:'',links:[],relationTypes:[],fields:JSON.parse(JSON.stringify(fieldsOf(i0[0]?i0[0].c:{fields:null}))),
     nodes:i0.map((a,i)=>({...JSON.parse(JSON.stringify(a.n)),id:a.n.id,pid:a.n.id,crossLinks:[],x:80+(i%cols)*230,y:80+Math.floor(i/cols)*160}))};
-  if(C.mode==='cards')(C.cardIds=C.cardIds||[]).push(card.id);
-  const f=C.mode==='folder'?find(C.folderId):null;(f?(f.children=f.children||[]):P.tree).push(card);save();render()});
-$('bCards').onclick=()=>{const cs=cards(),rm=C.mode==='cards';
-  modal('Cartes de la centrale',cs.map(c=>`<div class="flex items-center gap-2"><span class="flex-1 truncate">🗺 ${esc(c.name)}</span>${rm?`<button data-rm="${c.id}" class="text-rose-500">Retirer</button>`:''}</div>`).join('')+(rm?'':'<p class="text-slate-400">Les cartes suivent le contenu du dossier : déplace une carte hors du dossier (arborescence) pour la délier.</p>'),()=>true);
-  $('modc').onclick=e=>{const id=e.target.dataset.rm;if(!id)return;const c=find(id);if(confirm(`« ${c.name} » ne sera plus liée à cette centrale (ses personnes n'y seront plus rattachées). Continuer ?`)){C.cardIds=C.cardIds.filter(x=>x!==id);save();$('mod').classList.add('hidden');render()}}};
+  if(C.mode==='cards')(C.cardIds=C.cardIds||[]).push(card.id);const f=C.mode==='folder'?find(C.folderId):null;(f?(f.children=f.children||[]):P.tree).push(card);
+  kids(null).forEach(applyGroup);save();render()});
 $('bSub').onclick=()=>{C.includeSub=!C.includeSub;save();render()};
-$('bExp').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({kind:'central',...C},null,2)],{type:'application/json'}));a.download=C.name.replace(/\W+/g,'_')+'.mobius';a.click()};
-$('q').oninput=render;document.querySelectorAll('.vb').forEach(b=>b.onclick=()=>{view=b.dataset.v;localStorage.setItem('centralView',view);render()});
+$('bExp').onclick=e=>{e.stopPropagation();$('expm').classList.toggle('hidden')};document.addEventListener('click',()=>$('expm').classList.add('hidden'));
+$('expm').onclick=e=>{const b=e.target.closest('[data-ex]');if(!b)return;const dl=(txt,ext,mime)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:mime}));a.download=C.name.replace(/\W+/g,'_')+ext;a.click()};
+  if(b.dataset.ex==='mobius')dl(JSON.stringify({kind:'central',...C},null,2),'.mobius','application/json');
+  else dl('\ufeffnom;id;cartes\n'+persons().list.map(p=>[p.name,p.k,p.at.map(a=>a.c.name).join(' | ')].map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(';')).join('\n'),'.csv','text/csv')};
+$('bMql').onclick=async()=>{clearTimeout(timer);await sb.from('projects').update({tree:P.tree}).eq('id',pid);const c=(curCard&&find(curCard))||cards()[0];if(!c){alert('Aucune carte dans la centrale.');return}
+  location.href=`map.html?projectId=${encodeURIComponent(pid)}&cardId=${encodeURIComponent(c.id)}&mql=1`};
+$('q').oninput=render;document.querySelectorAll('.view-btn').forEach(b=>b.onclick=()=>{view=b.dataset.view;localStorage.setItem('centralView',view);render()});
 (async()=>{const{data:{session}}=await sb.auth.getSession();if(!session){location.href='index.html';return}
   const{data,error}=await sb.from('projects').select('*').eq('id',pid).single();if(error||!data){document.body.innerHTML='Projet introuvable.';return}
   P=data;if(typeof P.tree==='string')P.tree=JSON.parse(P.tree);C=find(cid);if(!C||C.type!=='central'){document.body.innerHTML='Centrale introuvable.';return}
+  C.groups=(C.groups||[]).map(g=>({parent:null,...g,keys:g.keys||[]}));C.links=C.links||{};
   const from=Q.get('cardId')||(cards()[0]&&cards()[0].id);$('back').href=`map.html?projectId=${encodeURIComponent(pid)}`+(from?`&cardId=${encodeURIComponent(from)}`:'');
   const nid=Q.get('nodeId');if(nid){const p=persons().list.find(p=>p.at.some(a=>a.n.id===nid));if(p)cur=p.k}
   render();if(nid)setTimeout(()=>{const i=document.querySelector('[data-f="Prénom"]');if(i){i.focus();i.select&&i.select()}},50)})();
