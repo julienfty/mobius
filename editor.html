@@ -745,7 +745,7 @@
 
 
         /* ===================== ARBORESCENCE : création, import, ordre libre ===================== */
-        let treeSelectedId = null, treeDragId = null, treeMenuCtx = null, treeImportDest = null;
+        const treeMulti = new Set(); let treeSelectedId = null, treeDragId = null, treeMenuCtx = null, treeImportDest = null;
         let treeSaveTimer = null, lastTreeSave = 0, treeUIReady = false, treeInteractive = false;
         const treeExpanded = new Set();
         const treeKey = () => 'mobiusTree:' + projectId;
@@ -777,6 +777,22 @@
             return undefined;
         }
         const treeContainsId = (item, id) => (item.children || []).some(c => c.id === id || treeContainsId(c, id));
+        // centrales (folder / racine / cartes centralisées) dont le périmètre contient cette carte
+        function centralsOf(cardId, tree) {
+            tree = tree || projectData.tree;
+            const out = [];
+            (function w(l) { (l || []).forEach(i => {
+                if (i.type === 'central') {
+                    const ids = new Set(), f = i.folderId && findTreeItem(tree, i.folderId);
+                    const add = (l2, d) => (l2 || []).forEach(x => { if (x.type === 'card') ids.add(x.id); else if (x.type === 'folder' && d) add(x.children, d); });
+                    if (i.mode === 'root') add(tree, true); else if (i.mode === 'cards') (i.cardIds || []).forEach(x => ids.add(x)); else add(f ? f.children : [], i.includeSub);
+                    if (ids.has(cardId)) out.push(i);
+                }
+                if (i.children) w(i.children);
+            }); })(tree);
+            return out;
+        }
+        window.centralsOf = centralsOf;
         const treeDestFolder = () => { const f = treeSelectedId && findTreeItem(projectData.tree, treeSelectedId); return f && f.type === 'folder' ? f : null; };
 
         function saveProjectTree() {
@@ -811,11 +827,18 @@
 
         async function treeCreate(type, t) {
             if (!requireEdit()) return;
-            const label = { folder: 'dossier', txt: 'fichier .txt', card: 'carte' }[type];
+            const label = { folder: 'dossier', txt: 'fichier .txt', card: 'carte', central: 'centrale' }[type];
             const name = await treeAsk(`Nom du ${label} :`, `Nom du ${label}`);
             if (!name) return;
             const item = { id: 'id_' + Date.now() + Math.random().toString(36).slice(2, 5), type, name, content: '' };
             if (type === 'folder') item.children = [];
+            if (type === 'central') {
+                const f = t.folderId && findTreeItem(projectData.tree, t.folderId);
+                Object.assign(item, { mode: f ? 'folder' : 'root', folderId: f ? f.id : null, includeSub: false, cardIds: [], groups: [], links: {} });
+                (f ? (f.children ||= []) : projectData.tree).unshift(item);
+                if (f) treeExpanded.add(f.id);
+                return refreshTree();
+            }
             treeInsert(item, t);
             refreshTree();
         }
@@ -854,8 +877,23 @@
             const loc = locateTreeItem(root, id); if (!loc) return;
             if (t.id === id) return;
             if (t.id && treeContainsId(loc.item, t.id)) { showToast("Impossible de déplacer un dossier dans lui-même."); return; }
+            const moved = []; (function c(it) { if (it.type === 'card') moved.push(it.id); (it.children || []).forEach(c); })(loc.item);
+            const before = new Map(moved.map(i => [i, centralsOf(i).filter(x => x.mode === 'folder').map(x => x.id)]));
+            const rootSnap = root.slice(), snap = new Map();
+            (function s(l) { l.forEach(i => { if (i.children) { snap.set(i.id, i.children.slice()); s(i.children); } }); })(root);
             loc.list.splice(loc.index, 1);
             treeInsert(loc.item, t.id ? t : null);
+            const lost = [];
+            moved.forEach(i => { const now = new Set(centralsOf(i).map(x => x.id)); before.get(i).forEach(cid => { if (!now.has(cid)) lost.push({ i, cid }); }); });
+            if (lost.length) {
+                const cn = [...new Set(lost.map(l => (findTreeItem(root, l.cid) || {}).name))].join(', ');
+                const kn = [...new Set(lost.map(l => (findTreeItem(root, l.i) || {}).name))].join(', ');
+                if (!confirm(`« ${kn} » ne sera plus liée à la centrale « ${cn} » (ses liens avec les autres cartes seront perdus). Continuer ?`)) {
+                    root.splice(0, root.length, ...rootSnap);
+                    (function r(l) { l.forEach(i => { if (i.children) { i.children.splice(0, i.children.length, ...(snap.get(i.id) || [])); r(i.children); } }); })(root);
+                    return refreshTree();
+                }
+            }
             refreshTree();
         }
 
@@ -1401,10 +1439,10 @@ return Object.assign({ buildTables }, MT_core);
                     wrap.appendChild(sub);
                 } else {
                     const isCard = item.type === 'card', current = item.id === cardId;
-                    const icon = isCard ? 'sticky-note' : item.type === 'pdf' ? 'file-text' : 'file-text';
-                    const color = isCard ? 'text-indigo-500' : 'text-emerald-500';
-                    row.className = `tree-row flex items-center gap-1.5 p-2 rounded-xl cursor-pointer ${current ? 'bg-[#5246EE]/10 text-[#5246EE] font-bold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`;
-                    row.innerHTML = `<i data-lucide="${icon}" class="w-3.5 h-3.5 shrink-0 ml-5 ${color}"></i><span class="truncate flex-1">${name}</span>${isCard ? '<span class="text-[9px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-semibold">Carte</span>' : ''}`;
+                    const icon = isCard ? 'sticky-note' : item.type === 'central' ? 'users' : 'file-text';
+                    const color = isCard ? 'text-indigo-500' : item.type === 'central' ? 'text-violet-500' : 'text-emerald-500';
+                    row.className = `tree-row flex items-center gap-1.5 p-2 rounded-xl cursor-pointer ${(current || treeMulti.has(item.id)) ? 'bg-[#5246EE]/10 text-[#5246EE] font-bold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`;
+                    row.innerHTML = `<i data-lucide="${icon}" class="w-3.5 h-3.5 shrink-0 ml-5 ${color}"></i><span class="truncate flex-1">${name}</span>${isCard ? '<span class="text-[9px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-semibold">Carte</span>' : item.type === 'central' ? '<span class="text-[9px] bg-violet-50 dark:bg-violet-950/50 text-violet-600 px-1.5 py-0.5 rounded font-semibold">Centrale</span>' : ''}`;
                     wrap.appendChild(row);
                 }
                 container.appendChild(wrap);
@@ -1433,7 +1471,7 @@ return Object.assign({ buildTables }, MT_core);
             const btn = (a, icon, label, cls = '') => `<button data-tree-action="${a}" class="w-full text-left px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 ${cls || 'text-slate-700 dark:text-slate-200'}"><i data-lucide="${icon}" class="w-3.5 h-3.5"></i><span>${label}</span></button>`;
             const menu = document.getElementById('tree-context-menu');
             menu.innerHTML = `<div class="px-4 pb-1.5 text-[10px] text-slate-400 truncate">📁 ${df ? escapeHtml(df.name) : 'Racine du projet'}</div>`
-                + btn('new-folder', 'folder-plus', 'Nouveau dossier') + btn('new-txt', 'file-text', 'Nouveau fichier .txt') + btn('new-card', 'sticky-note', 'Nouvelle carte') + btn('import', 'file-up', 'Importer un fichier')
+                + btn('new-folder', 'folder-plus', 'Nouveau dossier') + btn('new-txt', 'file-text', 'Nouveau fichier .txt') + btn('new-card', 'sticky-note', 'Nouvelle carte') + btn('new-central', 'users', 'Nouvelle centrale') + (treeMulti.size > 1 ? btn('centralize', 'git-merge', `Centraliser (${treeMulti.size} cartes)`, 'text-violet-600') : '') + btn('import', 'file-up', 'Importer un fichier')
                 + (it ? `<div class="my-1 border-t border-slate-100 dark:border-slate-800"></div>` + btn('rename', 'pencil', 'Renommer') + btn('up', 'arrow-up', 'Monter') + btn('down', 'arrow-down', 'Descendre') + btn('delete', 'trash-2', 'Supprimer', 'text-rose-500') : '');
             menu.classList.remove('hidden');
             lucide.createIcons();
@@ -1448,6 +1486,12 @@ return Object.assign({ buildTables }, MT_core);
             const { targetId, dest } = treeMenuCtx || {};
             if (a.startsWith('new-')) return treeCreate(a.slice(4), { folderId: dest });
             if (a === 'import') { if (!requireEdit()) return; treeImportDest = { folderId: dest }; return document.getElementById('tree-file-input').click(); }
+            if (a === 'centralize') {
+                const ids = [...treeMulti]; treeMulti.clear();
+                const name = prompt('Nom de la centrale :', 'Centrale'); if (!name) return renderTreeSidebarContent();
+                projectData.tree.unshift({ id: 'id_' + Date.now() + 'c', type: 'central', name, mode: 'cards', folderId: null, includeSub: false, cardIds: ids, groups: [], links: {} });
+                return refreshTree();
+            }
             if (!targetId) return;
             if (a === 'rename') return treeRename(targetId);
             if (a === 'up') return treeMoveStep(targetId, -1);
@@ -1476,11 +1520,15 @@ return Object.assign({ buildTables }, MT_core);
                     else { treeSelectedId = it.id; treeExpanded.add(it.id); }
                     treeStoreUI(); return renderTreeSidebarContent();
                 }
+                if ((e.ctrlKey || e.metaKey) && it.type === 'card') { treeMulti.has(it.id) ? treeMulti.delete(it.id) : treeMulti.add(it.id); return renderTreeSidebarContent(); }
+                treeMulti.clear();
                 if (it.id === cardId) { if (window.innerWidth < 768) closeTreeSidebar(); return; }
                 if (!await confirmLeave()) return;
                 if (treeSaveTimer) { clearTimeout(treeSaveTimer); treeSaveTimer = null; updateCardInTree(projectData.tree, currentCard); await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId); }
                 topProgress.start();
-                window.location.href = it.type === 'card'
+                window.location.href = it.type === 'central'
+                    ? `central.html?projectId=${encodeURIComponent(projectId)}&centralId=${encodeURIComponent(it.id)}`
+                    : it.type === 'card'
                     ? `map.html?cardId=${encodeURIComponent(it.id)}&projectId=${encodeURIComponent(projectId)}`
                     : `editor.html?projectId=${encodeURIComponent(projectId)}&fileId=${encodeURIComponent(it.id)}`;
             });
@@ -1806,7 +1854,7 @@ function bindEditor(){
     const b=(t,fn)=>`<button class="tb" onmousedown="event.preventDefault()" onclick="${fn};E('ed-menu').style.display='none'">${t}</button>`;
     m.innerHTML=b('<b>G</b> Gras',"cmd('bold')")+b('<i>I</i> Italique',"cmd('italic')")+b('<u>S</u> Souligné',"cmd('underline')")+'<hr>'
       +edStyles().map(([k,l])=>b(l,`setStyle('${k}')`)).join('')+'<hr>'
-      +(docType==='text'?(getSelection().isCollapsed?'':b('💬 Ajouter une bulle','addBubble()')):b('💡 Proposer une idée ici','propose()'));
+      +(docType==='text'?(getSelection().isCollapsed?'':b('💬 Ajouter une bulle','addBubble()')):b('💡 Proposer une idée ici','propose()')+(window.ctxBlock?.dataset.s==='char'?b('🗂️ Ajouter ce personnage aux cartes','openCharacterCardsFromContext()'):''));
     m.style.display='block';m.style.left=Math.min(e.clientX,innerWidth-220)+'px';m.style.top=Math.min(e.clientY,innerHeight-m.offsetHeight-8)+'px';
   });
   document.addEventListener('click',()=>{const m=E('ed-menu');if(m)m.style.display='none';});
@@ -2621,11 +2669,72 @@ function charModel(){
   });
   return [...map.values()].sort((a,b)=>b.replies.length-a.replies.length||a.name.localeCompare(b.name));
 }
+/* Personnages de scénario → cartes du même projet. Les références partagent un identifiant global. */
+function openCharacterCardsFromContext(){
+  const b=window.ctxBlock;
+  if(!b||b.dataset.s!=='char')return showToast('Clique droit sur un bloc Personnage.');
+  const name=blkText(b).replace(/\s*\([^)]*\)\s*/g,' ').replace(/\^+$/,'').trim();
+  openCharacterCards(name);
+}
+function openCharacterCards(name){
+  if(!name)return showToast('Indique d’abord le nom du personnage.');
+  if(!projectId||!projectData)return showToast('Ajoute ce scénario à un projet pour utiliser les cartes.');
+  if(!canEdit())return showToast('Modification non autorisée.');
+  const all=[];
+  (function walk(xs){(xs||[]).forEach(c=>{if(c.type==='card')all.push(c);if(c.children)walk(c.children);});})(projectData.tree);
+  const old=document.getElementById('mob-char-cards');if(old)old.remove();
+  const overlay=document.createElement('div');overlay.id='mob-char-cards';overlay.className='fixed inset-0 z-[110] bg-black/60 flex items-center justify-center p-4';
+  overlay.innerHTML=`<div class="w-full max-w-md max-h-[85vh] overflow-y-auto bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-2xl text-slate-800 dark:text-white text-sm"><h2 class="font-bold text-lg mb-1">🗂️ ${escapeHtml(name)}</h2><p class="text-xs text-slate-500 mb-4">Créer ou retrouver ce personnage dans plusieurs cartes. Les représentations seront interliées.</p><div class="font-semibold mb-2">Cartes du projet</div><div id="mob-char-choices" class="space-y-2 mb-4">${all.map(c=>`<label class="flex items-center gap-2 rounded-xl p-2 bg-slate-100 dark:bg-slate-800"><input type="checkbox" value="${escapeHtml(c.id)}" class="mob-char-choice"><span>${escapeHtml(c.name)}</span></label>`).join('')||'<p class="text-slate-500">Aucune carte pour le moment.</p>'}</div><label class="flex items-center gap-2 mb-2"><input type="checkbox" id="mob-char-create"> Créer une nouvelle carte</label><input id="mob-char-new-name" class="w-full border rounded-lg p-2 mb-4 dark:bg-slate-800" placeholder="Nom de la nouvelle carte (ex. Personnages)" disabled><div id="mob-char-error" class="text-red-600 text-xs mb-2" role="alert"></div><div class="flex justify-end gap-2"><button id="mob-char-cancel" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800">Annuler</button><button id="mob-char-submit" class="px-4 py-2 rounded-xl bg-[#5246EE] text-white font-semibold">Créer et interlier</button></div></div>`;
+  document.body.appendChild(overlay);
+  const q=id=>overlay.querySelector('#'+id);
+  q('mob-char-cancel').onclick=()=>overlay.remove();
+  overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
+  q('mob-char-create').onchange=e=>{q('mob-char-new-name').disabled=!e.target.checked;if(e.target.checked)q('mob-char-new-name').focus();};
+  q('mob-char-submit').onclick=async()=>{
+    const ids=[...overlay.querySelectorAll('.mob-char-choice:checked')].map(x=>x.value);
+    const creating=q('mob-char-create').checked;
+    const newName=q('mob-char-new-name').value.trim();
+    const err=q('mob-char-error');
+    if(creating&&!newName){err.textContent='Donne un nom à la nouvelle carte.';return;}
+    if(!ids.length&&!creating){err.textContent='Sélectionne au moins une carte.';return;}
+    const btn=q('mob-char-submit');btn.disabled=true;btn.textContent='Enregistrement…';
+    try{
+      // Évite qu’une sauvegarde différée du scénario écrase les nouvelles cartes.
+      clearTimeout(treeSaveTimer);treeSaveTimer=null;
+      clearTimeout(saveTimer);saveTimer=null;
+      clearTimeout(autoTimer);autoTimer=null;
+      syncDoc();
+      const targets=all.filter(c=>ids.includes(c.id));
+      if(creating){const c={id:'item_'+crypto.randomUUID(),name:newName,type:'card',nodes:[],links:[],relationTypes:[],fields:[],content:''};projectData.tree.push(c);targets.push(c);}
+      const normalized=normKey(name);
+      let globalId=null;
+      for(const c of targets){const found=(c.nodes||[]).find(n=>normKey(`${n.firstname||''} ${n.lastname||''}`.trim())===normalized);if(found?.globalPersonId){globalId=found.globalPersonId;break;}}
+      globalId ||= crypto.randomUUID();
+      const parts=name.trim().split(/\s+/);const firstname=parts.shift()||name;const lastname=parts.join(' ');
+      const refs=[];
+      for(const c of targets){c.nodes ||= [];
+        let n=c.nodes.find(n=>n.globalPersonId===globalId)||c.nodes.find(n=>normKey(`${n.firstname||''} ${n.lastname||''}`.trim())===normalized);
+        if(!n){n={id:'node-'+crypto.randomUUID(),firstname,lastname,x:100+(c.nodes.length%4)*205,y:100+Math.floor(c.nodes.length/4)*150,location:'',crossLinks:[],globalPersonId:globalId};c.nodes.push(n);}
+        n.globalPersonId=globalId;n.crossLinks ||= [];refs.push({c,n});
+      }
+      // Liens réciproques entre toutes les représentations sélectionnées.
+      for(let i=0;i<refs.length;i++)for(let j=i+1;j<refs.length;j++){
+        const a=refs[i],b=refs[j];
+        if(!a.n.crossLinks.some(l=>l.cardId===b.c.id&&l.nodeId===b.n.id))a.n.crossLinks.push({cardId:b.c.id,nodeId:b.n.id});
+        if(!b.n.crossLinks.some(l=>l.cardId===a.c.id&&l.nodeId===a.n.id))b.n.crossLinks.push({cardId:a.c.id,nodeId:a.n.id});
+      }
+      const {error}=await supabaseClient.from('projects').update({tree:projectData.tree}).eq('id',projectId);
+      if(error)throw error;
+      overlay.remove();renderTreeSidebarContent();showToast(`${name} ajouté à ${refs.length} carte(s) et interlié !`);
+    }catch(e){console.error(e);err.textContent='Enregistrement impossible : '+(e.message||String(e));btn.disabled=false;btn.textContent='Réessayer';}
+  };
+}
+
 function persList(){
   const f=normKey(persQ);
   return lastChars.map((c,i)=>({c,i})).filter(({c})=>!f||c.key.includes(f)).map(({c,i})=>
     `<div><div class="nv-row" onclick="persToggle(${i})"><span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${colorOf(c.name)}"></span><span class="flex-1 truncate font-semibold">${escapeHtml(c.name)}</span><span class="text-[10px] text-slate-400 shrink-0">${c.replies.length} rép. · ${c.scenes.size} sc. · ${c.words} mots</span></div>`
-    +(navCharOpen===i?c.replies.map((r,j)=>`<div class="nv-row text-[11px]" style="padding-left:1.4rem" onclick="persGo(${i},${j})"><span class="shrink-0 text-slate-400">${r.n?'Sc. '+r.n:'—'}</span><span class="flex-1 truncate text-slate-500">${escapeHtml(r.text.slice(0,70)||'…')}</span></div>`).join(''):'')+'</div>').join('')||'<p class="text-slate-400 text-center py-4">Aucun résultat.</p>';
+    +`<button class="text-[10px] text-[#5246EE] ml-3" onclick="event.stopPropagation();openCharacterCards(lastChars[${i}].name)">Ajouter aux cartes</button>`+(navCharOpen===i?c.replies.map((r,j)=>`<div class="nv-row text-[11px]" style="padding-left:1.4rem" onclick="persGo(${i},${j})"><span class="shrink-0 text-slate-400">${r.n?'Sc. '+r.n:'—'}</span><span class="flex-1 truncate text-slate-500">${escapeHtml(r.text.slice(0,70)||'…')}</span></div>`).join(''):'')+'</div>').join('')||'<p class="text-slate-400 text-center py-4">Aucun résultat.</p>';
 }
 function persHtml(){
   lastChars=charModel();
@@ -2780,4 +2889,3 @@ window.mobiusRelationSQL = function(cardTables) {
 </script>
 </body>
 </html>
-
