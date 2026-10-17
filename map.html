@@ -560,7 +560,7 @@
                         if (!fresh) return;
                     }
                     const prevCollabs = JSON.stringify(getCollabs());
-                    const mapChanged = ['nodes', 'links', 'relationTypes', 'fields'].some(k => JSON.stringify(fresh[k] || []) !== JSON.stringify(currentCard[k] || []));
+                    const mapChanged = ['nodes', 'links', 'relationTypes', 'fields', 'groups'].some(k => JSON.stringify(fresh[k] || []) !== JSON.stringify(currentCard[k] || []));
                     if (isProj) { projectData = { ...projectData, ...row }; currentCard = fresh; }
                     else { currentCard = { ...currentCard, ...fresh, collaborators: row.collaborators }; }
                     normalizeCollaborators();
@@ -4618,3 +4618,4 @@ window.mobiusRelationSQL = function(cardTables) {
 </script>
 </body>
 </html>
+
