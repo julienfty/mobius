@@ -1379,7 +1379,8 @@
                 const sql = ['-- Export Mobius : une carte = une table', ...tables.map(t =>
                     `\nCREATE TABLE "${t.name}" (\n  "id" TEXT PRIMARY KEY` + t.cols.map(c => `,\n  "${c.name}" ${ty[c.type]}`).join('') + `\n);` +
                     t.rows.map(r => `\nINSERT INTO "${t.name}" ("id"${t.cols.map(c => `, "${c.name}"`).join('')}) VALUES (${sqlVal(r.id)}${r.vals.map(v => ', ' + sqlVal(v)).join('')});`).join(''))].join('\n') + '\n';
-                dlBlob(new Blob([sql], { type: 'application/sql' }), base + '.sql');
+                const relations = window.mobiusRelationSQL(tables.map(t => ({card:t.card,table:t.name})));
+                dlBlob(new Blob([sql + (relations ? '\n-- Relations avec clés étrangères\n' + relations + '\n' : '')], { type: 'application/sql' }), base + '.sql');
             } else if (format === 'csv') {
                 const csv = t => '\ufeff' + [['id', ...t.cols.map(c => c.label)], ...t.rows.map(r => [r.id, ...r.vals])].map(row => row.map(csvCell).join(';')).join('\r\n');
                 if (tables.length === 1) dlBlob(new Blob([csv(tables[0])], { type: 'text/csv;charset=utf-8' }), base + '.csv');
@@ -4419,5 +4420,44 @@ const HLRE = /(--[^\n]*)|("(?:[^"]|"")*"|'(?:[^']|'')*'|«[^»]*»|“[^”]*”
             return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
         }
     </script>
+<script>
+/* Export SQL relationnel Mobius : préserve tous les liens avec des tables de jonction.
+   Les cardinalités n'étant pas déclarées, ne présume jamais d'une relation plusieurs-vers-un. */
+window.mobiusRelationSQL = function(cardTables) {
+ const qi = s => '"'+String(s).replace(/"/g,'""')+'"';
+ const lit = v => v == null ? 'NULL' : "'"+String(v).replace(/'/g,"''")+"'";
+ const entries = cardTables.filter(x=>x.card && x.table);
+ const byId = new Map(entries.map(x=>[String(x.card.id),x]));
+ const ids = new Map(entries.map(x=>[String(x.card.id),new Set((x.card.nodes||[]).map(n=>String(n.id)))]));
+ const groups = new Map(), seen = new Set();
+ const add = (a,an,b,bn,kind,rel,directed) => {
+   a=String(a);b=String(b);an=String(an);bn=String(bn);
+   if(!byId.has(a)||!byId.has(b)||!ids.get(a).has(an)||!ids.get(b).has(bn))return;
+   // Canonical ordering for symmetric cross-links; preserve direction on internal links.
+   if(a!==b && a>b){[a,b]=[b,a];[an,bn]=[bn,an];}
+   const key=[a,b].join('|'), edge=[a,an,b,bn,kind,rel,directed].join('\u001f');
+   if(seen.has(edge))return;seen.add(edge);
+   if(!groups.has(key))groups.set(key,{a,b,edges:[]});
+   groups.get(key).edges.push({an,bn,kind,rel,directed});
+ };
+ for(const {card} of entries){
+   for(const n of card.nodes||[])for(const l of n.crossLinks||[])add(card.id,n.id,l.cardId,l.nodeId,'interLink','',false);
+   for(const l of card.links||[]){
+     const rt=(card.relationTypes||[]).find(t=>String(t.id)===String(l.relationTypeId));
+     add(card.id,l.sourceId,card.id,l.targetId,'link',rt?.name||'',!!l.directed);
+   }
+ }
+ const used = new Set(entries.map(x=>x.table));const out=[];
+ for(const {a,b,edges} of groups.values()){
+   const left=byId.get(a).table,right=byId.get(b).table;
+   let base=('mobius_links_'+left+(a===b?'_internal':'_'+right)).replace(/[^a-zA-Z0-9_]/g,'_');
+   let table=base,i=2;while(used.has(table))table=base+'_'+i++;used.add(table);
+   out.push('-- Relations Mobius : '+left+' ↔ '+right);
+   out.push('CREATE TABLE '+qi(table)+' (\n  "source_id" TEXT NOT NULL,\n  "target_id" TEXT NOT NULL,\n  "relation_type" TEXT NOT NULL,\n  "relation_name" TEXT,\n  "directed" BOOLEAN NOT NULL,\n  FOREIGN KEY ("source_id") REFERENCES '+qi(left)+'("id"),\n  FOREIGN KEY ("target_id") REFERENCES '+qi(right)+'("id")\n);');
+   for(const e of edges)out.push('INSERT INTO '+qi(table)+' ("source_id", "target_id", "relation_type", "relation_name", "directed") VALUES ('+[lit(e.an),lit(e.bn),lit(e.kind),lit(e.rel),e.directed?'TRUE':'FALSE'].join(', ')+');');
+ }
+ return out.join('\n');
+};
+</script>
 </body>
 </html>
