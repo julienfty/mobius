@@ -2734,10 +2734,49 @@ window.MobiusProjectExport = (() => {
  if(fmt==='xlsx'){if(!window.XLSX){alert('Bibliothèque Excel indisponible');return}const wb=XLSX.utils.book_new();cs.forEach(c=>{const r=rows(c);XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(r.items),slug(c.name).slice(0,31)||'Carte')});XLSX.writeFile(wb,name+'.xlsx');return}
  if(fmt==='csv'){const csv=c=>{const r=rows(c),keys=['id',...r.fs.map(f=>f.label)];const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';return [keys.map(q).join(';'),...r.items.map(n=>keys.map(k=>q(n[k])).join(';'))].join('\r\n')};if(cs.length===1)blob('\ufeff'+csv(cs[0]),name+'.csv','text/csv');else if(window.JSZip){const zip=new JSZip();cs.forEach(c=>zip.file(slug(c.name)+'.csv','\ufeff'+csv(c)));zip.generateAsync({type:'blob'}).then(b=>blob(b,name+'.zip','application/zip'))}else alert('JSZip indisponible');return}
  const qi=s=>'"'+String(s).replace(/"/g,'""')+'"',lit=v=>v==null?'NULL':typeof v==='number'?String(v):typeof v==='boolean'?(v?'TRUE':'FALSE'):"'"+String(v).replace(/'/g,"''")+"'";
- const out=['-- Export Mobius '+fmt.toUpperCase()];cs.forEach(c=>{const r=rows(c),t=slug(c.name),col=r.fs.map(f=>({f,k:slug(f.label)}));out.push(`CREATE TABLE ${qi(t)} ("id" TEXT PRIMARY KEY${col.map(x=>`, ${qi(x.k)} ${x.f.type==='number'?'NUMERIC':x.f.type==='bool'?'BOOLEAN':'TEXT'}`).join('')}${fmt==='mql'?', "_x" NUMERIC, "_y" NUMERIC':''});`);r.items.forEach(n=>{const keys=['id',...col.map(x=>x.k),...(fmt==='mql'?['_x','_y']:[])];const vals=[n.id,...col.map(x=>n[x.f.label]),...(fmt==='mql'?[n._x,n._y]:[])];out.push(`INSERT INTO ${qi(t)} (${keys.map(qi).join(', ')}) VALUES (${vals.map(lit).join(', ')});`)});if(fmt==='mql'){out.push(`-- @card "${c.name}"`);(c.relationTypes||[]).forEach(rt=>out.push(`createLink: (name: ${lit(rt.name)}, color: ${lit(rt.color)});`));(c.links||[]).forEach(l=>{const rel=(c.relationTypes||[]).find(rt=>rt.id===l.relationTypeId);out.push(`newLink: (typeLink: ${lit(rel?.name||'none')}, ${l.directed?'from '+lit(l.sourceId)+' to '+lit(l.targetId):lit(l.sourceId)+' and '+lit(l.targetId)});`)})}});blob(out.join('\n')+'\n',name+'.'+(fmt==='mql'?'mobql':fmt))}
+ const out=['-- Export Mobius '+fmt.toUpperCase()];cs.forEach(c=>{const r=rows(c),t=slug(c.name),col=r.fs.map(f=>({f,k:slug(f.label)}));out.push(`CREATE TABLE ${qi(t)} ("id" TEXT PRIMARY KEY${col.map(x=>`, ${qi(x.k)} ${x.f.type==='number'?'NUMERIC':x.f.type==='bool'?'BOOLEAN':'TEXT'}`).join('')}${fmt==='mql'?', "_x" NUMERIC, "_y" NUMERIC':''});`);r.items.forEach(n=>{const keys=['id',...col.map(x=>x.k),...(fmt==='mql'?['_x','_y']:[])];const vals=[n.id,...col.map(x=>n[x.f.label]),...(fmt==='mql'?[n._x,n._y]:[])];out.push(`INSERT INTO ${qi(t)} (${keys.map(qi).join(', ')}) VALUES (${vals.map(lit).join(', ')});`)});if(fmt==='mql'){out.push(`-- @card "${c.name}"`);(c.relationTypes||[]).forEach(rt=>out.push(`createLink: (name: ${lit(rt.name)}, color: ${lit(rt.color)});`));(c.links||[]).forEach(l=>{const rel=(c.relationTypes||[]).find(rt=>rt.id===l.relationTypeId);out.push(`newLink: (typeLink: ${lit(rel?.name||'none')}, ${l.directed?'from '+lit(l.sourceId)+' to '+lit(l.targetId):lit(l.sourceId)+' and '+lit(l.targetId)});`)})}});if(fmt==='sql'){const rel=window.mobiusRelationSQL(cs.map(c=>({card:c,table:slug(c.name)})));if(rel)out.push('-- Relations avec clés étrangères',rel)}blob(out.join('\n')+'\n',name+'.'+(fmt==='mql'?'mobql':fmt))}
  function open(p){if(!p)return;project=p;chosen=new Set(cards().map(c=>c.id));checks={};cards().forEach(c=>checks[c.id]=new Set(fields(c).map(f=>f.id)));fmt='mql';overlay=document.createElement('div');overlay.className='fixed inset-0 z-[100] bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col text-xs';document.body.appendChild(overlay);draw();overlay.addEventListener('change',e=>{const t=e.target;if(t.dataset.card) t.checked?chosen.add(t.dataset.card):chosen.delete(t.dataset.card);if(t.dataset.field)t.checked?checks[t.dataset.field].add(t.dataset.id):checks[t.dataset.field].delete(t.dataset.id);draw()});overlay.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)return;if(t.dataset.f)fmt=t.dataset.f;if(t.dataset.x==='close'){overlay.remove();return}if(t.dataset.x==='all')chosen=new Set(cards().map(c=>c.id));if(t.dataset.x==='none')chosen.clear();if(t.dataset.allfields)checks[t.dataset.allfields]=new Set(fields(cards().find(c=>c.id===t.dataset.allfields)).map(f=>f.id));if(t.dataset.nofields)checks[t.dataset.nofields]=new Set();if(t.dataset.x==='download'){exportNow();return}draw()})}
  return {open};
 })();
+</script>
+<script>
+/* Export SQL relationnel Mobius : préserve tous les liens avec des tables de jonction.
+   Les cardinalités n'étant pas déclarées, ne présume jamais d'une relation plusieurs-vers-un. */
+window.mobiusRelationSQL = function(cardTables) {
+ const qi = s => '"'+String(s).replace(/"/g,'""')+'"';
+ const lit = v => v == null ? 'NULL' : "'"+String(v).replace(/'/g,"''")+"'";
+ const entries = cardTables.filter(x=>x.card && x.table);
+ const byId = new Map(entries.map(x=>[String(x.card.id),x]));
+ const ids = new Map(entries.map(x=>[String(x.card.id),new Set((x.card.nodes||[]).map(n=>String(n.id)))]));
+ const groups = new Map(), seen = new Set();
+ const add = (a,an,b,bn,kind,rel,directed) => {
+   a=String(a);b=String(b);an=String(an);bn=String(bn);
+   if(!byId.has(a)||!byId.has(b)||!ids.get(a).has(an)||!ids.get(b).has(bn))return;
+   // Canonical ordering for symmetric cross-links; preserve direction on internal links.
+   if(a!==b && a>b){[a,b]=[b,a];[an,bn]=[bn,an];}
+   const key=[a,b].join('|'), edge=[a,an,b,bn,kind,rel,directed].join('\u001f');
+   if(seen.has(edge))return;seen.add(edge);
+   if(!groups.has(key))groups.set(key,{a,b,edges:[]});
+   groups.get(key).edges.push({an,bn,kind,rel,directed});
+ };
+ for(const {card} of entries){
+   for(const n of card.nodes||[])for(const l of n.crossLinks||[])add(card.id,n.id,l.cardId,l.nodeId,'interLink','',false);
+   for(const l of card.links||[]){
+     const rt=(card.relationTypes||[]).find(t=>String(t.id)===String(l.relationTypeId));
+     add(card.id,l.sourceId,card.id,l.targetId,'link',rt?.name||'',!!l.directed);
+   }
+ }
+ const used = new Set(entries.map(x=>x.table));const out=[];
+ for(const {a,b,edges} of groups.values()){
+   const left=byId.get(a).table,right=byId.get(b).table;
+   let base=('mobius_links_'+left+(a===b?'_internal':'_'+right)).replace(/[^a-zA-Z0-9_]/g,'_');
+   let table=base,i=2;while(used.has(table))table=base+'_'+i++;used.add(table);
+   out.push('-- Relations Mobius : '+left+' ↔ '+right);
+   out.push('CREATE TABLE '+qi(table)+' (\n  "source_id" TEXT NOT NULL,\n  "target_id" TEXT NOT NULL,\n  "relation_type" TEXT NOT NULL,\n  "relation_name" TEXT,\n  "directed" BOOLEAN NOT NULL,\n  FOREIGN KEY ("source_id") REFERENCES '+qi(left)+'("id"),\n  FOREIGN KEY ("target_id") REFERENCES '+qi(right)+'("id")\n);');
+   for(const e of edges)out.push('INSERT INTO '+qi(table)+' ("source_id", "target_id", "relation_type", "relation_name", "directed") VALUES ('+[lit(e.an),lit(e.bn),lit(e.kind),lit(e.rel),e.directed?'TRUE':'FALSE'].join(', ')+');');
+ }
+ return out.join('\n');
+};
 </script>
 </body>
 </html>
