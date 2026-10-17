@@ -89,6 +89,11 @@ let curCard=null,vg=null,DR=null;
 const G=()=>C.groups||(C.groups=[]),kids=id=>G().filter(g=>(g.parent||null)===id),gid=id=>G().find(g=>g.id===id);
 const deepKeys=g=>[...g.keys,...kids(g.id).flatMap(deepKeys)],rootOf=g=>g.parent&&gid(g.parent)?rootOf(gid(g.parent)):g;
 const isDesc=(a,b)=>{let g=gid(b);while(g){if(g.id===a)return true;g=g.parent?gid(g.parent):null}return false};
+const HEX=/^#[0-9a-f]{6}$/i,rgba=(h,a)=>{const n=parseInt(h.slice(1),16);return`rgba(${n>>16&255},${n>>8&255},${n&255},${a})`};
+// couleur d'un groupe : celle de la centrale, sinon celle écrite par la map (carte.groupColors[idGroupe]), sinon celle du parent, sinon violet
+function gcol(g){if(g.color&&HEX.test(g.color))return g.color;const m=cards().map(c=>(c.groupColors||{})[g.id]).find(x=>x&&HEX.test(x));if(m)return m;const p=g.parent&&gid(g.parent);return p?gcol(p):'#7c3aed'}
+function setGroupColor(g,col){g.color=col;cards().forEach(c=>{(c.groupColors||(c.groupColors={}))[g.id]=col});save()}
+const gbs=g=>`border-color:${rgba(gcol(g),.55)};background:${rgba(gcol(g),.08)}`;
 function moveKeys(keys,t){G().forEach(g=>g.keys=g.keys.filter(k=>!keys.includes(k)));if(t)gid(t).keys.push(...keys)}
 function layout(c,g,cx,cy){const by=new Map((c.nodes||[]).map(n=>[n.id,n])),mem=g.keys.filter(k=>by.has(k)),subs=kids(g.id).filter(s=>deepKeys(s).some(k=>by.has(k))),u=mem.length+subs.length;if(!u)return;
   const r=u>1?Math.max(130,u*(subs.length?95:40)):0;let i=0;
@@ -134,11 +139,11 @@ function render(){const mn=document.querySelector('main'),st=mn.scrollTop;const{
   const grid=view==='grid'?'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3':'flex flex-col gap-1.5';
   const ph=p=>{const part=p.at.length<total;return`<div class="person cursor-grab rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 ${view==='list'?'flex items-center gap-3':''} ${sel.has(p.k)||cur===p.k?'sel':''}" draggable="true" data-k="${esc(p.k)}"><div class="font-semibold truncate flex-1">${esc(p.name||'Sans nom')}</div><div class="${part?'text-amber-600':'text-emerald-600'}" title="${part?'Uniquement sur : '+esc(p.at.map(a=>a.c.name).join(', ')):'Présente sur toutes les cartes'}">${part?`⚠ ${p.at.length}/${total}`:`✓ ${total}/${total}`}</div></div>`};
   const vis=ks=>ks.map(k=>pm.get(k)).filter(p=>p&&(!q||p.name.toLowerCase().includes(q)));
-  const box=g=>`<div class="gbox rounded-2xl border-2 border-violet-300/60 dark:border-violet-800 bg-violet-50/40 dark:bg-violet-950/20 p-3 mb-3" data-g="${g.id}"><div class="flex items-center gap-2 mb-2 font-bold text-violet-700 dark:text-violet-300"><i class="fa-solid fa-folder-open"></i><span>${esc(g.name)}</span><span class="font-normal text-slate-400">${deepKeys(g).length}</span><button data-ga="${g.id}" title="Rapprocher les membres sur les cartes" class="ml-auto px-2 py-0.5 rounded bg-white/70 dark:bg-slate-800">⇢ Rapprocher</button></div><div class="${grid}">${vis(g.keys).map(ph).join('')||'<div class="text-slate-400">Glisse des personnes ici.</div>'}</div><div class="mt-3">${kids(g.id).map(box).join('')}</div></div>`;
+  const box=g=>`<div class="gbox rounded-2xl border-2 p-3 mb-3" style="${gbs(g)}" data-g="${g.id}"><div class="flex items-center gap-2 mb-2 font-bold"><i class="fa-solid fa-folder-open" style="color:${gcol(g)}"></i><span class="gname" style="color:${gcol(g)}">${esc(g.name)}</span><span class="font-normal text-slate-400">${deepKeys(g).length}</span><input type="color" data-gc="${g.id}" value="${gcol(g)}" title="Couleur du groupe (appliquée aux maps)" class="ml-auto w-5 h-5 p-0 border-0 bg-transparent cursor-pointer"><button data-ga="${g.id}" title="Rapprocher les membres sur les cartes" class="px-2 py-0.5 rounded bg-white/70 dark:bg-slate-800">⇢ Rapprocher</button></div><div class="${grid}">${vis(g.keys).map(ph).join('')||'<div class="text-slate-400">Glisse des personnes ici.</div>'}</div><div class="mt-3">${kids(g.id).map(box).join('')}</div></div>`;
   const grouped=new Set(G().flatMap(g=>g.keys)),free=vis(list.map(p=>p.k).filter(k=>!grouped.has(k)));
   const vgo=vg&&gid(vg);if(vg&&!vgo)vg=null;
   $('plist').innerHTML=vgo?box(vgo):kids(null).map(box).join('')+`<div class="gbox" data-g=""><div class="font-bold text-slate-400 mb-2">${G().length?'Sans groupe':'Personnes'} · ${free.length}</div><div class="${grid}">${free.map(ph).join('')}</div></div>`;
-  const tr=(p,d)=>kids(p).map(g=>`<div><div class="trow flex items-center gap-1.5 py-1.5 pr-1 rounded-lg cursor-pointer ${vg===g.id?'bg-[#5246EE]/10 text-[#5246EE] font-semibold':'hover:bg-slate-100 dark:hover:bg-slate-800'}" style="padding-left:${8+d*14}px" draggable="true" data-g="${g.id}"><i class="fa-solid fa-folder text-violet-500"></i><span class="flex-1 truncate">${esc(g.name)}</span><span class="text-slate-400">${deepKeys(g).length}</span><button data-gren="${g.id}" title="Renommer">✎</button><button data-gdel="${g.id}" title="Supprimer">×</button></div>${tr(g.id,d+1)}</div>`).join('');
+  const tr=(p,d)=>kids(p).map(g=>`<div><div class="trow flex items-center gap-1.5 py-1.5 pr-1 rounded-lg cursor-pointer ${vg===g.id?'bg-[#5246EE]/10 text-[#5246EE] font-semibold':'hover:bg-slate-100 dark:hover:bg-slate-800'}" style="padding-left:${8+d*14}px" draggable="true" data-g="${g.id}"><i class="fa-solid fa-folder" style="color:${gcol(g)}"></i><span class="flex-1 truncate">${esc(g.name)}</span><input type="color" data-gc="${g.id}" value="${gcol(g)}" title="Couleur du groupe" class="w-4 h-4 p-0 border-0 bg-transparent cursor-pointer"><span class="text-slate-400">${deepKeys(g).length}</span><button data-gren="${g.id}" title="Renommer">✎</button><button data-gdel="${g.id}" title="Supprimer">×</button></div>${tr(g.id,d+1)}</div>`).join('');
   $('gtree').innerHTML=`<div class="trow flex items-center gap-1.5 px-2 py-1.5 rounded-lg cursor-pointer ${!vg?'bg-[#5246EE]/10 text-[#5246EE] font-semibold':'hover:bg-slate-100 dark:hover:bg-slate-800'}" data-g=""><i class="fa-solid fa-users"></i><span class="flex-1">Toutes les personnes</span><span class="text-slate-400">${list.length}</span></div>`+tr(null,0);
   side(list,total);lucide.createIcons();mn.scrollTop=st}
 // sélection sans reconstruire la liste (pas de saut, pas de mouvement)
@@ -202,12 +207,16 @@ $('side').addEventListener('click',e=>{const d=e.target.closest('button');if(!d)
 $('plist').addEventListener('click',e=>{const el=e.target.closest('.person');
   if(e.target.dataset.ga){applyGroup(gid(e.target.dataset.ga));render();return}
   if(!el)return;if(e.ctrlKey||e.metaKey||e.shiftKey){sel.has(el.dataset.k)?sel.delete(el.dataset.k):sel.add(el.dataset.k)}else{sel.clear();cur=el.dataset.k;curCard=null}refreshSel()});
-$('gtree').addEventListener('click',e=>{const b=e.target.closest('button'),r=e.target.closest('.trow');
+$('gtree').addEventListener('click',e=>{if(e.target.dataset&&e.target.dataset.gc)return;const b=e.target.closest('button'),r=e.target.closest('.trow');
   if(b&&b.dataset.gren){const g=gid(b.dataset.gren);ask('Renommer le groupe',g.name,n=>{g.name=n;save();render()});return}
-  if(b&&b.dataset.gdel){const g=gid(b.dataset.gdel);if(confirm(`Supprimer le groupe « ${g.name} » ? Ses personnes et sous-groupes remontent d'un niveau.`)){kids(g.id).forEach(k=>k.parent=g.parent||null);const up=g.parent?gid(g.parent):null;if(up)up.keys.push(...g.keys);C.groups=G().filter(x=>x!==g);if(vg===g.id)vg=g.parent||null;save();render()}return}
+  if(b&&b.dataset.gdel){const g=gid(b.dataset.gdel);if(confirm(`Supprimer le groupe « ${g.name} » ? Ses personnes et sous-groupes remontent d'un niveau.`)){kids(g.id).forEach(k=>k.parent=g.parent||null);const up=g.parent?gid(g.parent):null;if(up)up.keys.push(...g.keys);C.groups=G().filter(x=>x!==g);cards().forEach(c=>{if(c.groupColors)delete c.groupColors[g.id]});if(vg===g.id)vg=g.parent||null;save();render()}return}
   if(r){vg=r.dataset.g||null;render()}});
 $('gNew').onclick=()=>ask('Nom du nouveau groupe'+(vg?` (dans « ${gid(vg).name} »)`:''),'',n=>{newGroup(n,[],vg);render()});
 $('bGroup').onclick=()=>ask('Nom du groupe (Famille 1, Amis 1, Collègues…)','',n=>{newGroup(n,[...sel],vg);sel.clear();render()});
+// couleur d'un groupe : mise à jour en direct, puis rendu complet à la fermeture du sélecteur
+document.addEventListener('input',e=>{const t=e.target,id=t.dataset&&t.dataset.gc;if(!id)return;const g=gid(id);if(!g)return;setGroupColor(g,t.value);
+  document.querySelectorAll('.gbox[data-g="'+id+'"]').forEach(b=>{b.style.cssText=gbs(g);b.querySelectorAll(':scope > div:first-child i,:scope > div:first-child .gname').forEach(x=>x.style.color=t.value)})});
+document.addEventListener('change',e=>{if(e.target.dataset&&e.target.dataset.gc)render()});
 // glisser-déposer : personnes → groupes, groupes → groupes
 document.addEventListener('dragstart',e=>{const p=e.target.closest&&e.target.closest('.person'),t=e.target.closest&&e.target.closest('.trow[data-g]:not([data-g=""])');
   if(p){const k=p.dataset.k;DR={t:'p',keys:sel.has(k)?[...sel]:[k]}}else if(t)DR={t:'g',id:t.dataset.g};else return;e.dataTransfer.setData('text/plain','m');e.dataTransfer.effectAllowed='move'});
@@ -217,7 +226,7 @@ document.addEventListener('drop',e=>{if(!DR)return;const t=e.target.closest('[da
   else{if(tg===d.id||(tg&&isDesc(d.id,tg)))return;gid(d.id).parent=tg;applyGroup(gid(d.id));save()}render()});
 document.addEventListener('dragend',()=>{DR=null;document.querySelectorAll('.dragover').forEach(x=>x.classList.remove('dragover'))});
 // sélection rectangulaire (depuis une zone vide)
-let dr=null;$('plist').addEventListener('mousedown',e=>{if(e.button===0&&!e.target.closest('.person,button'))dr={x:e.clientX,y:e.clientY,mv:false,add:e.shiftKey||e.ctrlKey||e.metaKey}});
+let dr=null;$('plist').addEventListener('mousedown',e=>{if(e.button===0&&!e.target.closest('.person,button,input'))dr={x:e.clientX,y:e.clientY,mv:false,add:e.shiftKey||e.ctrlKey||e.metaKey}});
 addEventListener('mousemove',e=>{if(!dr)return;if(Math.abs(e.clientX-dr.x)+Math.abs(e.clientY-dr.y)>6)dr.mv=true;if(dr.mv){const b=$('box').style;b.display='block';b.left=Math.min(e.clientX,dr.x)+'px';b.top=Math.min(e.clientY,dr.y)+'px';b.width=Math.abs(e.clientX-dr.x)+'px';b.height=Math.abs(e.clientY-dr.y)+'px'}});
 addEventListener('mouseup',e=>{if(!dr)return;const d=dr;dr=null;$('box').style.display='none';
   if(d.mv){const x1=Math.min(e.clientX,d.x),x2=Math.max(e.clientX,d.x),y1=Math.min(e.clientY,d.y),y2=Math.max(e.clientY,d.y);if(!d.add)sel.clear();
