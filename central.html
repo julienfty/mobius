@@ -57,7 +57,7 @@ const key=n=>((n.firstname||'')+' '+(n.lastname||'')).trim().toLowerCase();
 let P,C,sel=new Set(),cur=null,view=localStorage.getItem('centralView')||'grid',timer;
 const walk=(l,f)=>(l||[]).forEach(i=>{f(i);walk(i.children,f)});
 const find=id=>{let r;walk(P.tree,i=>{if(i.id===id)r=i});return r};
-function save(){clearTimeout(timer);timer=setTimeout(async()=>{const{error}=await sb.from('projects').update({tree:P.tree}).eq('id',pid);if(error)alert('Enregistrement impossible : '+error.message)},500)}
+function save(){syncMapGroups();clearTimeout(timer);timer=setTimeout(async()=>{const{error}=await sb.from('projects').update({tree:P.tree}).eq('id',pid);if(error)alert('Enregistrement impossible : '+error.message)},500)}
 function cards(){const o=[];if(C.mode==='cards')return(C.cardIds||[]).map(find).filter(Boolean);
   if(C.mode==='root'){walk(P.tree,i=>{if(i.type==='card')o.push(i)});return o}
   const f=find(C.folderId);const go=(l,d)=>(l||[]).forEach(i=>{if(i.type==='card')o.push(i);else if(i.type==='folder'&&d)go(i.children,d)});go(f?f.children:[],C.includeSub);return o}
@@ -94,6 +94,19 @@ const HEX=/^#[0-9a-f]{6}$/i,rgba=(h,a)=>{const n=parseInt(h.slice(1),16);return`
 const gnm=x=>String(x||'').trim().toLowerCase();
 function mapGroups(g){const o=[];cards().forEach(c=>(c.groups||[]).forEach(m=>{if(m.centralId===g.id||(!m.centralId&&gnm(m.name)===gnm(g.name)))o.push({c,m})}));return o}
 function gcol(g){const m=mapGroups(g).find(x=>HEX.test(x.m.color||''));if(m)return m.m.color;if(g.color&&HEX.test(g.color))return g.color;const p=g.parent&&gid(g.parent);return p?gcol(p):'#7c3aed'}
+// les groupes de la centrale existent aussi dans chaque map : un groupe de map (carte.groups) lié par centralId, et groupId sur les personnes
+function syncMapGroups(){if(!P||!C)return;const gs=C.groups||[],alive=new Set(gs.map(g=>g.id));
+  cards().forEach(c=>{const ns=c.nodes||[],old=c.groups||[],dead=old.filter(m=>m.centralId&&!alive.has(m.centralId));
+    dead.forEach(m=>ns.forEach(n=>{if(n.groupId===m.id)delete n.groupId}));
+    const arr=old.filter(m=>!dead.includes(m));
+    gs.forEach(g=>{const keys=new Set(g.keys),mem=ns.filter(n=>keys.has(n.pid||n.id));
+      let m=arr.find(x=>x.centralId===g.id)||arr.find(x=>!x.centralId&&gnm(x.name)===gnm(g.name));
+      if(!m){if(!mem.length)return;m={id:'grp-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:g.name,color:gcol(g),fill:true};arr.push(m)}
+      m.centralId=g.id;m.name=g.name;
+      mem.forEach(n=>{const cur=arr.find(x=>x.id===n.groupId);if(!cur||cur.centralId)n.groupId=m.id})});
+    ns.forEach(n=>{const cur=arr.find(x=>x.id===n.groupId);if(!cur||!cur.centralId)return;const g=gs.find(x=>x.id===cur.centralId);if(!g||!g.keys.includes(n.pid||n.id))delete n.groupId});
+    if(arr.length||c.groups)c.groups=arr})}
+const msnap=()=>JSON.stringify(cards().map(c=>[c.groups||null,(c.nodes||[]).map(n=>n.groupId||0)]));
 function setGroupColor(g,col){g.color=col;mapGroups(g).forEach(x=>{x.m.color=col;x.m.centralId=g.id});save()}
 const gbs=g=>`border-color:${rgba(gcol(g),.55)};background:${rgba(gcol(g),.08)}`;
 function moveKeys(keys,t){G().forEach(g=>g.keys=g.keys.filter(k=>!keys.includes(k)));if(t)gid(t).keys.push(...keys)}
@@ -254,6 +267,7 @@ $('q').oninput=render;document.querySelectorAll('.view-btn').forEach(b=>b.onclic
   P=data;if(typeof P.tree==='string')P.tree=JSON.parse(P.tree);C=find(cid);if(!C||C.type!=='central'){document.body.innerHTML='Centrale introuvable.';return}
   C.groups=(C.groups||[]).map(g=>({parent:null,...g,keys:g.keys||[]}));C.links=C.links||{};
   const from=Q.get('cardId')||(cards()[0]&&cards()[0].id);$('back').href=`map.html?projectId=${encodeURIComponent(pid)}`+(from?`&cardId=${encodeURIComponent(from)}`:'');
+  {const b=msnap();syncMapGroups();if(msnap()!==b)save()}
   const nid=Q.get('nodeId');if(nid){const p=persons().list.find(p=>p.at.some(a=>a.n.id===nid));if(p)cur=p.k}
   render();if(nid)setTimeout(()=>{const i=document.querySelector('[data-f="Prénom"]');if(i){i.focus();i.select&&i.select()}},50)})();
 </script></body></html>
