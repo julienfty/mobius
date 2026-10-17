@@ -2714,8 +2714,8 @@ function openCharacterCards(name){
       const refs=[];
       for(const c of targets){c.nodes ||= [];
         let n=c.nodes.find(n=>n.globalPersonId===globalId)||c.nodes.find(n=>normKey(`${n.firstname||''} ${n.lastname||''}`.trim())===normalized);
-        if(!n){n={id:'node-'+crypto.randomUUID(),firstname,lastname,x:100+(c.nodes.length%4)*205,y:100+Math.floor(c.nodes.length/4)*150,location:'',crossLinks:[],globalPersonId:globalId};c.nodes.push(n);}
-        n.globalPersonId=globalId;n.crossLinks ||= [];refs.push({c,n});
+        if(!n){n={id:globalId,pid:globalId,firstname,lastname,x:100+(c.nodes.length%4)*205,y:100+Math.floor(c.nodes.length/4)*150,location:'',crossLinks:[],globalPersonId:globalId};c.nodes.push(n);}
+        n.globalPersonId=globalId;n.pid=globalId;n.crossLinks ||= [];refs.push({c,n});
       }
       // Liens réciproques entre toutes les représentations sélectionnées.
       for(let i=0;i<refs.length;i++)for(let j=i+1;j<refs.length;j++){
@@ -2723,11 +2723,43 @@ function openCharacterCards(name){
         if(!a.n.crossLinks.some(l=>l.cardId===b.c.id&&l.nodeId===b.n.id))a.n.crossLinks.push({cardId:b.c.id,nodeId:b.n.id});
         if(!b.n.crossLinks.some(l=>l.cardId===a.c.id&&l.nodeId===a.n.id))b.n.crossLinks.push({cardId:a.c.id,nodeId:a.n.id});
       }
+      // Centrale : les cartes rejoignent directement la centrale du scénario (créée si elle n'existe pas encore).
+      const tIds=targets.map(c=>c.id),scId=(typeof cardId!=='undefined'&&cardId)||null;
+      let central=null;(function w(xs){(xs||[]).forEach(i=>{if(!central&&i.type==='central'&&i.mode==='cards'&&((scId&&i.scenarioId===scId)||(i.cardIds||[]).some(x=>tIds.includes(x))))central=i;if(i.children)w(i.children);});})(projectData.tree);
+      let created=false;
+      if(!central){central={id:'id_'+Date.now()+'c',type:'central',name:'Centrale · '+(currentCard&&currentCard.name||'Scénario'),mode:'cards',folderId:null,includeSub:false,cardIds:[],groups:[],links:{},scenarioId:scId};projectData.tree.unshift(central);created=true;}
+      if(!central.scenarioId&&scId)central.scenarioId=scId;
+      central.cardIds||=[];tIds.forEach(id=>{if(!central.cardIds.includes(id))central.cardIds.push(id);});
+      central.links||={};
       const {error}=await supabaseClient.from('projects').update({tree:projectData.tree}).eq('id',projectId);
       if(error)throw error;
-      overlay.remove();renderTreeSidebarContent();showToast(`${name} ajouté à ${refs.length} carte(s) et interlié !`);
+      overlay.remove();renderTreeSidebarContent();showToast(`${name} ajouté à ${refs.length} carte(s) et interlié ! ${created?'Centrale créée.':'Centrale mise à jour.'}`);
+      if(central.scenarioId===scId)askScenarioParts(central,targets.filter(c=>!central.links[c.id]));
     }catch(e){console.error(e);err.textContent='Enregistrement impossible : '+(e.message||String(e));btn.disabled=false;btn.textContent='Réessayer';}
   };
+}
+
+/* Popup : relier les cartes à une partie du scénario (acte, scène ou autre) */
+function scriptParts(){
+  const out=[],push=e=>{if(e.dataset&&e.dataset.id)out.push({id:e.dataset.id,label:(e.textContent||'').trim()||'(sans titre)',kind:e.dataset.s});};
+  document.querySelectorAll('[data-s="act"],[data-s="scene"]').forEach(push);
+  if(!out.length&&currentCard&&currentCard.doc&&currentCard.doc.html){new DOMParser().parseFromString('<div>'+currentCard.doc.html+'</div>','text/html').querySelectorAll('[data-s="act"],[data-s="scene"]').forEach(push);}
+  return out;
+}
+function askScenarioParts(central,cs){
+  if(!cs.length)return;
+  const ps=scriptParts(),ov=document.createElement('div');ov.className='fixed inset-0 z-[120] bg-black/60 flex items-center justify-center p-4';
+  const opts='<option value="">Ne pas lier à une partie</option>'+ps.map(p=>`<option value="${p.id}">${p.kind==='act'?'Acte':'Scène'} · ${escapeHtml(p.label)}</option>`).join('')+'<option value="__other">Autre…</option>';
+  ov.innerHTML=`<div class="w-full max-w-md max-h-[85vh] overflow-y-auto bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-2xl text-slate-800 dark:text-white text-sm"><h2 class="font-bold text-lg mb-1">🎬 Lier au scénario</h2><p class="text-xs text-slate-500 mb-4">Veux-tu relier ${cs.length>1?'ces cartes':'cette carte'} à une partie du scénario (acte, scène ou autre) ?</p>${cs.map((c,i)=>`<div class="mb-3"><div class="font-semibold mb-1">🗺 ${escapeHtml(c.name)}</div><select data-i="${i}" class="ed-in">${opts}</select><input data-o="${i}" class="ed-in mt-1 hidden" placeholder="Autre partie (prologue, flash-back…)"></div>`).join('')}<div class="flex justify-end gap-2 pt-2"><button id="sp-skip" class="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800">Passer</button><button id="sp-ok" class="px-3 py-2 rounded-xl bg-[#5246EE] text-white font-semibold">Lier</button></div></div>`;
+  document.body.appendChild(ov);
+  ov.querySelectorAll('select').forEach(sel=>sel.onchange=()=>ov.querySelector(`[data-o="${sel.dataset.i}"]`).classList.toggle('hidden',sel.value!=='__other'));
+  ov.querySelector('#sp-skip').onclick=()=>ov.remove();
+  ov.querySelector('#sp-ok').onclick=async()=>{
+    let n=0;cs.forEach((c,i)=>{const v=ov.querySelector(`select[data-i="${i}"]`).value;
+      if(v==='__other'){const t=ov.querySelector(`[data-o="${i}"]`).value.trim();if(t){central.links[c.id]={part:'',label:t};n++;}}
+      else if(v){const p=ps.find(x=>x.id===v);central.links[c.id]={part:v,label:p?p.label:''};n++;}});
+    if(n){const {error}=await supabaseClient.from('projects').update({tree:projectData.tree}).eq('id',projectId);showToast(error?'Enregistrement impossible : '+error.message:`${n} carte(s) liée(s) au scénario.`);}
+    ov.remove();};
 }
 
 function persList(){
