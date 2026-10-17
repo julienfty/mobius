@@ -20,7 +20,7 @@ html,main,aside,#plist{scroll-behavior:auto!important;overflow-anchor:none}
 <body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 text-xs flex flex-col">
 <header class="flex items-center gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex-wrap">
   <a id="back" class="px-2.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700"><i data-lucide="arrow-left" class="w-3.5 h-3.5"></i></a>
-  <h1 id="title" class="font-bold text-sm text-violet-600 mr-1">Centrale</h1>
+  <div id="breadcrumb-container" class="flex items-center gap-1.5 text-xs font-semibold overflow-x-auto whitespace-nowrap cursor-pointer py-1 px-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all" onclick="toggleTreeSidebar()"><span class="text-slate-400">Chargement...</span></div>
   <span id="scope" class="text-slate-400"></span>
   <div class="flex-1"></div>
   <input id="q" placeholder="Rechercher…" class="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 outline-none w-40">
@@ -42,12 +42,11 @@ html,main,aside,#plist{scroll-behavior:auto!important;overflow-anchor:none}
   </div>
 </header>
 <div class="flex-1 flex min-h-0">
-  <nav id="lnav" class="w-56 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col min-h-0 p-2">
-    <div class="flex gap-1 mb-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl"><button data-lt="groups">Groupes</button><button data-lt="tree">Arborescence</button></div>
-    <div id="pgroups" class="flex-1 min-h-0 overflow-auto">
-    <div class="flex items-center justify-between px-2 py-1 mb-1"><span class="font-bold text-slate-400 uppercase tracking-wider text-[10px]">Groupes</span><button id="gNew" class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700" title="Nouveau groupe (dans le groupe ouvert)">+</button></div>
-    <div id="gtree"></div></div>
-    <div id="ptree" class="flex-1 min-h-0 flex-col" style="display:none">
+  <aside id="tree-sidebar" class="w-72 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex-col p-3 z-20 shadow-md" style="display:none">
+    <div class="pb-3 mb-2 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+      <h3 class="font-bold text-xs uppercase tracking-wider text-slate-500">Arborescence du Projet</h3>
+      <button onclick="toggleTreeSidebar()" title="Replier l'arborescence" class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
       <div id="tree-toolbar" class="pb-2 border-b border-slate-200 dark:border-slate-800">
         <div class="flex flex-wrap gap-1.5">
           <button data-tree-create="folder" title="Nouveau dossier" class="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-medium flex items-center gap-1"><i data-lucide="folder-plus" class="w-3.5 h-3.5 text-[#5246EE]"></i>Dossier</button>
@@ -71,8 +70,13 @@ html,main,aside,#plist{scroll-behavior:auto!important;overflow-anchor:none}
           <button onclick="openExportPage('sql','project')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="database" class="w-4 h-4 text-slate-400"></i> Export SQL</button>
         </div>
       </div>
-    </div>
-  </nav>
+    
+  </aside>
+  <nav class="w-56 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-auto p-2">
+    <div id="pgroups">
+    <div class="flex items-center justify-between px-2 py-1 mb-1"><span class="font-bold text-slate-400 uppercase tracking-wider text-[10px]">Groupes</span><button id="gNew" class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700" title="Nouveau groupe (dans le groupe ouvert)">+</button></div>
+    <div id="gtree"></div></div>
+    </nav>
   <main class="flex-1 overflow-auto p-4"><div id="plist" class="relative min-h-[60vh]"></div></main>
   <aside id="side" class="w-80 max-w-[40vw] shrink-0 border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-auto p-4"></aside>
 </div>
@@ -184,7 +188,7 @@ function cardLinkBox(c){const dc=docOf(c.id),lk=(C.links||{})[c.id]||{},sd=dc&&f
 // ---------- rendu ----------
 const BTN='class="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"';
 function render(){const mn=document.querySelector('main'),st=mn.scrollTop;const{list,total}=persons(),q=$('q').value.toLowerCase(),pm=new Map(list.map(p=>[p.k,p]));G().forEach(g=>{g.keys=g.keys.filter(k=>pm.has(k))});
-  $('title').textContent=C.name;$('scope').textContent=`${total} carte(s) · ${list.length} personne(s)`+(C.mode==='root'?' · analyse seule (cartes non reliées)':' · cartes reliées');
+  renderBreadcrumb();$('scope').textContent=`${total} carte(s) · ${list.length} personne(s)`+(C.mode==='root'?' · analyse seule (cartes non reliées)':' · cartes reliées');
   $('bSub').classList.toggle('hidden',C.mode!=='folder');$('bSub').textContent=C.includeSub?'Sous-dossiers : inclus':'Sous-dossiers : exclus';
   $('bGroup').classList.toggle('hidden',sel.size<1);$('bGroup').textContent=`Créer un groupe (${sel.size})`;
   document.querySelectorAll('.view-btn').forEach(b=>{const a=b.dataset.view===view;b.className=`view-btn w-8 h-8 rounded-lg text-xs flex items-center justify-center transition-all ${a?'bg-white dark:bg-gray-900 shadow-sm':'text-gray-500 dark:text-gray-400'}`});
@@ -1381,7 +1385,7 @@ const currentCard={id:'\u0000none',name:''};          // la centrale n'a pas de 
 const canEdit=()=>true,requireEdit=()=>true;
 function showToast(msg){const t=$('toast-notification');$('toast-message').textContent=msg;t.classList.remove('hidden','translate-y-2','opacity-0');clearTimeout(showToast.t);showToast.t=setTimeout(()=>{t.classList.add('translate-y-2','opacity-0');setTimeout(()=>t.classList.add('hidden'),300)},3000)}
 function escapeHtml(str){if(!str)return'';return String(str).replace(/[&<>'"]/g,tag=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[tag]||tag))}
-let LT=localStorage.getItem('centralLeft')==='tree'?'tree':'groups';
+let treeOpen=localStorage.getItem('treeOpen')!=='0';
 const treeMulti=new Set();let treeSelectedId=null,treeDragId=null,treeMenuCtx=null,treeImportDest=null,treeUIReady=false,treeInteractive=false;
 const treeExpanded=new Set(),treeKey=()=>'mobiusTree:'+pid;
 function treeStoreUI(){try{sessionStorage.setItem(treeKey(),JSON.stringify({exp:[...treeExpanded],sel:treeSelectedId}))}catch(e){}}
@@ -1409,7 +1413,7 @@ async function treeCreate(type,t){const label={folder:'dossier',txt:'fichier .tx
   if(type==='central'){const f=t.folderId&&findTreeItem(P.tree,t.folderId);Object.assign(item,{mode:f?'folder':'root',folderId:f?f.id:null,includeSub:false,cardIds:[],groups:[],links:{}});
     (f?(f.children||(f.children=[])):P.tree).unshift(item);if(f)treeExpanded.add(f.id);return refreshTree()}
   treeInsert(item,t);refreshTree()}
-async function treeRename(id){const it=findTreeItem(P.tree,id);if(!it)return;const name=await treeAsk('Nouveau nom :','Nom',it.name);if(!name||name===it.name)return;it.name=name;if(it.id===C.id)$('title').textContent=name;refreshTree();showToast('Renommé.')}
+async function treeRename(id){const it=findTreeItem(P.tree,id);if(!it)return;const name=await treeAsk('Nouveau nom :','Nom',it.name);if(!name||name===it.name)return;it.name=name;refreshTree();showToast('Renommé.')}
 async function treeDelete(id){const loc=locateTreeItem(P.tree,id);if(!loc)return;
   if(loc.item.id===C.id||treeContainsId(loc.item,C.id)){showToast("Impossible de supprimer la centrale actuellement ouverte (ni son dossier).");return}
   if(!await treeConfirm(`Supprimer « ${loc.item.name} » de l'arborescence ?`))return;
@@ -1479,10 +1483,15 @@ async function downloadProject(){if(!P)return;
   const fmtSize=b=>b<1024?`${b} octets`:b<1048576?`${(b/1024).toFixed(1).replace('.',',')} Ko`:`${(b/1048576).toFixed(2).replace('.',',')} Mo`;
   if(!await treeConfirm(`Télécharger « ${fileName} » ?\nTaille du fichier : ${fmtSize(blob.size)}`))return;
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fileName;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);showToast('Projet exporté au format .mobpro !')}
-function setTab(t){LT=t;localStorage.setItem('centralLeft',t);const n=$('lnav');n.classList.toggle('w-72',t==='tree');n.classList.toggle('w-56',t!=='tree');
-  $('pgroups').style.display=t==='groups'?'':'none';$('ptree').style.display=t==='tree'?'flex':'none';
-  document.querySelectorAll('[data-lt]').forEach(b=>{const a=b.dataset.lt===t;b.className='flex-1 px-2 py-1.5 rounded-lg font-semibold '+(a?'bg-white dark:bg-slate-900 shadow-sm text-[#5246EE]':'text-slate-500')});if(t==='tree'){renderTree();lucide.createIcons()}}
-function renderTree(){if(LT!=='tree'||!P||!C)return;const container=$('tree-sidebar-content');
+function getTreePath(list,id,cur=[]){for(const i of list){if(i.id===id)return[...cur,i.name];if(i.children){const f=getTreePath(i.children,id,[...cur,i.name]);if(f)return f}}return null}
+function formatTruncatedPath(a){if(!a||!a.length)return'';return a.length<=3?a.join(' > '):`${a[0]} > ... > ${a[a.length-2]} > ${a[a.length-1]}`}
+function renderBreadcrumb(){const bc=$('breadcrumb-container');if(!bc||!P||!C)return;const wide=innerWidth>=768,txt=escapeHtml(formatTruncatedPath([P.name||'Projet',...(getTreePath(P.tree,C.id)||[C.name])]));
+  bc.title=wide?(treeOpen?"Replier l'arborescence":"Ouvrir l'arborescence"):'';bc.style.cursor=wide?'pointer':'default';
+  bc.innerHTML=`<span class="text-slate-900 dark:text-slate-100 font-bold"><i data-lucide="folder-tree" class="w-3.5 h-3.5 inline mr-1.5 text-[#5246EE]"></i> ${txt}</span>`+(wide?`<i data-lucide="${treeOpen?'panel-left-close':'panel-left-open'}" class="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1"></i>`:'')}
+function applyTreeSidebarState(){const sb=$('tree-sidebar');if(sb)sb.style.display=(innerWidth>=768&&treeOpen&&P)?'flex':'none'}
+function toggleTreeSidebar(){if(innerWidth<768||!P)return;treeOpen=!treeOpen;localStorage.setItem('treeOpen',treeOpen?'1':'0');applyTreeSidebarState();renderBreadcrumb();renderTree();lucide.createIcons()}
+addEventListener('resize',()=>{applyTreeSidebarState();renderBreadcrumb();lucide.createIcons()});
+function renderTree(){if(!treeOpen||innerWidth<768||!P||!C)return;const container=$('tree-sidebar-content');
   if(!Array.isArray(P.tree))P.tree=[];if(!treeUIReady){treeLoadUI();treeUIReady=true}if(!treeInteractive){setupTreeInteractions(container);treeInteractive=true}
   if(treeSelectedId&&!findTreeItem(P.tree,treeSelectedId))treeSelectedId=null;
   const f=treeDestFolder();$('tree-dest').textContent=f?`📁 Destination : ${f.name}`:'📁 Destination : racine du projet';
@@ -1535,7 +1544,6 @@ function setupTreeInteractions(c){
   c.addEventListener('drop',e=>{e.preventDefault();treeClearDrop();const t=treeDropTarget(e);
     if(e.dataTransfer.files&&e.dataTransfer.files.length)return treeImport([...e.dataTransfer.files],t.id?{id:t.id,pos:t.pos}:null);
     const id=treeDragId;treeDragId=null;if(id)treeMoveTo(id,t.id?{id:t.id,pos:t.pos}:{id:null})})}
-document.querySelectorAll('[data-lt]').forEach(b=>b.onclick=()=>setTab(b.dataset.lt));
 
 // en-tête
 $('bCard').onclick=()=>modal('Nouvelle carte liée',`<input id="cn" placeholder="Nom de la carte" ${inp}><p class="text-slate-400">Toutes les personnes de la centrale y seront recopiées (mêmes ID).</p>`,m=>{const n=m.querySelector('#cn').value.trim();if(!n)return false;
@@ -1560,5 +1568,5 @@ $('q').oninput=render;document.querySelectorAll('.view-btn').forEach(b=>b.onclic
   {const b=msnap();syncMapGroups();if(msnap()!==b)save()}
   $('back').addEventListener('click',async e=>{if(!dirty)return;e.preventDefault();const h=$('back').href;await flush();location.href=h});
   const nid=Q.get('nodeId');if(nid){const p=persons().list.find(p=>p.at.some(a=>a.n.id===nid));if(p)cur=p.k}
-  setTab(LT);render();if(nid)setTimeout(()=>{const i=document.querySelector('[data-f="Prénom"]');if(i){i.focus();i.select&&i.select()}},50)})();
+  applyTreeSidebarState();render();if(nid)setTimeout(()=>{const i=document.querySelector('[data-f="Prénom"]');if(i){i.focus();i.select&&i.select()}},50)})();
 </script></body></html>
