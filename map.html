@@ -1226,10 +1226,19 @@
             const v = fieldVal(node, f);
             const cls = 'w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none';
             const a = `data-fid="${f.id}" ${f.key ? `id="node-${f.key}"` : ''} oninput="updateActiveNodeData()"`;
+            const ctr = (f.key === 'firstname' || f.key === 'lastname') && projectId && projectData && typeof centralsOf === 'function' ? centralsOf(currentCard.id)[0] : null;
+            if (ctr) return `<div class="flex gap-1.5"><input type="text" data-fid="${f.id}" id="node-${f.key}" value="${escapeHtml(v == null ? '' : String(v))}" readonly class="${cls} opacity-60 cursor-not-allowed"><button onclick="goRename('${ctr.id}','${node.id}')" title="Le renommage se fait uniquement dans la centrale « ${escapeHtml(ctr.name)} »" class="shrink-0 px-2.5 rounded-xl bg-violet-100 dark:bg-violet-950 text-violet-600 text-[10px] font-semibold">Centrale</button></div>`;
             if (f.type === 'bool') return `<label class="flex items-center gap-2 text-xs text-slate-500"><input type="checkbox" ${a} ${v === true ? 'checked' : ''} class="w-4 h-4 accent-[#5246EE]"> Oui / Non</label>`;
             if (f.type === 'text') return `<textarea ${a} rows="3" class="${cls}">${escapeHtml(v || '')}</textarea>`;
             const t = f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text';
             return `<input type="${t}" ${a} value="${escapeHtml(v == null ? '' : String(v))}" class="${cls}">`;
+        }
+        async function goRename(centralId, nodeId) {
+            if (!requireEdit()) return;
+            if (typeof saveTimer !== 'undefined' && saveTimer) await saveCurrentMapState();
+            updateCardInTree(projectData.tree, currentCard);
+            await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId);
+            location.href = `central.html?projectId=${encodeURIComponent(projectId)}&centralId=${encodeURIComponent(centralId)}&cardId=${encodeURIComponent(currentCard.id)}&nodeId=${encodeURIComponent(nodeId)}`;
         }
         function renderFieldsBlock(node) {
             const edit = canEdit();
@@ -1249,7 +1258,8 @@
                     <select id="new-field-type" class="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none">${Object.entries(FIELD_TYPES).filter(([k]) => k !== 'line').map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select>
                     <button onclick="addField()" class="w-full py-1.5 bg-[#5246EE] hover:bg-[#4538d8] text-white text-xs font-medium rounded-lg">Ajouter à cette carte</button>
                 </div>`;
-            return rows + add;
+            const idRow = `<div><label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">ID <span class="normal-case font-normal text-slate-300">· identique sur toutes les cartes · non modifiable</span></label><input type="text" readonly value="${escapeHtml(node.id)}" onclick="this.select()" class="w-full px-3 py-2 text-xs font-mono bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl opacity-70 cursor-text"></div>`;
+            return idRow + rows + add;
         }
         function refreshAgeDisplay(node) {
             const el = document.getElementById('node-age-display');
@@ -2057,6 +2067,12 @@ container.addEventListener('touchstart', (e) => {
                 };
 
                 if (!currentCard.nodes) currentCard.nodes = [];
+                if (projectId && projectData && centralsOf(currentCard.id).length) {   // carte centralisée : on nomme dès la création (renommage ensuite uniquement dans la centrale)
+                    const nm = (prompt('Prénom Nom de la nouvelle personne :') || '').trim();
+                    if (!nm) return;
+                    const parts = nm.split(/\s+/); newNode.firstname = parts.shift(); newNode.lastname = parts.join(' ');
+                    newNode.pid = newNode.id;
+                }
                 currentCard.nodes.push(newNode);
                 saveCurrentMapState();
                 renderCanvasNodes();
@@ -2177,7 +2193,7 @@ container.addEventListener('touchstart', (e) => {
                 box.appendChild(list);
                 box.appendChild(mk('＋ Dupliquer dans cette carte (reliée à elle-même)', 'w-full px-3 py-2.5 rounded-xl bg-[#5246EE] hover:bg-[#4538d8] text-white font-semibold text-center transition', () => {
                     const copy = JSON.parse(JSON.stringify(src));
-                    copy.id = 'node-' + Date.now(); copy.crossLinks = [];
+                    copy.id = 'node-' + Date.now(); copy.crossLinks = []; delete copy.pid; /* nouvel id = nouvelle personne */
                     const spot = freeSpotIn(tc, src.x || 3000, src.y || 3000);
                     copy.x = spot.x; copy.y = spot.y;
                     (tc.nodes ||= []).push(copy);
@@ -3191,6 +3207,24 @@ container.addEventListener('touchstart', (e) => {
             let error = null;
             if (projectId && projectData) {
                 updateCardInTree(projectData.tree, currentCard);
+                // Identité partagée : propage les champs communs aux représentations
+                // portant le même globalPersonId dans les autres cartes du projet.
+                const sharedNodes = new Map((currentCard.nodes||[]).filter(n=>n.globalPersonId).map(n=>[n.globalPersonId,n]));
+                if(sharedNodes.size){
+                    const propagate = items => (items||[]).forEach(c=>{
+                        if(c.type==='card' && c.id!==currentCard.id){
+                            for(const n of c.nodes||[]){
+                                const source=sharedNodes.get(n.globalPersonId);
+                                if(!source)continue;
+                                n.firstname=source.firstname;n.lastname=source.lastname;
+                                const allowed=new Set((c.fields||[]).map(f=>String(f.id)));
+                                n.fieldValues ||= {};
+                                for(const [k,v] of Object.entries(source.fieldValues||{}))if(allowed.has(String(k)))n.fieldValues[k]=v;
+                            }
+                        }
+                        if(c.children)propagate(c.children);
+                    });propagate(projectData.tree);
+                }
                 ({ error } = await supabaseClient.from('projects').update({ tree: projectData.tree, collaborators: projectData.collaborators || [] }).eq('id', projectId));
                 if (error) {
                     ({ error } = await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId));
@@ -3397,7 +3431,7 @@ container.addEventListener('touchstart', (e) => {
 
 
         /* ===================== ARBORESCENCE : création, import, ordre libre ===================== */
-        let treeSelectedId = null, treeDragId = null, treeMenuCtx = null, treeImportDest = null;
+        const treeMulti = new Set(); let treeSelectedId = null, treeDragId = null, treeMenuCtx = null, treeImportDest = null;
         let treeSaveTimer = null, lastTreeSave = 0, treeUIReady = false, treeInteractive = false;
         const treeExpanded = new Set();
         const treeKey = () => 'mobiusTree:' + projectId;
@@ -3429,6 +3463,22 @@ container.addEventListener('touchstart', (e) => {
             return undefined;
         }
         const treeContainsId = (item, id) => (item.children || []).some(c => c.id === id || treeContainsId(c, id));
+        // centrales (folder / racine / cartes centralisées) dont le périmètre contient cette carte
+        function centralsOf(cardId, tree) {
+            tree = tree || projectData.tree;
+            const out = [];
+            (function w(l) { (l || []).forEach(i => {
+                if (i.type === 'central') {
+                    const ids = new Set(), f = i.folderId && findTreeItem(tree, i.folderId);
+                    const add = (l2, d) => (l2 || []).forEach(x => { if (x.type === 'card') ids.add(x.id); else if (x.type === 'folder' && d) add(x.children, d); });
+                    if (i.mode === 'root') add(tree, true); else if (i.mode === 'cards') (i.cardIds || []).forEach(x => ids.add(x)); else add(f ? f.children : [], i.includeSub);
+                    if (ids.has(cardId)) out.push(i);
+                }
+                if (i.children) w(i.children);
+            }); })(tree);
+            return out;
+        }
+        window.centralsOf = centralsOf;
         const treeDestFolder = () => { const f = treeSelectedId && findTreeItem(projectData.tree, treeSelectedId); return f && f.type === 'folder' ? f : null; };
 
         function saveProjectTree() {
@@ -3461,11 +3511,18 @@ container.addEventListener('touchstart', (e) => {
 
         async function treeCreate(type, t) {
             if (!requireEdit()) return;
-            const label = { folder: 'dossier', txt: 'fichier .txt', card: 'carte' }[type];
+            const label = { folder: 'dossier', txt: 'fichier .txt', card: 'carte', central: 'centrale' }[type];
             const name = await treeAsk(`Nom du ${label} :`, `Nom du ${label}`);
             if (!name) return;
             const item = { id: 'id_' + Date.now() + Math.random().toString(36).slice(2, 5), type, name, content: '' };
             if (type === 'folder') item.children = [];
+            if (type === 'central') {   // centrale : toujours placée tout en haut
+                const f = t.folderId && findTreeItem(projectData.tree, t.folderId);
+                Object.assign(item, { mode: f ? 'folder' : 'root', folderId: f ? f.id : null, includeSub: false, cardIds: [], groups: [], links: {} });
+                (f ? (f.children ||= []) : projectData.tree).unshift(item);
+                if (f) treeExpanded.add(f.id);
+                return refreshTree();
+            }
             treeInsert(item, t);
             refreshTree();
         }
@@ -3504,8 +3561,23 @@ container.addEventListener('touchstart', (e) => {
             const loc = locateTreeItem(root, id); if (!loc) return;
             if (t.id === id) return;
             if (t.id && treeContainsId(loc.item, t.id)) { showToast("Impossible de déplacer un dossier dans lui-même."); return; }
+            const moved = []; (function c(it) { if (it.type === 'card') moved.push(it.id); (it.children || []).forEach(c); })(loc.item);
+            const before = new Map(moved.map(i => [i, centralsOf(i).filter(x => x.mode === 'folder').map(x => x.id)]));
+            const rootSnap = root.slice(), snap = new Map();
+            (function s(l) { l.forEach(i => { if (i.children) { snap.set(i.id, i.children.slice()); s(i.children); } }); })(root);
             loc.list.splice(loc.index, 1);
             treeInsert(loc.item, t.id ? t : null);
+            const lost = [];
+            moved.forEach(i => { const now = new Set(centralsOf(i).map(x => x.id)); before.get(i).forEach(cid => { if (!now.has(cid)) lost.push({ i, cid }); }); });
+            if (lost.length) {
+                const cn = [...new Set(lost.map(l => (findTreeItem(root, l.cid) || {}).name))].join(', ');
+                const kn = [...new Set(lost.map(l => (findTreeItem(root, l.i) || {}).name))].join(', ');
+                if (!confirm(`« ${kn} » ne sera plus liée à la centrale « ${cn} » (ses liens avec les autres cartes seront perdus). Continuer ?`)) {
+                    root.splice(0, root.length, ...rootSnap);
+                    (function r(l) { l.forEach(i => { if (i.children) { i.children.splice(0, i.children.length, ...(snap.get(i.id) || [])); r(i.children); } }); })(root);
+                    return refreshTree();
+                }
+            }
             refreshTree();
         }
 
@@ -3623,10 +3695,10 @@ container.addEventListener('touchstart', (e) => {
                     wrap.appendChild(sub);
                 } else {
                     const isCard = item.type === 'card', current = isCard && item.id === cardId;
-                    const icon = isCard ? 'sticky-note' : item.type === 'pdf' ? 'file-text' : 'file-text';
-                    const color = isCard ? 'text-indigo-500' : 'text-emerald-500';
-                    row.className = `tree-row flex items-center gap-1.5 p-2 rounded-xl cursor-pointer ${current ? 'bg-[#5246EE]/10 text-[#5246EE] font-bold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`;
-                    row.innerHTML = `<i data-lucide="${icon}" class="w-3.5 h-3.5 shrink-0 ml-5 ${color}"></i><span class="truncate flex-1">${name}</span>${isCard ? '<span class="text-[9px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-semibold">Carte</span>' : ''}`;
+                    const icon = isCard ? 'sticky-note' : item.type === 'central' ? 'users' : 'file-text';
+                    const color = isCard ? 'text-indigo-500' : item.type === 'central' ? 'text-violet-500' : 'text-emerald-500';
+                    row.className = `tree-row flex items-center gap-1.5 p-2 rounded-xl cursor-pointer ${(current || treeMulti.has(item.id)) ? 'bg-[#5246EE]/10 text-[#5246EE] font-bold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`;
+                    row.innerHTML = `<i data-lucide="${icon}" class="w-3.5 h-3.5 shrink-0 ml-5 ${color}"></i><span class="truncate flex-1">${name}</span>${isCard ? '<span class="text-[9px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-semibold">Carte</span>' : item.type === 'central' ? '<span class="text-[9px] bg-violet-50 dark:bg-violet-950/50 text-violet-600 px-1.5 py-0.5 rounded font-semibold">Centrale</span>' : ''}`;
                     wrap.appendChild(row);
                 }
                 container.appendChild(wrap);
@@ -3655,7 +3727,7 @@ container.addEventListener('touchstart', (e) => {
             const btn = (a, icon, label, cls = '') => `<button data-tree-action="${a}" class="w-full text-left px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 ${cls || 'text-slate-700 dark:text-slate-200'}"><i data-lucide="${icon}" class="w-3.5 h-3.5"></i><span>${label}</span></button>`;
             const menu = document.getElementById('tree-context-menu');
             menu.innerHTML = `<div class="px-4 pb-1.5 text-[10px] text-slate-400 truncate">📁 ${df ? escapeHtml(df.name) : 'Racine du projet'}</div>`
-                + btn('new-folder', 'folder-plus', 'Nouveau dossier') + btn('new-txt', 'file-text', 'Nouveau fichier .txt') + btn('new-card', 'sticky-note', 'Nouvelle carte') + btn('import', 'file-up', 'Importer un fichier')
+                + btn('new-folder', 'folder-plus', 'Nouveau dossier') + btn('new-txt', 'file-text', 'Nouveau fichier .txt') + btn('new-card', 'sticky-note', 'Nouvelle carte') + btn('new-central', 'users', 'Nouvelle centrale') + (treeMulti.size > 1 ? btn('centralize', 'git-merge', `Centraliser (${treeMulti.size} cartes)`, 'text-violet-600') : '') + btn('import', 'file-up', 'Importer un fichier')
                 + (it ? `<div class="my-1 border-t border-slate-100 dark:border-slate-800"></div>` + btn('rename', 'pencil', 'Renommer') + btn('up', 'arrow-up', 'Monter') + btn('down', 'arrow-down', 'Descendre') + btn('delete', 'trash-2', 'Supprimer', 'text-rose-500') : '');
             menu.classList.remove('hidden');
             lucide.createIcons();
@@ -3670,6 +3742,12 @@ container.addEventListener('touchstart', (e) => {
             const { targetId, dest } = treeMenuCtx || {};
             if (a.startsWith('new-')) return treeCreate(a.slice(4), { folderId: dest });
             if (a === 'import') { if (!requireEdit()) return; treeImportDest = { folderId: dest }; return document.getElementById('tree-file-input').click(); }
+            if (a === 'centralize') {
+                const ids = [...treeMulti]; treeMulti.clear();
+                const name = prompt('Nom de la centrale :', 'Centrale'); if (!name) return renderTreeSidebarContent();
+                projectData.tree.unshift({ id: 'id_' + Date.now() + 'c', type: 'central', name, mode: 'cards', folderId: null, includeSub: false, cardIds: ids, groups: [], links: {} });
+                return refreshTree();
+            }
             if (!targetId) return;
             if (a === 'rename') return treeRename(targetId);
             if (a === 'up') return treeMoveStep(targetId, -1);
@@ -3698,11 +3776,15 @@ container.addEventListener('touchstart', (e) => {
                     else { treeSelectedId = it.id; treeExpanded.add(it.id); }
                     treeStoreUI(); return renderTreeSidebarContent();
                 }
+                if ((e.ctrlKey || e.metaKey) && it.type === 'card') { treeMulti.has(it.id) ? treeMulti.delete(it.id) : treeMulti.add(it.id); return renderTreeSidebarContent(); }
+                treeMulti.clear();
                 if (it.id === cardId) return;
                 topProgress.start();
                 if (saveTimer) await saveCurrentMapState();
                 if (treeSaveTimer) { clearTimeout(treeSaveTimer); treeSaveTimer = null; updateCardInTree(projectData.tree, currentCard); await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId); }
-                window.location.href = it.type === 'card'
+                window.location.href = it.type === 'central'
+                    ? `central.html?projectId=${encodeURIComponent(projectId)}&centralId=${encodeURIComponent(it.id)}`
+                    : it.type === 'card'
                     ? `map.html?cardId=${encodeURIComponent(it.id)}&projectId=${encodeURIComponent(projectId)}`
                     : `editor.html?projectId=${encodeURIComponent(projectId)}&fileId=${encodeURIComponent(it.id)}`;
             });
