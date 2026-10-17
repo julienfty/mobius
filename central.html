@@ -90,9 +90,11 @@ const G=()=>C.groups||(C.groups=[]),kids=id=>G().filter(g=>(g.parent||null)===id
 const deepKeys=g=>[...g.keys,...kids(g.id).flatMap(deepKeys)],rootOf=g=>g.parent&&gid(g.parent)?rootOf(gid(g.parent)):g;
 const isDesc=(a,b)=>{let g=gid(b);while(g){if(g.id===a)return true;g=g.parent?gid(g.parent):null}return false};
 const HEX=/^#[0-9a-f]{6}$/i,rgba=(h,a)=>{const n=parseInt(h.slice(1),16);return`rgba(${n>>16&255},${n>>8&255},${n&255},${a})`};
-// couleur d'un groupe : celle de la centrale, sinon celle écrite par la map (carte.groupColors[idGroupe]), sinon celle du parent, sinon violet
-function gcol(g){if(g.color&&HEX.test(g.color))return g.color;const m=cards().map(c=>(c.groupColors||{})[g.id]).find(x=>x&&HEX.test(x));if(m)return m;const p=g.parent&&gid(g.parent);return p?gcol(p):'#7c3aed'}
-function setGroupColor(g,col){g.color=col;cards().forEach(c=>{(c.groupColors||(c.groupColors={}))[g.id]=col});save()}
+// couleur d'un groupe = couleur du groupe de même nom (ou lié par centralId) dans les maps ; sinon celle de la centrale, sinon celle du parent, sinon violet
+const gnm=x=>String(x||'').trim().toLowerCase();
+function mapGroups(g){const o=[];cards().forEach(c=>(c.groups||[]).forEach(m=>{if(m.centralId===g.id||(!m.centralId&&gnm(m.name)===gnm(g.name)))o.push({c,m})}));return o}
+function gcol(g){const m=mapGroups(g).find(x=>HEX.test(x.m.color||''));if(m)return m.m.color;if(g.color&&HEX.test(g.color))return g.color;const p=g.parent&&gid(g.parent);return p?gcol(p):'#7c3aed'}
+function setGroupColor(g,col){g.color=col;mapGroups(g).forEach(x=>{x.m.color=col;x.m.centralId=g.id});save()}
 const gbs=g=>`border-color:${rgba(gcol(g),.55)};background:${rgba(gcol(g),.08)}`;
 function moveKeys(keys,t){G().forEach(g=>g.keys=g.keys.filter(k=>!keys.includes(k)));if(t)gid(t).keys.push(...keys)}
 function layout(c,g,cx,cy){const by=new Map((c.nodes||[]).map(n=>[n.id,n])),mem=g.keys.filter(k=>by.has(k)),subs=kids(g.id).filter(s=>deepKeys(s).some(k=>by.has(k))),u=mem.length+subs.length;if(!u)return;
@@ -209,7 +211,7 @@ $('plist').addEventListener('click',e=>{const el=e.target.closest('.person');
   if(!el)return;if(e.ctrlKey||e.metaKey||e.shiftKey){sel.has(el.dataset.k)?sel.delete(el.dataset.k):sel.add(el.dataset.k)}else{sel.clear();cur=el.dataset.k;curCard=null}refreshSel()});
 $('gtree').addEventListener('click',e=>{if(e.target.dataset&&e.target.dataset.gc)return;const b=e.target.closest('button'),r=e.target.closest('.trow');
   if(b&&b.dataset.gren){const g=gid(b.dataset.gren);ask('Renommer le groupe',g.name,n=>{g.name=n;save();render()});return}
-  if(b&&b.dataset.gdel){const g=gid(b.dataset.gdel);if(confirm(`Supprimer le groupe « ${g.name} » ? Ses personnes et sous-groupes remontent d'un niveau.`)){kids(g.id).forEach(k=>k.parent=g.parent||null);const up=g.parent?gid(g.parent):null;if(up)up.keys.push(...g.keys);C.groups=G().filter(x=>x!==g);cards().forEach(c=>{if(c.groupColors)delete c.groupColors[g.id]});if(vg===g.id)vg=g.parent||null;save();render()}return}
+  if(b&&b.dataset.gdel){const g=gid(b.dataset.gdel);if(confirm(`Supprimer le groupe « ${g.name} » ? Ses personnes et sous-groupes remontent d'un niveau.`)){kids(g.id).forEach(k=>k.parent=g.parent||null);const up=g.parent?gid(g.parent):null;if(up)up.keys.push(...g.keys);C.groups=G().filter(x=>x!==g);cards().forEach(c=>(c.groups||[]).forEach(m=>{if(m.centralId===g.id)delete m.centralId}));if(vg===g.id)vg=g.parent||null;save();render()}return}
   if(r){vg=r.dataset.g||null;render()}});
 $('gNew').onclick=()=>ask('Nom du nouveau groupe'+(vg?` (dans « ${gid(vg).name} »)`:''),'',n=>{newGroup(n,[],vg);render()});
 $('bGroup').onclick=()=>ask('Nom du groupe (Famille 1, Amis 1, Collègues…)','',n=>{newGroup(n,[...sel],vg);sel.clear();render()});
