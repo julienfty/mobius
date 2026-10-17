@@ -304,6 +304,10 @@
             <i data-lucide="link-2" class="w-4 h-4 text-[#5246EE]"></i>
             <span class="font-medium">Relier cette personne à une carte</span>
         </button>
+        <button id="ctx-group" onclick="executeContextMenuAction('group')" class="hidden w-full text-left px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center space-x-2.5 text-slate-700 dark:text-slate-200 transition">
+            <i data-lucide="users" class="w-4 h-4 text-violet-500"></i>
+            <span class="font-medium">Créer un groupe</span>
+        </button>
         <button id="ctx-add-person" onclick="executeContextMenuAction('add-person')" class="w-full text-left px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center space-x-2.5 text-slate-700 dark:text-slate-200 transition">
             <i data-lucide="user-plus" class="w-4 h-4 text-[#5246EE]"></i>
             <span class="font-medium">Ajouter une personne</span>
@@ -1834,6 +1838,7 @@ container.addEventListener('touchstart', (e) => {
                         ctxNodeId = null;
                         document.getElementById('ctx-link-card').classList.add('hidden');
                         document.getElementById('ctx-add-person').classList.remove('hidden');
+                        setCtxGroup(true);
                         contextMenu.style.left = `${touchStartClientX}px`;
                         contextMenu.style.top = `${touchStartClientY}px`;
                         if (canEdit()) contextMenu.classList.remove('hidden');
@@ -1879,6 +1884,7 @@ container.addEventListener('touchstart', (e) => {
                 ctxNodeId = nodeEl ? nodeEl.dataset.nodeId : null;
                 document.getElementById('ctx-link-card').classList.toggle('hidden', !ctxNodeId);
                 document.getElementById('ctx-add-person').classList.toggle('hidden', !!ctxNodeId);
+                setCtxGroup(!ctxNodeId || selectedNodeIds.includes(ctxNodeId));
                 contextMenu.style.left = `${e.clientX}px`;
                 contextMenu.style.top = `${e.clientY}px`;
                 if (canEdit()) contextMenu.classList.remove('hidden');
@@ -2054,6 +2060,7 @@ container.addEventListener('touchstart', (e) => {
             if (!requireEdit()) return;
             document.getElementById('context-menu').classList.add('hidden');
             if (action === 'link-card') { if (ctxNodeId) openLinkCardModal(ctxNodeId); return; }
+            if (action === 'group') { openGroupDialog(); return; }
             if (action === 'add-person') {
                 const x = currentContextMenuCanvasX;
                 const y = currentContextMenuCanvasY;
@@ -2296,6 +2303,7 @@ container.addEventListener('touchstart', (e) => {
                             ctxNodeId = node.id;
                             document.getElementById('ctx-link-card').classList.remove('hidden');
                             document.getElementById('ctx-add-person').classList.add('hidden');
+                            setCtxGroup(selectedNodeIds.length > 1 && selectedNodeIds.includes(node.id));
                             const cm = document.getElementById('context-menu');
                             cm.style.left = `${Math.min(touchStartX, window.innerWidth - 270)}px`;
                             cm.style.top = `${touchStartY}px`;
@@ -4573,6 +4581,7 @@ window.mobiusRelationSQL = function(cardTables) {
   let raf = 0; const live = () => { if (raf || typeof currentCard === 'undefined' || !currentCard || !(currentCard.groups || []).some(g => g.fill)) return; raf = requestAnimationFrame(() => { raf = 0; paint(); }); };
   document.addEventListener('mousemove', live); document.addEventListener('touchmove', live, { passive: true });
 
+  window.setCtxGroup = show => { const b = document.getElementById('ctx-group'); if (!b) return; b.classList.toggle('hidden', !show || !selectedNodeIds.length); const s = b.querySelector('span'); if (s) s.textContent = `Créer un groupe (${selectedNodeIds.length})`; };
   window.openGroupDialog = function () {
     if (!requireEdit()) return;
     const ids = selectedNodeIds.slice(); if (!ids.length) return;
@@ -4618,4 +4627,3 @@ window.mobiusRelationSQL = function(cardTables) {
 </script>
 </body>
 </html>
-
