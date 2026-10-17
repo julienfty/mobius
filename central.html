@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Centrale - Mobius</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>tailwind.config={darkMode:'class'};if(localStorage.getItem('theme')==='dark')document.documentElement.classList.add('dark')</script>
+<style>.person{user-select:none}.sel{box-shadow:0 0 0 2px #5246EE;background:rgba(82,70,238,.08)}#box{position:fixed;border:1.5px dashed #5246EE;background:rgba(82,70,238,.1);pointer-events:none;display:none;z-index:40}</style>
+</head>
+<body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 text-xs flex flex-col">
+<header class="flex items-center gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex-wrap">
+  <a id="back" class="px-2 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">←</a>
+  <h1 id="title" class="font-bold text-sm text-violet-600 mr-2">Centrale</h1>
+  <span id="scope" class="text-slate-400"></span>
+  <div class="flex-1"></div>
+  <input id="q" placeholder="Rechercher…" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none w-40">
+  <button data-v="grid" class="vb px-2 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">▦ Carrés</button>
+  <button data-v="list" class="vb px-2 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">☰ Liste</button>
+  <button id="bGroup" class="px-3 py-1.5 rounded-lg bg-violet-600 text-white hidden">Créer un groupe</button>
+  <button id="bField" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">+ / − Champ</button>
+  <button id="bCard" class="px-3 py-1.5 rounded-lg bg-[#5246EE] text-white">+ Nouvelle carte liée</button>
+  <button id="bSub" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hidden"></button>
+  <button id="bCards" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">Cartes</button>
+  <button id="bExp" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">.mobius</button>
+</header>
+<div class="flex-1 flex min-h-0">
+  <main class="flex-1 overflow-auto p-4"><div id="groups" class="flex gap-2 flex-wrap mb-3"></div><div id="plist" class="relative min-h-[60vh]"></div></main>
+  <aside id="side" class="w-96 max-w-[45vw] border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-auto p-4 hidden"></aside>
+</div>
+<div id="box"></div><div id="mod" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"><div id="modc" class="bg-white dark:bg-slate-900 rounded-2xl p-5 w-96 max-w-full space-y-3 shadow-2xl"></div></div>
+<script>
+const sb=supabase.createClient('https://nfvnayuqrmlldtixzdpx.supabase.co','sb_publishable_EwONSAsqSfu8_SocZ7wZBA_rVODWqSF');
+const Q=new URLSearchParams(location.search),pid=Q.get('projectId'),cid=Q.get('centralId'),$=i=>document.getElementById(i);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const DEF=()=>[{id:'f_firstname',key:'firstname',label:'Prénom',type:'line'},{id:'f_lastname',key:'lastname',label:'Nom',type:'line'},{id:'f_nickname',key:'nickname',label:'Surnom',type:'line'},{id:'f_birthdate',key:'birthdate',label:'Date de naissance',type:'date'},{id:'f_location',key:'location',label:'Lieu de résidence',type:'line'}];
+const fieldsOf=c=>c.fields||(c.fields=DEF());
+const fv=(n,f)=>f.key?n[f.key]:(n.custom||{})[f.id];
+const setv=(n,f,v)=>{if(f.key)n[f.key]=v;else(n.custom||(n.custom={}))[f.id]=v};
+const key=n=>((n.firstname||'')+' '+(n.lastname||'')).trim().toLowerCase();
+let P,C,sel=new Set(),cur=null,view=localStorage.getItem('centralView')||'grid',timer;
+const walk=(l,f)=>(l||[]).forEach(i=>{f(i);walk(i.children,f)});
+const find=id=>{let r;walk(P.tree,i=>{if(i.id===id)r=i});return r};
+function save(){clearTimeout(timer);timer=setTimeout(async()=>{const{error}=await sb.from('projects').update({tree:P.tree}).eq('id',pid);if(error)alert('Enregistrement impossible : '+error.message)},500)}
+function cards(){const o=[];if(C.mode==='cards')return(C.cardIds||[]).map(find).filter(Boolean);
+  if(C.mode==='root'){walk(P.tree,i=>{if(i.type==='card')o.push(i)});return o}
+  const f=find(C.folderId);const go=(l,d)=>(l||[]).forEach(i=>{if(i.type==='card')o.push(i);else if(i.type==='folder'&&d)go(i.children,d)});go(f?f.children:[],C.includeSub);return o}
+function renameId(card,o,nw){(card.nodes||[]).forEach(n=>{if(n.id===o)n.id=nw});(card.links||[]).forEach(l=>{if(l.sourceId===o)l.sourceId=nw;if(l.targetId===o)l.targetId=nw});
+  walk(P.tree,i=>{if(i.type==='card')(i.nodes||[]).forEach(n=>(n.crossLinks||[]).forEach(l=>{if(l.cardId===card.id&&l.nodeId===o)l.nodeId=nw}))})}
+// identité d'une personne = un seul id (celui du MQL), identique sur toutes les cartes
+function persons(){const cs=cards(),all=[];cs.forEach(c=>(c.nodes||[]).forEach(n=>all.push({c,n})));
+  const par=new Map(),ref=new Map(),id=e=>e.c.id+'|'+e.n.id,F=x=>{while(par.get(x)!==x){par.set(x,par.get(par.get(x)));x=par.get(x)}return x},U=(a,b)=>{a=F(a);b=F(b);if(a!==b)par.set(a,b)};
+  all.forEach(e=>{par.set(id(e),id(e));ref.set(id(e),e)});
+  const bi=new Map(),bn=new Map();
+  all.forEach(e=>{[e.n.id,e.n.pid].forEach(k=>{if(!k)return;if(bi.has(k))U(id(e),bi.get(k));else bi.set(k,id(e))});(e.n.crossLinks||[]).forEach(l=>{const o=l.cardId+'|'+l.nodeId;if(ref.has(o))U(id(e),o)})});
+  all.forEach(e=>{const k=key(e.n);if(!k)return;if(!bn.has(k))bn.set(k,id(e));else if(!e.n.pid&&!/^p_/.test(e.n.id)&&!all.some(x=>x!==e&&x.c===e.c&&F(id(x))===F(bn.get(k))))U(id(e),bn.get(k))});
+  const gr=new Map();all.forEach(e=>{const r=F(id(e));if(!gr.has(r))gr.set(r,[]);gr.get(r).push(e)});
+  let ch=false;const list=[...gr.values()].map(at=>{const cnt=new Map();at.forEach(e=>cnt.set(e.n.id,(cnt.get(e.n.id)||0)+1));
+    const canon=[...cnt.entries()].sort((a,b)=>b[1]-a[1])[0][0],olds=new Set(at.map(e=>e.n.pid).filter(p=>p&&p!==canon));
+    at.forEach(e=>{if(e.n.id!==canon&&!(e.c.nodes||[]).some(x=>x!==e.n&&x.id===canon)){renameId(e.c,e.n.id,canon);ch=true}if(e.n.pid!==canon){e.n.pid=canon;ch=true}});
+    (C.groups||[]).forEach(g=>{g.keys=g.keys.map(k=>olds.has(k)?canon:k)});
+    const n=at[0].n;return{k:canon,name:((n.firstname||'')+' '+(n.lastname||'')).trim(),at}});
+  if(ch)save();return{list,total:cs.length}}
+function reach(pid){const all=[];walk(P.tree,i=>{if(i.type==='card')(i.nodes||[]).forEach(n=>all.push({c:i,n}))});
+  const ix=new Map(all.map(e=>[e.c.id+'|'+e.n.id,e])),seen=new Set(),out=[],q=all.filter(e=>e.n.pid===pid);
+  while(q.length){const e=q.pop(),d=e.c.id+'|'+e.n.id;if(seen.has(d))continue;seen.add(d);e.n.pid=pid;out.push(e);(e.n.crossLinks||[]).forEach(l=>{const o=ix.get(l.cardId+'|'+l.nodeId);if(o)q.push(o)})}return out}
+function modal(title,body,ok){$('modc').innerHTML=`<h3 class="font-bold text-sm">${title}</h3>${body}<div class="flex justify-end gap-2 pt-2"><button id="mx" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">Annuler</button><button id="mo" class="px-3 py-1.5 rounded-lg bg-[#5246EE] text-white">OK</button></div>`;$('mod').classList.remove('hidden');
+  $('mx').onclick=()=>$('mod').classList.add('hidden');$('mo').onclick=()=>{if(ok($('modc'))!==false)$('mod').classList.add('hidden')}}
+const inp='class="w-full px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 outline-none"';
+function render(){const{list,total}=persons(),q=$('q').value.toLowerCase();
+  $('title').textContent=C.name;$('scope').textContent=`${total} carte(s) · ${list.length} personne(s)`+(C.mode==='root'?' · racine (analyse seule, cartes non reliées)':C.mode==='folder'?' · dossier (cartes reliées)':' · cartes centralisées (reliées)');
+  $('bSub').classList.toggle('hidden',C.mode!=='folder');$('bSub').textContent=C.includeSub?'Sous-dossiers : inclus':'Sous-dossiers : exclus';
+  $('bGroup').classList.toggle('hidden',sel.size<1);$('bGroup').textContent=`Créer un groupe (${sel.size})`;
+  document.querySelectorAll('.vb').forEach(b=>b.classList.toggle('ring-2',b.dataset.v===view));
+  $('groups').innerHTML=(C.groups||[]).map(g=>`<span class="px-2.5 py-1 rounded-full bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 font-semibold">${esc(g.name)} · ${g.keys.length} <button data-ga="${g.id}" title="Rapprocher sur les cartes">⇢</button> <button data-gd="${g.id}" title="Supprimer le groupe">×</button></span>`).join('');
+  const gOf=k=>(C.groups||[]).filter(g=>g.keys.includes(k)).map(g=>g.name);
+  $('plist').className=(view==='grid'?'grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3':'flex flex-col gap-1.5')+' relative min-h-[60vh]';
+  $('plist').innerHTML=list.filter(p=>!q||p.name.toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name)).map(p=>{const part=p.at.length<total,gs=gOf(p.k);
+    return`<div class="person cursor-pointer rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 ${view==='list'?'flex items-center gap-3':''} ${sel.has(p.k)?'sel':''}" data-k="${esc(p.k)}"><div class="font-semibold truncate flex-1">${esc(p.name)}</div><div class="mt-1 ${part?'text-amber-600':'text-emerald-600'}" title="${part?'Uniquement sur : '+esc(p.at.map(a=>a.c.name).join(', ')):'Présent sur toutes les cartes'}">${part?`⚠ ${p.at.length}/${total} cartes`:`✓ ${total} cartes`}</div>${gs.length?`<div class="text-violet-600 truncate">${esc(gs.join(', '))}</div>`:''}</div>`}).join('')||'<div class="text-slate-400 py-10 text-center">Aucune personne.</div>';
+  sheet()}
+function sheet(){const s=$('side');if(!cur){s.classList.add('hidden');return}const p=persons().list.find(x=>x.k===cur);if(!p){cur=null;s.classList.add('hidden');return}
+  s.classList.remove('hidden');const fl=[],seen=new Set();p.at.forEach(a=>fieldsOf(a.c).forEach(f=>{if(!seen.has(f.label)){seen.add(f.label);fl.push(f)}}));
+  const nCards=p.at.length;
+  s.innerHTML=`<h2 class="font-bold text-sm mb-1">${esc(p.name)}</h2><div class="mb-2 text-slate-400">ID (MQL) : <code class="select-all">${esc(p.k)}</code></div><p class="text-slate-400 mb-3">Sur ${nCards} carte(s) : ${esc(p.at.map(a=>a.c.name).join(', '))}</p>`+fl.map(f=>{const a=p.at.find(x=>fieldsOf(x.c).some(g=>g.label===f.label)),g=fieldsOf(a.c).find(g=>g.label===f.label),v=fv(a.n,g)??'';
+    return`<label class="block mb-2"><span class="text-slate-500">${esc(f.label)}</span>${f.type==='text'?`<textarea data-f="${esc(f.label)}" rows="3" ${inp}>${esc(v)}</textarea>`:`<input data-f="${esc(f.label)}" type="${f.type==='number'?'number':f.type==='date'?'date':f.type==='bool'?'checkbox':'text'}" ${f.type==='bool'?(v?'checked':''):`value="${esc(v)}"`} ${f.type==='bool'?'':inp}>`}</label>`}).join('')+
+  `<div class="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800"><div class="font-semibold mb-1">Lier au scénario</div>${links()}</div>`}
+function links(){const docs=[];walk(P.tree,i=>{if(!['card','folder','central'].includes(i.type))docs.push(i)});
+  const tg=[...cards()];if(C.folderId){const f=find(C.folderId);(f?.children||[]).forEach(i=>{if(i.type==='folder')tg.push(i)})}
+  C.links=C.links||{};return tg.map(t=>{const l=C.links[t.id]||{};return`<div class="flex gap-1 mb-1 items-center"><span class="w-24 truncate" title="${esc(t.name)}">${t.type==='folder'?'📁':'🗺'} ${esc(t.name)}</span><select data-ld="${t.id}" class="flex-1 bg-slate-100 dark:bg-slate-800 rounded p-1"><option value="">— scénario —</option>${docs.map(d=>`<option value="${d.id}" ${l.doc===d.id?'selected':''}>${esc(d.name)}</option>`).join('')}</select><input data-lp="${t.id}" value="${esc(l.part||'')}" placeholder="Acte 1" class="w-20 bg-slate-100 dark:bg-slate-800 rounded p-1"></div>`}).join('')||'<span class="text-slate-400">Aucune carte.</span>'}
+$('side').addEventListener('input',e=>{const t=e.target,lb=t.dataset.f,ld=t.dataset.ld||t.dataset.lp;
+  if(lb){const p=persons().list.find(x=>x.k===cur);const kf=p.at.map(a=>fieldsOf(a.c).find(f=>f.label===lb)).find(f=>f&&(f.key==='firstname'||f.key==='lastname'));if(kf)reach(cur).forEach(e=>{e.n[kf.key]=t.value});p.at.forEach(a=>{const f=fieldsOf(a.c).find(f=>f.label===lb);if(f)setv(a.n,f,t.type==='checkbox'?t.checked:t.value)});save()}
+  if(ld){const id=t.dataset.ld||t.dataset.lp;const l=C.links[id]=C.links[id]||{};if(t.dataset.ld)l.doc=t.value;else l.part=t.value;save()}});
+$('side').addEventListener('change',()=>render());
+// sélection rectangulaire
+let dr=null;$('plist').addEventListener('mousedown',e=>{if(e.button===0)dr={x:e.clientX,y:e.clientY,mv:false,add:e.shiftKey||e.ctrlKey||e.metaKey}});
+addEventListener('mousemove',e=>{if(!dr)return;if(Math.abs(e.clientX-dr.x)+Math.abs(e.clientY-dr.y)>6)dr.mv=true;if(dr.mv){const b=$('box').style;b.display='block';b.left=Math.min(e.clientX,dr.x)+'px';b.top=Math.min(e.clientY,dr.y)+'px';b.width=Math.abs(e.clientX-dr.x)+'px';b.height=Math.abs(e.clientY-dr.y)+'px'}});
+addEventListener('mouseup',e=>{if(!dr)return;const d=dr;dr=null;$('box').style.display='none';
+  if(d.mv){const x1=Math.min(e.clientX,d.x),x2=Math.max(e.clientX,d.x),y1=Math.min(e.clientY,d.y),y2=Math.max(e.clientY,d.y);if(!d.add)sel.clear();
+    document.querySelectorAll('.person').forEach(el=>{const r=el.getBoundingClientRect();if(r.left<x2&&r.right>x1&&r.top<y2&&r.bottom>y1)sel.add(el.dataset.k)});render()}
+  else{const el=e.target.closest&&e.target.closest('.person');if(el){if(d.add){sel.has(el.dataset.k)?sel.delete(el.dataset.k):sel.add(el.dataset.k)}else{sel.clear();cur=el.dataset.k}render()}else if(e.target.closest('#plist')){sel.clear();cur=null;render()}}});
+// groupes : rapproche les membres sur chaque carte (cercle autour du barycentre, écart minimum pour garder les liens lisibles)
+function applyGroup(g){cards().forEach(c=>{const ns=(c.nodes||[]).filter(n=>g.keys.includes(n.pid));if(ns.length<2)return;
+  const cx=ns.reduce((s,n)=>s+n.x,0)/ns.length,cy=ns.reduce((s,n)=>s+n.y,0)/ns.length,r=Math.max(120,ns.length*38);
+  ns.forEach((n,i)=>{const a=2*Math.PI*i/ns.length;n.x=Math.max(20,Math.round(cx+r*Math.cos(a)));n.y=Math.max(20,Math.round(cy+r*Math.sin(a)))})});save();render()}
+$('groups').onclick=e=>{const a=e.target.dataset.ga,d=e.target.dataset.gd;if(a)applyGroup(C.groups.find(g=>g.id===a));if(d&&confirm('Supprimer ce groupe ? (les positions sur les cartes ne changent pas)')){C.groups=C.groups.filter(g=>g.id!==d);save();render()}};
+$('bGroup').onclick=()=>modal('Nouveau groupe',`<input id="gn" placeholder="Famille 1, Amis 1, Collègues…" ${inp}><p class="text-slate-400">${sel.size} personne(s). Elles seront rapprochées sur les cartes.</p>`,m=>{const n=m.querySelector('#gn').value.trim();if(!n)return false;const g={id:'g_'+Date.now(),name:n,keys:[...sel]};(C.groups=C.groups||[]).push(g);sel.clear();applyGroup(g)});
+// champs : ajout / suppression sur une ou plusieurs cartes
+$('bField').onclick=()=>{const cs=cards(),all=new Set();cs.forEach(c=>fieldsOf(c).forEach(f=>all.add(f.label)));
+  const chk=cs.map(c=>`<label class="block"><input type="checkbox" class="cc" value="${c.id}" checked> ${esc(c.name)}</label>`).join('');
+  modal('Ajouter / supprimer un champ',`<select id="fa" ${inp}><option value="add">Ajouter un champ</option><option value="del">Supprimer un champ</option></select><input id="fl" placeholder="Nom du champ" ${inp}><select id="ft" ${inp}><option value="line">Texte court</option><option value="text">Zone textuelle</option><option value="number">Numérique</option><option value="bool">Booléen</option><option value="date">Date</option></select><div class="text-slate-400">Datalist : ${esc([...all].join(', '))}</div><div class="max-h-32 overflow-auto">${chk}</div>`,m=>{
+    const lb=m.querySelector('#fl').value.trim(),add=m.querySelector('#fa').value==='add',ids=[...m.querySelectorAll('.cc:checked')].map(i=>i.value),tg=cs.filter(c=>ids.includes(c.id));if(!lb||!tg.length)return false;
+    const np=tg.reduce((s,c)=>s+(c.nodes||[]).length,0);
+    if(!confirm(`Attention : ce champ sera ${add?'ajouté à':'supprimé de'} TOUTES les personnes de ${tg.length} carte(s) (${np} fiches). Continuer ?`))return false;
+    tg.forEach(c=>{const fs=fieldsOf(c);if(add){if(!fs.some(f=>f.label===lb))fs.push({id:'f_'+Date.now()+Math.random().toString(36).slice(2,5),label:lb,type:m.querySelector('#ft').value})}else{const f=fs.find(f=>f.label===lb);if(f){c.fields=fs.filter(x=>x!==f);(c.nodes||[]).forEach(n=>{if(f.key)delete n[f.key];else if(n.custom)delete n.custom[f.id]})}}});save();render()})};
+// nouvelle carte liée : mêmes personnes
+$('bCard').onclick=()=>modal('Nouvelle carte liée',`<input id="cn" placeholder="Nom de la carte" ${inp}><p class="text-slate-400">Toutes les personnes de la centrale y seront recopiées.</p>`,m=>{const n=m.querySelector('#cn').value.trim();if(!n)return false;
+  const ps=persons().list,i0=ps.map(p=>p.at[0]),cols=Math.ceil(Math.sqrt(ps.length||1));
+  const card={id:'id_'+Date.now()+Math.random().toString(36).slice(2,5),type:'card',name:n,content:'',links:[],relationTypes:[],fields:JSON.parse(JSON.stringify(fieldsOf(i0[0]?.c||{fields:null}))),
+    nodes:i0.map((a,i)=>({...JSON.parse(JSON.stringify(a.n)),id:a.n.id,pid:a.n.id,crossLinks:[],x:80+(i%cols)*230,y:80+Math.floor(i/cols)*160}))};
+  if(C.mode==='cards')(C.cardIds=C.cardIds||[]).push(card.id);
+  const f=C.mode==='folder'?find(C.folderId):null;(f?(f.children=f.children||[]):P.tree).push(card);save();render()});
+$('bCards').onclick=()=>{const cs=cards(),rm=C.mode==='cards';
+  modal('Cartes de la centrale',cs.map(c=>`<div class="flex items-center gap-2"><span class="flex-1 truncate">🗺 ${esc(c.name)}</span>${rm?`<button data-rm="${c.id}" class="text-rose-500">Retirer</button>`:''}</div>`).join('')+(rm?'':'<p class="text-slate-400">Les cartes suivent le contenu du dossier : déplace une carte hors du dossier (arborescence) pour la délier.</p>'),()=>true);
+  $('modc').onclick=e=>{const id=e.target.dataset.rm;if(!id)return;const c=find(id);if(confirm(`« ${c.name} » ne sera plus liée à cette centrale (ses personnes n'y seront plus rattachées). Continuer ?`)){C.cardIds=C.cardIds.filter(x=>x!==id);save();$('mod').classList.add('hidden');render()}}};
+$('bSub').onclick=()=>{C.includeSub=!C.includeSub;save();render()};
+$('bExp').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({kind:'central',...C},null,2)],{type:'application/json'}));a.download=C.name.replace(/\W+/g,'_')+'.mobius';a.click()};
+$('q').oninput=render;document.querySelectorAll('.vb').forEach(b=>b.onclick=()=>{view=b.dataset.v;localStorage.setItem('centralView',view);render()});
+(async()=>{const{data:{session}}=await sb.auth.getSession();if(!session){location.href='index.html';return}
+  const{data,error}=await sb.from('projects').select('*').eq('id',pid).single();if(error||!data){document.body.innerHTML='Projet introuvable.';return}
+  P=data;if(typeof P.tree==='string')P.tree=JSON.parse(P.tree);C=find(cid);if(!C||C.type!=='central'){document.body.innerHTML='Centrale introuvable.';return}
+  const from=Q.get('cardId')||(cards()[0]&&cards()[0].id);$('back').href=`map.html?projectId=${encodeURIComponent(pid)}`+(from?`&cardId=${encodeURIComponent(from)}`:'');
+  const nid=Q.get('nodeId');if(nid){const p=persons().list.find(p=>p.at.some(a=>a.n.id===nid));if(p)cur=p.k}
+  render();if(nid)setTimeout(()=>{const i=document.querySelector('[data-f="Prénom"]');if(i){i.focus();i.select&&i.select()}},50)})();
+</script></body></html>
