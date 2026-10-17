@@ -131,7 +131,7 @@
                     <option value="chrono">Plus récents</option>
                 </select>
                 <!-- Bouton d'importation global .mobius -->
-                <input type="file" id="import-mobius-input" accept=".mobius,.mobpro,.json,.mobscen,.mobtext,.fountain,.txt,.pdf,.docx,.page,.sql,.csv,.xlsx,.xls" multiple class="hidden" onchange="importDashboardMobiusFile(event)">
+                <input type="file" id="import-mobius-input" accept=".mobius,.mobpro,.json,.mobscen,.mobtext,.fountain,.txt,.pdf,.docx,.page,.mobql,.sql,.csv,.xlsx,.xls" multiple class="hidden" onchange="importDashboardMobiusFile(event)">
                 <button onclick="document.getElementById('import-mobius-input').click()" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all" title="Importer une carte (.mobius), un projet (.mobpro), un scénario (.mobscen, .fountain) ou un texte (.mobtext, .txt, .pdf, .docx)">
                     <i class="fa-solid fa-file-arrow-down text-[#5246EE]"></i>
                     <span class="hidden sm:inline">Importer</span>
@@ -167,7 +167,7 @@
                 <button data-create="central" class="tree-create px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-database text-violet-500"></i> Centrale</button>
                 <button data-create="card" class="tree-create px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-note-sticky text-indigo-500"></i> Nouvelle Carte</button>
                 <button id="import-btn" class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-xs font-medium flex items-center gap-1.5"><i class="fa-solid fa-file-arrow-down text-[#5246EE]"></i> Importer</button>
-                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx,.mobtext,.mobscen,.sql,.csv,.xlsx,.xls" multiple>
+                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx,.mobtext,.mobscen,.mobql,.sql,.csv,.xlsx,.xls" multiple>
             </div>
             <div class="text-[11px] text-gray-400 font-medium" id="selected-folder-indicator">📁 Destination : Racine du projet</div>
         </div>
@@ -935,7 +935,7 @@ const currentCard = {};
                 try { const d = JSON.parse(await file.text()); return !(d && Array.isArray(d.nodes) && Array.isArray(d.links)) && (Array.isArray(d.tables) || (Array.isArray(d) && d.length > 0 && typeof d[0] === 'object')); } catch (e) { return false; }
             }
             async function fileToCards(file) {
-                if (/\.sql$/i.test(file.name)) return toCards(await file.text(), file.name);
+                if (/\.(?:mobql|sql)$/i.test(file.name)) return toCards(await file.text(), file.name);
                 return toCards(emit(await fileTables(file), { mobius: true }), file.name);
             }
 return { tok, split, toCards, emit, fileTables, fileToCards, isTabularJson };
@@ -975,7 +975,7 @@ return Object.assign({ buildTables }, MT_core);
         return { tab: 'cards', id };
     }
 
-    // .sql / .csv / .xlsx / .xls / .json tabulaire -> une carte libre par table ou feuille (même moteur que la page map)
+    // .mobql / .sql / .csv / .xlsx / .xls / .json tabulaire -> une carte libre par table ou feuille (même moteur que la page map)
     async function importTabularFile(file) {
         const cards = await MT.fileToCards(file);
         const out = [];
@@ -1114,7 +1114,7 @@ return Object.assign({ buildTables }, MT_core);
             const ext = (file.name.split('.').pop() || '').toLowerCase();
             try {
                 let r = null;
-                if (['sql', 'csv', 'xlsx', 'xls'].includes(ext) || (ext === 'json' && await MT.isTabularJson(file))) r = await importTabularFile(file);
+                if (['mobql', 'sql', 'csv', 'xlsx', 'xls'].includes(ext) || (ext === 'json' && await MT.isTabularJson(file))) r = await importTabularFile(file);
                 else if (ext === 'json') {
                     const txt = await file.text();
                     if (parseMobiusCard(txt, file.name)) r = await importCardFile(file, txt);
@@ -1123,7 +1123,7 @@ return Object.assign({ buildTables }, MT_core);
                 else if (ext === 'mobius') r = await importCardFile(file, await file.text());
                 else if (ext === 'mobpro') r = await importProjectFile(file, await file.text());
                 else if (['mobscen', 'mobtext', 'fountain', 'txt', 'pdf', 'docx', 'page'].includes(ext)) r = await importDocFile(file, ext);
-                else { toast(`« ${file.name} » ignoré : formats acceptés : .mobius, .mobpro, .mobscen, .mobtext, .fountain, .txt, .pdf, .docx, .sql, .csv, .xlsx, .json.`, 'info'); continue; }
+                else { toast(`« ${file.name} » ignoré : formats acceptés : .mobius, .mobpro, .mobscen, .mobtext, .fountain, .txt, .pdf, .docx, .mobql, .sql, .csv, .xlsx, .json.`, 'info'); continue; }
                 if (Array.isArray(r)) results.push(...r); else if (r) results.push(r);
             } catch (err) { console.error(err); toast(`« ${file.name} » refusé : ${err.message}.`, 'error'); }
         }
@@ -1938,8 +1938,8 @@ return Object.assign({ buildTables }, MT_core);
     async function importFiles(files, dest) {
         if (!requireEditTree()) return;
         let t = (dest && typeof dest === 'object') ? dest : { folderId: dest };
-        const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx|mobtext|mobscen|sql|csv|xlsx|xls)$/i.test(f.name));
-        if (accepted.length < files.length) toast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx, .mobius, .mobtext, .mobscen, .sql, .csv et .xlsx.', 'info');
+        const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx|mobtext|mobscen|mobql|sql|csv|xlsx|xls)$/i.test(f.name));
+        if (accepted.length < files.length) toast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx, .mobius, .mobtext, .mobscen, .mobql, .sql, .csv et .xlsx.', 'info');
         let added = 0;
         const put = (item) => {
             item.isNewDrop = true;
@@ -1948,7 +1948,7 @@ return Object.assign({ buildTables }, MT_core);
         };
         for (const file of accepted) {
             try {
-                if (/\.(sql|csv|xlsx|xls)$/i.test(file.name) || (/\.json$/i.test(file.name) && await MT.isTabularJson(file))) {
+                if (/\.(mobql|sql|csv|xlsx|xls)$/i.test(file.name) || (/\.json$/i.test(file.name) && await MT.isTabularJson(file))) {
                     // Excel / CSV / SQL / SQL Mobius / JSON tabulaire : une carte par table ou feuille (mêmes règles que la page map)
                     const cs = await MT.fileToCards(file);
                     cs.forEach(c => put(c));
