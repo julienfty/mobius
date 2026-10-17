@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -155,9 +156,9 @@
                     <p class="text-xs text-gray-500" id="workspace-subtitle"></p>
                 </div>
             </div>
-            <div class="relative"><button id="export-btn" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all">
-                <i class="fa-solid fa-download text-red-500"></i><span>Exporter le projet ▾</span>
-            </button><div id="dash-export-menu" class="hidden absolute right-0 mt-2 z-40 bg-white dark:bg-gray-900 shadow-xl rounded-xl p-2 w-56"><button id="dash-mobpro" class="w-full p-2 text-left">Projet (.mobpro)</button><button id="dash-tabular" class="w-full p-2 text-left">Tabulation (MQL, SQL, CSV, Excel, JSON)</button></div></div>
+            <div class="relative"><button id="export-btn" data-exbtn class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all">
+                <i class="fa-solid fa-download text-red-500"></i><span>Exporter le projet</span><i class="fa-solid fa-chevron-down text-[10px] text-gray-400"></i>
+            </button><div id="dash-export-menu" class="hidden absolute right-0 mt-2 z-40 w-64 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 space-y-1"><button id="dash-mobpro" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="folder-archive" class="w-4 h-4 text-red-500"></i> Projet (.mobpro) <span class="text-[9px] bg-red-100 dark:bg-red-950 text-red-600 px-1.5 py-0.5 rounded font-bold ml-auto">Natif</span></button><div class="px-3 pt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Tabulation</div><button data-exfmt="xlsx" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-spreadsheet" class="w-4 h-4 text-slate-400"></i> Export Excel (.xlsx)</button><button data-exfmt="csv" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4 text-slate-400"></i> Export CSV</button><button data-exfmt="json" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="braces" class="w-4 h-4 text-slate-400"></i> Export JSON</button><button data-exfmt="mql" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="terminal" class="w-4 h-4 text-[#5246EE]"></i> Export MQL <span class="text-[9px] bg-purple-100 dark:bg-purple-950 text-purple-600 px-1.5 py-0.5 rounded font-bold ml-auto">Natif</span></button><button data-exfmt="sql" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="database" class="w-4 h-4 text-slate-400"></i> Export SQL</button></div></div>
         </div>
 
         <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -577,7 +578,61 @@ const currentCard = {};
             const lit = v => v == null ? 'NULL' : typeof v === 'boolean' ? (v ? 'TRUE' : 'FALSE') : typeof v === 'number' ? (isFinite(v) ? String(v) : 'NULL') : "'" + String(v).replace(/'/g, "''") + "'";
             const sy = (t, v) => !!t && t.t === 'sym' && t.v === v;
             const tmap = t => /int|num|dec|float|real|doub/i.test(t) ? 'number' : /bool/i.test(t) ? 'bool' : /date|time/i.test(t) ? 'date' : 'line';
-            const isCmd = c => c.length > 1 && c[0].t === 'w' && /^(createlink|newlink)$/i.test(c[0].v) && sy(c[1], ':');
+            const isCmd = c => c.length > 1 && c[0].t === 'w' && /^(createlink|newlink|link)$/i.test(c[0].v) && sy(c[1], ':');
+
+            // ---------- liens : sens unique (directed) / normal ; fusion de deux sens opposés ----------
+        const isDirected = l => l.directed === true;
+        const newLinkId = () => 'link-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+        // Ajoute un lien dans `links` en appliquant les règles de fusion.
+        // Retourne 'added' | 'merged' | 'exists'.
+        //  - A→B puis B→A avec le même type : les deux fusionnent en un lien normal.
+        //  - Un lien normal et un lien à sens unique de même type se rejoignent aussi en lien normal.
+        function addLinkTo(links, srcId, tgtId, relId, directed) {
+            const rel = relId || '';
+            const between = links.filter(l => (l.sourceId === srcId && l.targetId === tgtId) || (l.sourceId === tgtId && l.targetId === srcId));
+            const sameType = l => (l.relationTypeId || '') === rel;
+            // un lien normal et des liens à sens unique peuvent coexister entre les deux mêmes personnes
+            if (directed) {
+                if (between.some(l => !isDirected(l) && sameType(l))) return 'exists';                 // déjà couvert par un lien normal de ce type
+                if (between.some(l => l.sourceId === srcId && isDirected(l) && sameType(l))) return 'exists';
+                const opp = between.find(l => l.sourceId === tgtId && isDirected(l) && sameType(l));
+                if (opp) { delete opp.directed; return 'merged'; }
+                links.push({ id: newLinkId(), sourceId: srcId, targetId: tgtId, relationTypeId: rel, directed: true });
+                return 'added';
+            }
+            if (between.some(l => !isDirected(l) && sameType(l))) return 'exists';
+            const same = between.filter(l => isDirected(l) && sameType(l));
+            if (same.length) {
+                delete same[0].directed;
+                same.slice(1).forEach(l => links.splice(links.indexOf(l), 1));
+                return 'merged';
+            }
+            links.push({ id: newLinkId(), sourceId: srcId, targetId: tgtId, relationTypeId: rel });
+            return 'added';
+        }
+        // fusionne deux liens à sens unique opposés de même type (après une modification manuelle)
+        function normalizeLinkList(ls) {
+            // 1) deux sens uniques opposés de même type -> un lien normal
+            for (let i = 0; i < ls.length; i++) {
+                const a = ls[i]; if (!isDirected(a)) continue;
+                const j = ls.findIndex((b, k) => k !== i && isDirected(b) && b.sourceId === a.targetId && b.targetId === a.sourceId && (b.relationTypeId || '') === (a.relationTypeId || ''));
+                if (j >= 0) { delete a.directed; ls.splice(j, 1); if (j < i) i--; }
+            }
+            // 2) doublons exacts (même paire, même type, même sens) ou sens unique déjà couvert par un lien normal de même type
+            const pair = l => [l.sourceId, l.targetId].sort().join('|') + '|' + (l.relationTypeId || '');
+            for (let i = 0; i < ls.length; i++) {
+                for (let j = i + 1; j < ls.length; j++) {
+                    if (pair(ls[i]) !== pair(ls[j])) continue;
+                    const a = ls[i], b = ls[j];
+                    const dup = (!isDirected(a) && !isDirected(b)) || (isDirected(a) && isDirected(b) && a.sourceId === b.sourceId);
+                    if (dup) { ls.splice(j, 1); j--; continue; }
+                    if (!isDirected(a) && isDirected(b)) { ls.splice(j, 1); j--; }
+                    else if (isDirected(a) && !isDirected(b)) { ls.splice(i, 1); i--; break; }
+                }
+            }
+        }
+
 
             // ---------- analyse ----------
             function tok(src) {
@@ -620,7 +675,10 @@ const currentCard = {};
                 for (const t of T) {
                     if (t.t === 'meta') { flush(); S.push([t]); continue; }
                     if (sy(t, ';')) { flush(); continue; }
-                    if (isCmd(cur)) { const p = cur[cur.length - 1]; if (t.ln > p.ln && !sy(p, ',')) flush(); }
+                    if (isCmd(cur)) {
+                        const p = cur[cur.length - 1], depth = cur.reduce((d, x) => d + (sy(x, '(') ? 1 : sy(x, ')') ? -1 : 0), 0);
+                        if (t.ln > p.ln && !sy(p, ',') && depth <= 0) flush();
+                    }
                     cur.push(t);
                 }
                 flush(); return S;
@@ -630,7 +688,7 @@ const currentCard = {};
             function run(S, base) {
                 const cp = x => JSON.parse(JSON.stringify(x));
                 const D = { nodes: cp(base.nodes || []), links: cp(base.links || []), relationTypes: cp(base.relationTypes || []), fields: cp(Array.isArray(base.fields) ? base.fields : DEFAULT_FIELDS()) };
-                const log = [], results = [], types = {}; let ins = 0, upd = 0, del = 0, lk = 0, changed = false;
+                const log = [], results = [], types = {}; let ins = 0, upd = 0, del = 0, lk = 0, md = 0, changed = false;
                 const val = t => { if (!t) throw Error('valeur manquante'); if (t.t !== 'w') return t.v; const u = t.v.toUpperCase(); if (u === 'NULL') return null; if (u === 'TRUE') return true; if (u === 'FALSE') return false; return /^-?\d+(\.\d+)?$/.test(t.v) ? Number(t.v) : t.v; };
                 const findF = c => { const k = idn(c); return D.fields.find(f => idn(f.label) === k || f.key === k) || D.fields.find(f => f.key && f.key === ALIAS[k]); };
                 const getF = (c, type) => findF(c) || (() => { const f = { id: uid('f_'), label: pretty(c), type: type || 'line' }; D.fields.push(f); return f; })();
@@ -673,19 +731,74 @@ const currentCard = {};
                     }
                     return [n => ors.some(a => a.every(f => f(n))), i];
                 };
-                const link = (rel, a, b) => {
+                const link = (rel, a, b, directed) => {
                     const A = ref(a), B = ref(b);
                     if (A === B) throw Error('une personne ne peut pas être reliée à elle-même');
-                    if (D.links.some(l => (l.sourceId === A.id && l.targetId === B.id) || (l.sourceId === B.id && l.targetId === A.id))) { log.push({ k: 'warn', m: `Lien déjà existant entre « ${a} » et « ${b} » : ignoré` }); return; }
-                    D.links.push({ id: uid('link-'), sourceId: A.id, targetId: B.id, relationTypeId: rel ? rel.id : '' }); lk++; changed = true;
+                    const res = addLinkTo(D.links, A.id, B.id, rel ? rel.id : '', directed);
+                    if (res === 'exists') { log.push({ k: 'warn', m: `Lien déjà existant entre « ${a} » et « ${b} » : ignoré` }); return; }
+                    if (res === 'merged') { log.push({ k: 'ok', m: `« ${a} » et « ${b} » : les deux sens ont fusionné en un lien normal` }); changed = true; return; }
+                    lk++; changed = true;
                 };
-                // createLink: name: "Nom", color: "#hex"   |   newLink: typeLink: "Nom", from x to y, from x to z ...
+                // link: (typeLink: "Nom", a and b)  /  (typeLink: "Nom", from a to b) : modifie le lien EXISTANT entre deux personnes
+                const editLink = (rel, a, b, directed) => {
+                    const A = ref(a), B = ref(b);
+                    if (A === B) throw Error('une personne ne peut pas être reliée à elle-même');
+                    const between = D.links.filter(l => (l.sourceId === A.id && l.targetId === B.id) || (l.sourceId === B.id && l.targetId === A.id));
+                    if (!between.length) { log.push({ k: 'warn', m: `Aucun lien entre « ${a} » et « ${b} » : utilise newLink pour le créer` }); return; }
+                    const t = directed ? (between.find(l => isDirected(l) && l.sourceId === A.id) || (between.length === 1 ? between[0] : null))
+                                       : (between.find(l => !isDirected(l)) || (between.length === 1 ? between[0] : null));
+                    if (!t) throw Error(`plusieurs liens existent entre « ${a} » et « ${b} » : précise le sens avec « from X to Y », ou le lien normal avec « X and Y »`);
+                    t.relationTypeId = rel ? rel.id : '';
+                    if (directed) { t.sourceId = A.id; t.targetId = B.id; t.directed = true; } else delete t.directed;
+                    md++; changed = true;
+                };
+                // createLink: (name: "Nom", color: "#hex")   |   newLink: (typeLink: "Nom", x and y, from x to z ...)
+                // « to » = lien à sens unique (x → z), « and » = lien normal. Les parenthèses sont facultatives.
                 const cmd = st => {
                     const kind = st[0].v.toLowerCase(); let i = 2, name = null, color = null, tl = null; const pairs = [];
                     while (i < st.length) {
                         const t = st[i], w = t.v.toLowerCase();
-                        if (sy(t, ',')) { i++; continue; }
-                        if (t.t === 'w' && w === 'from') { const a = st[i + 1], to = st[i + 2], b = st[i + 3]; if (!a || !b || !to || to.v.toLowerCase() !== 'to') throw Error('syntaxe attendue : from X to Y'); pairs.push([a.v, b.v]); i += 4; continue; }
+                        if (sy(t, ',') || sy(t, '(') || sy(t, ')')) { i++; continue; }
+                        // clause de liens : from A [with B …] to C [to D …] (sens unique)   |   A [with B …] and C [and D …] (lien normal)
+                        //   to = sens unique (flèche), and = lien normal ; chaque source est reliée à chaque cible
+                        const isRef = x => x && x.t !== 'sym' && x.t !== 'meta';
+                        const kw = x => x && x.t === 'w' ? x.v.toLowerCase() : '';
+                        const isKey = t.t === 'w' && (w === 'name' || w === 'color' || w === 'typelink') && (sy(st[i + 1], ':') || sy(st[i + 1], '='));
+                        if (!isKey && isRef(t)) {
+                            let j = i; const hasFrom = kw(st[j]) === 'from'; if (hasFrom) j++;
+                            const srcs = [], tgs = [];
+                            const fmt = 'syntaxe attendue : from X [with Y,Z …] to A,B (sens unique) ou X [with Y,Z …] and A,B (lien normal)';
+                            if (!isRef(st[j])) throw Error(fmt);
+                            srcs.push(st[j++].v);
+                            // Sources : syntaxes longues, courtes et mixtes acceptées (with b with c / with b,c / with b,c with d).
+                            while (kw(st[j]) === 'with') {
+                                j++;
+                                if (!isRef(st[j])) throw Error('with : une personne est attendue après « with »');
+                                srcs.push(st[j++].v);
+                                while (sy(st[j], ',') && isRef(st[j + 1]) && !['to', 'and', 'with'].includes(kw(st[j + 1]))) {
+                                    j++;
+                                    srcs.push(st[j++].v);
+                                }
+                            }
+                            // Cibles : « to e,f,g » / « and e,f,g », ainsi que les répétitions historiques.
+                            while (kw(st[j]) === 'to' || kw(st[j]) === 'and') {
+                                const d = kw(st[j]) === 'to'; j++;
+                                if (!isRef(st[j])) throw Error(`« ${d ? 'to' : 'and'} » : une personne est attendue après`);
+                                tgs.push([st[j++].v, d]);
+                                while (sy(st[j], ',') && isRef(st[j + 1]) &&
+                                       !['from', 'to', 'and', 'with', 'name', 'color', 'typelink'].includes(kw(st[j + 1])) &&
+                                       !['to', 'and', 'with'].includes(kw(st[j + 2]))) {
+                                    j++;
+                                    tgs.push([st[j++].v, d]);
+                                }
+                            }
+                            if (!tgs.length) throw Error(fmt);
+                            if (new Set(tgs.map(x => x[1])).size > 1) throw Error('ne mélange pas « to » et « and » dans la même clause : sépare-les par une virgule');
+                            if (tgs[0][1] && !hasFrom) throw Error('un lien à sens unique s\'écrit « from X to Y »');
+                            if (!tgs[0][1] && hasFrom) throw Error('« from » ne s\'utilise qu\'avec « to » : écris « a and b » pour un lien normal');
+                            srcs.forEach(a => tgs.forEach(([b, d]) => { if (a !== b) pairs.push([a, b, d]); }));
+                            i = j; continue;
+                        }
                         if (t.t === 'w' && (w === 'name' || w === 'color' || w === 'typelink') && (sy(st[i + 1], ':') || sy(st[i + 1], '='))) { const v = st[i + 2]; if (!v || v.t === 'sym') throw Error(`valeur manquante après ${t.v}`); if (w === 'name') name = v.v; else if (w === 'color') color = v.v; else tl = v.v; i += 3; continue; }
                         throw Error(`élément inattendu « ${t.v} »`);
                     }
@@ -699,11 +812,19 @@ const currentCard = {};
                         else { rel = { id: uid('rel-'), name, color }; D.relationTypes.push(rel); log.push({ k: 'ok', m: `Type de lien « ${name} » ajouté à la légende` }); }
                         changed = true; return;
                     }
-                    if (!tl) throw Error('newLink : typeLink: "…" est obligatoire');
-                    if (!pairs.length) throw Error('newLink : from X to Y attendu');
+                    const cn = kind === 'link' ? 'link' : 'newLink';
+                    if (!tl) throw Error(`${cn} : typeLink: "…" est obligatoire`);
+                    if (!pairs.length) throw Error(`${cn} : from X [with Y,Z …] to A,B (sens unique) ou X [with Y,Z …] and A,B (lien normal) attendu`);
                     const rel = D.relationTypes.find(r => r.name.toLowerCase() === tl.toLowerCase() || r.id === tl);
                     if (!rel && !/^(none|aucun)$/i.test(tl)) throw Error(`type de lien « ${tl} » inconnu : crée-le d'abord avec createLink`);
-                    pairs.forEach(([a, b]) => link(rel, a, b));
+                    if (kind === 'link') {
+                        const n0 = D.links.length;
+                        pairs.forEach(([a, b, directed]) => editLink(rel, a, b, directed));
+                        normalizeLinkList(D.links);
+                        if (D.links.length < n0) log.push({ k: 'ok', m: `${n0 - D.links.length} lien(s) fusionné(s) ou devenu(s) identique(s)` });
+                        return;
+                    }
+                    pairs.forEach(([a, b, directed]) => link(rel, a, b, directed));
                 };
                 const exec = st => {
                     if (st[0].t === 'meta' || /^use$/i.test(st[0].v)) return;
@@ -795,6 +916,7 @@ const currentCard = {};
                 if (upd) log.push({ k: 'ok', m: `${upd} personne(s) modifiée(s)` });
                 if (del) log.push({ k: 'ok', m: `${del} personne(s) supprimée(s)` });
                 if (lk) log.push({ k: 'ok', m: `${lk} lien(s) créé(s)` });
+                if (md) log.push({ k: 'ok', m: `${md} lien(s) modifié(s)` });
                 return { D, log, results, changed };
             }
 
@@ -865,9 +987,10 @@ const currentCard = {};
                     const rels = t.rels || (t.card && t.card.relationTypes) || [], lks = t.links || (t.card && t.card.links) || [];
                     if (o.mobius && (rels.length || lks.length)) {
                         const key = {}, g = {}; out.push('');
-                        rels.forEach(r => { key[r.id] = r.name; out.push(`createLink: name: ${qs(r.name)}, color: ${qs(r.color || '#5246EE')};`); });
-                        lks.forEach(l => (g[key[l.relationTypeId] || 'none'] ||= []).push(`from ${lit(l.sourceId)} to ${lit(l.targetId)}`));
-                        Object.entries(g).forEach(([k, a]) => out.push(`newLink: typeLink: ${k === 'none' ? 'none' : qs(k)}, ${a.join(', ')};`));
+                        rels.forEach(r => { key[r.id] = r.name; out.push(`createLink: (name: ${qs(r.name)}, color: ${qs(r.color || '#5246EE')});`); });
+                        // « to » = sens unique (source → cible), « and » = lien normal
+                        lks.forEach(l => (g[key[l.relationTypeId] || 'none'] ||= []).push((l.directed === true ? `from ${lit(l.sourceId)} to ${lit(l.targetId)}` : `${lit(l.sourceId)} and ${lit(l.targetId)}`)));
+                        Object.entries(g).forEach(([k, a]) => out.push(`newLink: (typeLink: ${k === 'none' ? 'none' : qs(k)}, ${a.join(', ')});`));
                     }
                 });
                 return out.join('\n') + '\n';
@@ -943,6 +1066,8 @@ return { tok, split, toCards, emit, fileTables, fileToCards, isTabularJson };
 return Object.assign({ buildTables }, MT_core);
 })();
 /* ===== MOBIUS-TABULAR:END ===== */
+window.MT = MT;
+window.__mobiusExportProject = () => state.activeProject;
 
     /* ---------- Importation fichier .mobius ---------- */
     // Lit le JSON d'un .mobius et renvoie l'objet carte (même format que dans tree / cards.info),
@@ -2205,7 +2330,6 @@ return Object.assign({ buildTables }, MT_core);
 
     /* ---------- Export .mobpro (contenu de la colonne tree) ---------- */
     $('export-btn').addEventListener('click', () => $('dash-export-menu').classList.toggle('hidden'));
-    $('dash-tabular').addEventListener('click', () => { $('dash-export-menu').classList.add('hidden'); MobiusProjectExport.open(state.activeProject); });
     $('dash-mobpro').addEventListener('click', async () => { $('dash-export-menu').classList.add('hidden');
         const p = state.activeProject;
         if (p.pwd) {
@@ -2240,26 +2364,234 @@ return Object.assign({ buildTables }, MT_core);
 });
 </script>
 <script>
-/* Export projet unifié : même sélection de cartes/champs et formats que Map. */
+/* Export projet : même menu, mêmes icônes, mêmes rubriques et même page de sélection que la page centrale. */
 window.MobiusProjectExport = (() => {
- const formats=['xlsx','csv','json','mql','sql'];
- const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const slug=s=>String(s||'projet').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'_');
- const fields=c=>Array.isArray(c.fields)?c.fields:[{id:'f_firstname',key:'firstname',label:'Prénom',type:'line'},{id:'f_lastname',key:'lastname',label:'Nom',type:'line'},{id:'f_nickname',key:'nickname',label:'Surnom',type:'line'},{id:'f_birthdate',key:'birthdate',label:'Date de naissance',type:'date'},{id:'f_location',key:'location',label:'Lieu de résidence',type:'line'}];
- let project,chosen,checks,fmt='mql',overlay;
- function cards(){const r=[];(function walk(xs){(xs||[]).forEach(x=>{if(x.type==='card')r.push(x);if(x.children)walk(x.children)})})(project.tree);return r}
- function blob(data,name,type='text/plain;charset=utf-8'){const url=URL.createObjectURL(new Blob([data],{type})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500)}
- function rows(c){const fs=fields(c).filter(f=>checks[c.id].has(f.id));return {fs,items:(c.nodes||[]).map(n=>({id:n.id,...Object.fromEntries(fs.map(f=>[f.label,f.key?n[f.key]??null:(n.custom||{})[f.id]??null])) ,_x:n.x,_y:n.y}))}}
- function draw(){const cs=cards(),sel=cs.filter(c=>chosen.has(c.id));overlay.innerHTML=`<div class="flex justify-between items-center border-b p-4"><b>Exporter le projet · Tabulation</b><button data-x="close" class="text-xl">✕</button></div><div class="p-4 flex gap-2 flex-wrap">${formats.map(f=>`<button data-f="${f}" class="px-3 py-2 rounded-xl ${fmt===f?'bg-[#5246EE] text-white':'bg-slate-200 dark:bg-slate-800'}">${f.toUpperCase()}</button>`).join('')}</div><div class="flex-1 min-h-0 flex flex-col md:flex-row gap-4 px-4 overflow-hidden"><div class="md:w-72 border rounded-xl p-3 overflow-auto"><div class="flex justify-between"><b>Cartes du projet</b><button data-x="all" class="text-[#5246EE]">Tout</button><button data-x="none">Aucune</button></div>${cs.map(c=>`<label class="flex gap-2 items-center py-2"><input type="checkbox" data-card="${esc(c.id)}" ${chosen.has(c.id)?'checked':''}><span>${esc(c.name)}</span></label>`).join('')}</div><div class="flex-1 overflow-auto border rounded-xl p-4"><p class="text-slate-500 mb-4">Choisis les cartes et les champs à exporter. Les fichiers .mobql conservent les données et les relations Mobius ; .sql exporte des tables SQL classiques.</p>${sel.map(c=>`<section class="mb-5"><div class="flex justify-between"><b>${esc(c.name)}</b><span><button data-allfields="${esc(c.id)}" class="text-[#5246EE]">Tout</button> · <button data-nofields="${esc(c.id)}">Aucun</button></span></div><div class="grid sm:grid-cols-2 gap-2 mt-2">${fields(c).map(f=>`<label class="flex gap-2 text-xs"><input type="checkbox" data-field="${esc(c.id)}" data-id="${esc(f.id)}" ${checks[c.id].has(f.id)?'checked':''}>${esc(f.label)}</label>`).join('')}</div></section>`).join('')}</div></div><div class="p-4 border-t flex justify-between items-center"><span>${sel.length} carte(s) sélectionnée(s)</span><button data-x="download" ${sel.length?'':'disabled'} class="bg-[#5246EE] disabled:opacity-40 text-white px-5 py-3 rounded-xl">Télécharger .${fmt}</button></div>`}
- function exportNow(){const cs=cards().filter(c=>chosen.has(c.id));if(!cs.length)return;const name=slug(project.name);
- if(fmt==='json'){blob(JSON.stringify({tables:cs.map(c=>({title:c.name,columns:rows(c).fs.map(f=>({name:f.label,type:f.type})),rows:rows(c).items}))},null,2),name+'.json','application/json');return}
- if(fmt==='xlsx'){if(!window.XLSX){alert('Bibliothèque Excel indisponible');return}const wb=XLSX.utils.book_new();cs.forEach(c=>{const r=rows(c);XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(r.items),slug(c.name).slice(0,31)||'Carte')});XLSX.writeFile(wb,name+'.xlsx');return}
- if(fmt==='csv'){const csv=c=>{const r=rows(c),keys=['id',...r.fs.map(f=>f.label)];const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';return [keys.map(q).join(';'),...r.items.map(n=>keys.map(k=>q(n[k])).join(';'))].join('\r\n')};if(cs.length===1)blob('\ufeff'+csv(cs[0]),name+'.csv','text/csv');else if(window.JSZip){const zip=new JSZip();cs.forEach(c=>zip.file(slug(c.name)+'.csv','\ufeff'+csv(c)));zip.generateAsync({type:'blob'}).then(b=>blob(b,name+'.zip','application/zip'))}else alert('JSZip indisponible');return}
- const qi=s=>'"'+String(s).replace(/"/g,'""')+'"',lit=v=>v==null?'NULL':typeof v==='number'?String(v):typeof v==='boolean'?(v?'TRUE':'FALSE'):"'"+String(v).replace(/'/g,"''")+"'";
- const out=['-- Export Mobius '+fmt.toUpperCase()];cs.forEach(c=>{const r=rows(c),t=slug(c.name),col=r.fs.map(f=>({f,k:slug(f.label)}));out.push(`CREATE TABLE ${qi(t)} ("id" TEXT PRIMARY KEY${col.map(x=>`, ${qi(x.k)} ${x.f.type==='number'?'NUMERIC':x.f.type==='bool'?'BOOLEAN':'TEXT'}`).join('')}${fmt==='mql'?', "_x" NUMERIC, "_y" NUMERIC':''});`);r.items.forEach(n=>{const keys=['id',...col.map(x=>x.k),...(fmt==='mql'?['_x','_y']:[])];const vals=[n.id,...col.map(x=>n[x.f.label]),...(fmt==='mql'?[n._x,n._y]:[])];out.push(`INSERT INTO ${qi(t)} (${keys.map(qi).join(', ')}) VALUES (${vals.map(lit).join(', ')});`)});if(fmt==='mql'){out.push(`-- @card "${c.name}"`);(c.relationTypes||[]).forEach(rt=>out.push(`createLink: (name: ${lit(rt.name)}, color: ${lit(rt.color)});`));(c.links||[]).forEach(l=>{const rel=(c.relationTypes||[]).find(rt=>rt.id===l.relationTypeId);out.push(`newLink: (typeLink: ${lit(rel?.name||'none')}, ${l.directed?'from '+lit(l.sourceId)+' to '+lit(l.targetId):lit(l.sourceId)+' and '+lit(l.targetId)});`)})}});if(fmt==='sql'){const rel=window.mobiusRelationSQL(cs.map(c=>({card:c,table:slug(c.name)})));if(rel)out.push('-- Relations avec clés étrangères',rel)}blob(out.join('\n')+'\n',name+'.'+(fmt==='mql'?'mobql':fmt))}
- function open(p){if(!p)return;project=p;chosen=new Set(cards().map(c=>c.id));checks={};cards().forEach(c=>checks[c.id]=new Set(fields(c).map(f=>f.id)));fmt='mql';overlay=document.createElement('div');overlay.className='fixed inset-0 z-[100] bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col text-xs';document.body.appendChild(overlay);draw();overlay.addEventListener('change',e=>{const t=e.target;if(t.dataset.card) t.checked?chosen.add(t.dataset.card):chosen.delete(t.dataset.card);if(t.dataset.field)t.checked?checks[t.dataset.field].add(t.dataset.id):checks[t.dataset.field].delete(t.dataset.id);draw()});overlay.addEventListener('click',e=>{const t=e.target.closest('button');if(!t)return;if(t.dataset.f)fmt=t.dataset.f;if(t.dataset.x==='close'){overlay.remove();return}if(t.dataset.x==='all')chosen=new Set(cards().map(c=>c.id));if(t.dataset.x==='none')chosen.clear();if(t.dataset.allfields)checks[t.dataset.allfields]=new Set(fields(cards().find(c=>c.id===t.dataset.allfields)).map(f=>f.id));if(t.dataset.nofields)checks[t.dataset.nofields]=new Set();if(t.dataset.x==='download'){exportNow();return}draw()})}
- return {open};
+ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+ const slug = (s, fb = 'carte') => { const r = String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''); return r || fb; };
+ const sqlIdent = (s, fb) => { const r = slug(s, fb); return /^\d/.test(r) ? 'c_' + r : r; };
+ const FIELD_TYPES = { line: 'Texte court', text: 'Zone textuelle', number: 'Numérique', bool: 'Booléen (oui/non)', date: 'Date' };
+ const DEF = () => [
+  { id: 'f_firstname', key: 'firstname', label: 'Prénom', type: 'line' },
+  { id: 'f_lastname', key: 'lastname', label: 'Nom', type: 'line' },
+  { id: 'f_nickname', key: 'nickname', label: 'Surnom', type: 'line' },
+  { id: 'f_birthdate', key: 'birthdate', label: 'Date de naissance', type: 'date' },
+  { id: 'f_location', key: 'location', label: 'Lieu de résidence', type: 'line' }];
+ const cardFields = c => Array.isArray(c.fields) ? c.fields : DEF();
+ const fieldVal = (n, f) => f.key ? n[f.key] : (n.custom || {})[f.id];
+ const EX_FORMATS = {
+  xlsx: { label: 'Excel', ext: '.xlsx', icon: 'file-spreadsheet', desc: "Classeur Excel natif : une feuille par carte, une colonne par champ de l'inspecteur, avec les nombres et les cases oui/non gardés comme tels.", use: "Idéal pour trier, filtrer, faire des calculs ou des graphiques dans Excel, LibreOffice ou Google Sheets." },
+  csv: { label: 'CSV', ext: '.csv', icon: 'file-text', desc: "Texte brut en UTF-8, séparateur « ; », une ligne d'en-tête avec le nom des champs. Un fichier par carte (regroupés dans un .zip s'il y en a plusieurs).", use: "Format universel pour importer dans une base de données, Notion, Airtable, Python/pandas ou n'importe quel tableur." },
+  json: { label: 'JSON', ext: '.json', icon: 'braces', desc: "Fichier structuré : pour chaque carte, la description des colonnes (nom, type) puis les lignes sous forme d'objets typés (nombres, booléens, dates).", use: "Pensé pour les développeurs : API, scripts, applications web, échanges entre logiciels." },
+  mql: { label: 'MQL', ext: '.mobql', icon: 'terminal', desc: "Format natif Mobius Query Language : tables, champs, personnes, positions, types de relations et liens (createLink / newLink).", use: "À importer et exécuter dans la console MQL de Mobius. Compatible avec les instructions SQL prises en charge par Mobius." },
+  sql: { label: 'SQL', ext: '.sql', icon: 'database', desc: "Script SQL standard : un CREATE TABLE par carte (colonnes typées TEXT, NUMERIC, BOOLEAN, DATE) suivi des INSERT de chaque personne.", use: "À exécuter tel quel dans PostgreSQL, SQLite, MySQL/MariaDB pour recréer vos cartes comme tables dans une vraie base." }
+ };
+ let EX = null;
+ const icons = () => { if (window.lucide) lucide.createIcons(); };
+
+ function toast(msg) {
+  const t = document.createElement('div');
+  t.className = 'fixed bottom-6 right-6 bg-slate-900 text-white text-xs px-4 py-3 rounded-xl shadow-2xl z-[120]';
+  t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 3000);
+ }
+ function dlBlob(blob, name) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+ }
+ function askPwd() {
+  return new Promise(res => {
+   const ov = document.createElement('div');
+   ov.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50';
+   ov.innerHTML = '<form class="w-full max-w-sm bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-3 text-xs"><h3 class="font-bold text-sm">Mot de passe requis pour exporter :</h3><input type="password" placeholder="Mot de passe" class="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-[#5246EE]"><div class="flex gap-2 pt-1"><button type="button" data-c class="flex-1 py-2.5 px-3 rounded-xl font-semibold bg-slate-100 dark:bg-slate-800">Annuler</button><button class="flex-1 py-2.5 px-3 rounded-xl font-semibold bg-[#5246EE] text-white">OK</button></div></form>';
+   const inp = ov.querySelector('input'), done = v => { ov.remove(); res(v); };
+   ov.querySelector('form').onsubmit = e => { e.preventDefault(); done(inp.value); };
+   ov.querySelector('[data-c]').onclick = () => done(null);
+   ov.addEventListener('mousedown', e => { if (e.target === ov) done(null); });
+   document.body.appendChild(ov); setTimeout(() => inp.focus(), 30);
+  });
+ }
+
+ // une carte = une table, un champ de l'inspecteur = une colonne
+ function buildTables(entries) {
+  const usedT = new Set();
+  return entries.map(({ card: c, fieldIds }) => {
+   let tn = sqlIdent(c.name, 'carte'), base = tn, i = 2;
+   while (usedT.has(tn)) tn = base + '_' + i++;
+   usedT.add(tn);
+   const usedC = new Set(['id']);
+   const cols = cardFields(c).filter(f => !fieldIds || fieldIds.has(f.id)).map(f => {
+    let n = sqlIdent(f.label, 'champ'), b = n, k = 2;
+    while (usedC.has(n)) n = b + '_' + k++;
+    usedC.add(n);
+    return { name: n, label: f.label, type: f.type, f };
+   });
+   const rows = (c.nodes || []).map(node => ({
+    id: node.id, x: node.x, y: node.y,
+    vals: cols.map(col => {
+     const v = fieldVal(node, col.f);
+     if (col.type === 'bool') return v === true;
+     if (v === undefined || v === null || v === '') return null;
+     return col.type === 'number' ? Number(v) : String(v);
+    })
+   }));
+   return { name: tn, title: c.name || tn, cols, rows, card: c };
+  });
+ }
+ const csvCell = v => { const s = v === null || v === undefined ? '' : String(v); return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+ const sqlVal = v => v === null ? 'NULL' : typeof v === 'boolean' ? (v ? 'TRUE' : 'FALSE') : typeof v === 'number' ? (isFinite(v) ? String(v) : 'NULL') : "'" + String(v).replace(/'/g, "''") + "'";
+
+ async function exportTable(format, entries, project) {
+  const tables = buildTables(entries);
+  const base = entries.length > 1 ? slug(project.name || 'projet', 'projet') : tables[0].name;
+  if (format === 'json') {
+   const out = { tables: tables.map(t => ({ table: t.name, title: t.title, relationTypes: (t.card && t.card.relationTypes) || [], links: (t.card && t.card.links) || [], columns: [{ name: 'id', label: 'id', type: 'text' }, ...t.cols.map(c => ({ name: c.name, label: c.label, type: c.type === 'line' ? 'text' : c.type }))], rows: t.rows.map(r => ({ id: r.id, _x: r.x, _y: r.y, ...Object.fromEntries(t.cols.map((c, i) => [c.name, r.vals[i]])) })) })) };
+   dlBlob(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }), base + '.json');
+  } else if (format === 'mql') {
+   const M = window.MT || (typeof MT !== 'undefined' ? MT : null);
+   if (!M || !M.emit) { toast('Moteur MQL indisponible.'); return; }
+   dlBlob(new Blob([M.emit(tables, { mobius: true, head: '-- MQL (Mobius Query Language) : SQL compatible + commandes de relations Mobius' })], { type: 'text/plain;charset=utf-8' }), base + '.mobql');
+  } else if (format === 'sql') {
+   const ty = { line: 'TEXT', text: 'TEXT', number: 'NUMERIC', bool: 'BOOLEAN', date: 'DATE' };
+   const sql = ['-- Export Mobius : une carte = une table', ...tables.map(t =>
+    `\nCREATE TABLE "${t.name}" (\n  "id" TEXT PRIMARY KEY` + t.cols.map(c => `,\n  "${c.name}" ${ty[c.type]}`).join('') + `\n);` +
+    t.rows.map(r => `\nINSERT INTO "${t.name}" ("id"${t.cols.map(c => `, "${c.name}"`).join('')}) VALUES (${sqlVal(r.id)}${r.vals.map(v => ', ' + sqlVal(v)).join('')});`).join(''))].join('\n') + '\n';
+   const relations = window.mobiusRelationSQL ? window.mobiusRelationSQL(tables.map(t => ({ card: t.card, table: t.name }))) : '';
+   dlBlob(new Blob([sql + (relations ? '\n-- Relations avec clés étrangères\n' + relations + '\n' : '')], { type: 'application/sql' }), base + '.sql');
+  } else if (format === 'csv') {
+   const csv = t => '\ufeff' + [['id', ...t.cols.map(c => c.label)], ...t.rows.map(r => [r.id, ...r.vals])].map(row => row.map(csvCell).join(';')).join('\r\n');
+   if (tables.length === 1) dlBlob(new Blob([csv(tables[0])], { type: 'text/csv;charset=utf-8' }), base + '.csv');
+   else {
+    if (typeof JSZip === 'undefined') { toast('Bibliothèque ZIP non chargée.'); return; }
+    const zip = new JSZip(); tables.forEach(t => zip.file(t.name + '.csv', csv(t)));
+    dlBlob(await zip.generateAsync({ type: 'blob' }), base + '_csv.zip');
+   }
+  } else if (format === 'xlsx') {
+   if (typeof XLSX === 'undefined') { toast('Bibliothèque Excel non chargée.'); return; }
+   const wb = XLSX.utils.book_new(), used = new Set();
+   tables.forEach(t => {
+    let sn = String(t.title).replace(/[\[\]:*?\/\\]/g, ' ').trim().slice(0, 28) || t.name, b = sn, k = 2;
+    while (used.has(sn.toLowerCase())) sn = b.slice(0, 26) + '_' + k++;
+    used.add(sn.toLowerCase());
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['id', ...t.cols.map(c => c.label)], ...t.rows.map(r => [r.id, ...r.vals.map(v => v === null ? '' : v)])]), sn);
+   });
+   XLSX.writeFile(wb, base + '.xlsx');
+  }
+  toast(`Export ${format.toUpperCase()} terminé (${tables.length} table${tables.length > 1 ? 's' : ''}).`);
+ }
+
+ function treeHtml(items) {
+  return (items || []).map(it => {
+   const nm = esc(it.name);
+   if (it.type === 'folder') return `<div><div class="flex items-center gap-1.5 p-2 text-slate-400 font-semibold cursor-not-allowed" title="Dossier (non exportable)"><i data-lucide="folder" class="w-3.5 h-3.5 shrink-0"></i><span class="truncate">${nm}</span></div><div class="pl-3 ml-2 border-l border-slate-100 dark:border-slate-800 space-y-1">${treeHtml(it.children)}</div></div>`;
+   if (it.type === 'card') {
+    const on = EX.sel.has(it.id);
+    return `<label class="flex items-center gap-2 p-2 rounded-xl cursor-pointer ${on ? 'bg-[#5246EE]/10 text-[#5246EE] font-semibold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'}"><input type="checkbox" data-act="card" data-id="${esc(it.id)}" ${on ? 'checked' : ''} class="w-4 h-4 accent-[#5246EE] shrink-0"><i data-lucide="sticky-note" class="w-3.5 h-3.5 shrink-0 text-indigo-500"></i><span class="truncate flex-1">${nm}</span></label>`;
+   }
+   return `<div class="flex items-center gap-1.5 p-2 text-slate-300 dark:text-slate-600 cursor-not-allowed" title="Non exportable en tabulation"><i data-lucide="file-text" class="w-3.5 h-3.5 shrink-0 ml-6"></i><span class="truncate">${nm}</span></div>`;
+  }).join('');
+ }
+
+ function render() {
+  if (!EX) return;
+  let ov = document.getElementById('export-page');
+  if (!ov) {
+   ov = document.createElement('div');
+   ov.id = 'export-page';
+   ov.className = 'fixed inset-0 z-[90] bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col text-xs';
+   ov.addEventListener('click', onClick);
+   document.body.appendChild(ov);
+  }
+  const sc = [...ov.querySelectorAll('[data-sc]')].map(e => e.scrollTop);
+  const F = EX_FORMATS[EX.fmt];
+  const selIds = [...EX.cards.keys()].filter(id => EX.sel.has(id));
+  const tabs = Object.entries(EX_FORMATS).map(([k, f]) => `<button data-act="fmt" data-fmt="${k}" class="px-4 py-2 rounded-xl font-semibold flex items-center gap-2 transition ${k === EX.fmt ? 'bg-[#5246EE] text-white shadow' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}"><i data-lucide="${f.icon}" class="w-4 h-4"></i>${f.label}</button>`).join('');
+  const fields = selIds.length ? selIds.map(id => {
+   const c = EX.cards.get(id), set = EX.fl[id];
+   return `<div class="rounded-2xl border border-slate-200 dark:border-slate-800 p-3 space-y-2">
+    <div class="flex items-center justify-between gap-2"><div class="font-bold truncate">${esc(c.name)} <span class="font-normal text-slate-400">· ${set.size}/${cardFields(c).length} champs</span></div>
+    <div class="flex gap-3 text-[10px] shrink-0"><button data-act="fall" data-id="${esc(id)}" class="text-[#5246EE] hover:underline">Tout</button><button data-act="fnone" data-id="${esc(id)}" class="text-slate-400 hover:underline">Aucun</button></div></div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5">${cardFields(c).map(f => `<label class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-900 cursor-pointer"><input type="checkbox" data-act="field" data-id="${esc(id)}" data-fid="${esc(f.id)}" ${set.has(f.id) ? 'checked' : ''} class="w-4 h-4 accent-[#5246EE] shrink-0"><span class="truncate">${esc(f.label)}</span><span class="text-[9px] text-slate-400 ml-auto shrink-0">${FIELD_TYPES[f.type] || ''}</span></label>`).join('') || '<span class="text-slate-400">Cette carte n\'a plus aucun champ (seule la colonne id sera exportée).</span>'}</div></div>`;
+  }).join('') : '<div class="text-center text-slate-400 py-10">Coche au moins une carte à gauche.</div>';
+  const nRows = selIds.reduce((n, id) => n + (EX.cards.get(id).nodes || []).length, 0);
+  ov.innerHTML = `
+   <div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-200 dark:border-slate-800">
+    <div class="flex items-center gap-2 font-bold text-sm"><i data-lucide="table" class="w-4 h-4 text-emerald-500"></i> Exporter en tabulation</div>
+    <button data-act="close" class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:text-slate-800"><i data-lucide="x" class="w-4 h-4 pointer-events-none"></i></button>
+   </div>
+   <div class="px-5 pt-4 flex flex-wrap gap-2">${tabs}</div>
+   <div class="flex-1 min-h-0 flex flex-col md:flex-row gap-4 p-5">
+    <aside class="md:w-72 shrink-0 max-h-48 md:max-h-none flex flex-col rounded-2xl border border-slate-200 dark:border-slate-800 min-h-0">
+     <div class="flex items-center justify-between px-3 py-2.5 border-b border-slate-100 dark:border-slate-800"><span class="font-bold uppercase tracking-wider text-[10px] text-slate-500">Cartes du projet</span><span class="flex gap-3 text-[10px]"><button data-act="cards-all" class="text-[#5246EE] hover:underline">Tout</button><button data-act="cards-none" class="text-slate-400 hover:underline">Aucune</button></span></div>
+     <div data-sc class="flex-1 overflow-y-auto p-2 space-y-1">${treeHtml(EX.tree) || '<div class="text-center text-slate-400 py-6">Arborescence vide.</div>'}</div>
+    </aside>
+    <section data-sc class="flex-1 min-w-0 overflow-y-auto space-y-4">
+     <div class="rounded-2xl bg-slate-50 dark:bg-slate-900 p-4 space-y-1.5">
+      <div class="font-bold text-sm flex items-center gap-2"><i data-lucide="${F.icon}" class="w-4 h-4 text-[#5246EE]"></i> ${F.label} <span class="text-slate-400 font-normal">${F.ext}</span></div>
+      <p class="text-slate-600 dark:text-slate-300">${F.desc}</p>
+      <p class="text-slate-500"><span class="font-semibold">Utilité :</span> ${F.use}</p>
+     </div>
+     <div class="font-bold uppercase tracking-wider text-[10px] text-slate-500">Champs à enregistrer</div>
+     ${fields}
+    </section>
+   </div>
+   <div class="px-5 py-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+    <span class="text-slate-400">${selIds.length} carte${selIds.length > 1 ? 's' : ''} · ${nRows} ligne${nRows > 1 ? 's' : ''}</span>
+    <button data-act="go" ${selIds.length ? '' : 'disabled'} class="px-5 py-2.5 rounded-xl bg-[#5246EE] hover:bg-[#4538d8] disabled:opacity-40 text-white font-semibold flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> Télécharger ${F.ext}</button>
+   </div>`;
+  [...ov.querySelectorAll('[data-sc]')].forEach((e, i) => { if (sc[i]) e.scrollTop = sc[i]; });
+  icons();
+ }
+
+ function close() { const ov = document.getElementById('export-page'); if (ov) ov.remove(); EX = null; }
+ document.addEventListener('keydown', e => { if (e.key === 'Escape' && EX && !document.querySelector('.fixed.z-\\[100\\]')) close(); });
+
+ function onClick(e) {
+  const t = e.target.closest('[data-act]'); if (!t || !EX) return;
+  const a = t.dataset.act, id = t.dataset.id;
+  if (a === 'close') { close(); return; }
+  if (a === 'go') {
+   const entries = [...EX.cards.keys()].filter(i => EX.sel.has(i)).map(i => ({ card: EX.cards.get(i), fieldIds: EX.fl[i] }));
+   if (entries.length) exportTable(EX.fmt, entries, EX.project);
+   return;
+  }
+  if (a === 'fmt') EX.fmt = t.dataset.fmt;
+  else if (a === 'card') { if (t.checked) EX.sel.add(id); else EX.sel.delete(id); }
+  else if (a === 'cards-all') EX.sel = new Set(EX.cards.keys());
+  else if (a === 'cards-none') EX.sel = new Set();
+  else if (a === 'field') { if (t.checked) EX.fl[id].add(t.dataset.fid); else EX.fl[id].delete(t.dataset.fid); }
+  else if (a === 'fall') EX.fl[id] = new Set(cardFields(EX.cards.get(id)).map(f => f.id));
+  else if (a === 'fnone') EX.fl[id] = new Set();
+  render();
+ }
+
+ async function open(project, fmt) {
+  if (!project) return;
+  if (project.pwd) {
+   const r = await askPwd();
+   if (r === null) return;
+   if (r !== project.pwd) { toast('Mot de passe incorrect.'); return; }
+  }
+  const cards = new Map();
+  (function walk(list) { (list || []).forEach(it => { if (it.type === 'card') cards.set(it.id, it); if (it.children) walk(it.children); }); })(project.tree);
+  EX = { fmt: EX_FORMATS[fmt] ? fmt : 'mql', project, tree: project.tree || [], cards, sel: new Set([...cards.keys()]), fl: {} };
+  cards.forEach((c, id) => { EX.fl[id] = new Set(cardFields(c).map(f => f.id)); });
+  render();
+ }
+
+ // menus « Exporter le projet » : un clic sur un format ouvre la page de sélection
+ const MENUS = ['editor-project-export', 'dash-export-menu', 'proj-export-menu'];
+ document.addEventListener('click', e => {
+  const b = e.target.closest('[data-exfmt]');
+  if (b) {
+   MENUS.forEach(m => { const el = document.getElementById(m); if (el) el.classList.add('hidden'); });
+   open(window.__mobiusExportProject && window.__mobiusExportProject(), b.dataset.exfmt);
+   return;
+  }
+  if (!e.target.closest('[data-exbtn]')) MENUS.forEach(m => { const el = document.getElementById(m); if (el && !e.target.closest('#' + m)) el.classList.add('hidden'); });
+ });
+ return { open, close };
 })();
+
+document.addEventListener("DOMContentLoaded",()=>{if(window.lucide)lucide.createIcons()});
 </script>
 <script>
 /* Export SQL relationnel Mobius : préserve tous les liens avec des tables de jonction.
