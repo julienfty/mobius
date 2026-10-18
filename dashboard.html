@@ -42,6 +42,22 @@
         #top-progress.active { opacity: 1; }
         #top-progress > div { height: 100%; width: 0; background: #3b82f6; box-shadow: 0 0 6px rgba(59,130,246,.55); transition: width .3s ease; }
     </style>
+<script>
+/* ===== Mots de passe : vérification côté serveur (fonction SQL check_item_pwd — voir protect_pwd.sql) ===== */
+window.verifyPwd = async function (client, table, id, typed, stored) {
+  if (typed == null) return false;
+  try {
+    const { data, error } = await client.rpc('check_item_pwd', { p_table: table, p_id: String(id), p_pwd: String(typed) });
+    if (!error) return data === true;
+    const msg = String(error.message || '');
+    if (/too_many_attempts/.test(msg)) { alert('Trop de tentatives incorrectes. Réessayez dans quelques minutes.'); return false; }
+    const missing = error.code === 'PGRST202' || error.code === '42883' || /could not find the function|does not exist/i.test(msg);
+    if (!missing) { console.warn('check_item_pwd :', msg); return false; }
+  } catch (e) { console.warn('check_item_pwd :', e); return false; }
+  // fonction SQL pas encore installée : ancien mode (mot de passe encore en clair dans la colonne)
+  return stored != null && !/^\$2[abxy]\$|^pbkdf2\$|^locked$/.test(String(stored)) && String(typed) === String(stored);
+};
+</script>
 </head>
 <body class="h-full bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col selection:bg-[#5246EE] selection:text-white">
 
@@ -374,6 +390,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function loadAll() {
         const [projects, cards] = await Promise.all([fetchTable('projects'), fetchTable('cards')]);
+        try {   // éléments protégés que le serveur me cache tant que je n'ai pas saisi le mot de passe (protect_pwd.sql, partie 2)
+            const { data: lk, error: lkErr } = await sb.rpc('locked_items_for_me');
+            if (!lkErr && lk) [[projects, lk.projects], [cards, lk.cards]].forEach(([rows, extra]) => (extra || []).forEach(x => { if (!rows.some(r => r.id === x.id)) rows.push(x); }));
+        } catch (_) {}
         state.data.projects = [];
         state.data.cards = [];
         state.invitations = [];
@@ -1075,6 +1095,7 @@ return Object.assign({ buildTables }, MT_core);
 /* ===== MOBIUS-TABULAR:END ===== */
 window.MT = MT;
 window.__mobiusExportProject = () => state.activeProject;
+window.__mobiusSb = sb;
 
     /* ---------- Importation fichier .mobius ---------- */
     // Lit le JSON d'un .mobius et renvoie l'objet carte (même format que dans tree / cards.info),
@@ -1340,7 +1361,7 @@ window.__mobiusExportProject = () => state.activeProject;
         if (item.pwd) {
             const p = await askPrompt('Mot de passe requis :', 'Mot de passe', 'password');
             if (p === null) return;
-            if (p !== item.pwd) return toast('Mot de passe incorrect.', 'error');
+            if (!(await verifyPwd(sb, table, item.id, p, item.pwd))) return toast('Mot de passe incorrect.', 'error');
         }
 
         if (isOwner(item)) {
@@ -1357,7 +1378,15 @@ window.__mobiusExportProject = () => state.activeProject;
         loadAll();
     }
 
-    function openCard(id) { topProgress.start(); window.location.href = `map.html?cardId=${encodeURIComponent(id)}`; }
+    async function openCard(id) {
+        const item = state.data.cards.find(i => i.id === id);
+        if (item && item.pwd && !isOwner(item)) {
+            const v = await askPrompt('Cette carte est protégée. Entrez le mot de passe :', 'Mot de passe', 'password');
+            if (v === null) return;
+            if (!(await verifyPwd(sb, 'cards', item.id, v, item.pwd))) return toast('Mot de passe incorrect.', 'error');
+        }
+        topProgress.start(); window.location.href = `map.html?cardId=${encodeURIComponent(id)}`;
+    }
     // scénario / texte autonome : ouverture directe dans l'éditeur (le type est déjà connu, aucun écran de choix)
     async function openDoc(id) {
         const item = state.data.cards.find(i => i.id === id);
@@ -1365,7 +1394,7 @@ window.__mobiusExportProject = () => state.activeProject;
         if (item.pwd && !isOwner(item)) {
             const v = await askPrompt('Ce fichier est protégé. Entrez le mot de passe :', 'Mot de passe', 'password');
             if (v === null) return;
-            if (v !== item.pwd) return toast('Mot de passe incorrect.', 'error');
+            if (!(await verifyPwd(sb, 'cards', item.id, v, item.pwd))) return toast('Mot de passe incorrect.', 'error');
         }
         topProgress.start();
         window.location.href = `editor.html?cardId=${encodeURIComponent(id)}`;
@@ -1584,13 +1613,14 @@ window.__mobiusExportProject = () => state.activeProject;
     /* ---------- Paramètres d'un projet / d'une carte libre (nom, collaboration, sécurité) ---------- */
     async function openSettingsModal(id) {
         const table = tableOf(state.tab);
-        const item = state.data[table].find(i => i.id === id);
+        let item = state.data[table].find(i => i.id === id);
         if (!item) return;
         if (!isAdminOf(item)) return toast('Seuls le propriétaire et les admins peuvent modifier les paramètres.', 'error');
         if (item.pwd) {
             const p = await askPrompt('Mot de passe requis :', 'Mot de passe', 'password');
             if (p === null) return;
-            if (p !== item.pwd) return toast('Mot de passe incorrect.', 'error');
+            if (!(await verifyPwd(sb, table, item.id, p, item.pwd))) return toast('Mot de passe incorrect.', 'error');
+            if (item.locked) { await loadAll(); item = state.data[table].find(i => i.id === id); if (!item || item.locked) return toast('Élément indisponible.', 'error'); }
         }
         const entries = collabEntries(item);
         state.editing = { table, id };
@@ -1626,6 +1656,7 @@ window.__mobiusExportProject = () => state.activeProject;
         const { table, id } = state.editing || {};
         const item = state.data[table]?.find(i => i.id === id);
         if (!item) return;
+        if (item.locked) return toast('Déverrouillez cet élément avant de le modifier.', 'error');
         const name = $('modal-item-name').value.trim();
         if (!name) return toast('Veuillez entrer un nom.', 'error');
 
@@ -1854,7 +1885,7 @@ window.__mobiusExportProject = () => state.activeProject;
         if (p.pwd && !isOwner(p)) {
             const v = await askPrompt('Ce projet est protégé. Entrez le mot de passe :', 'Mot de passe', 'password');
             if (v === null) return;
-            if (v !== p.pwd) return toast('Mot de passe incorrect.', 'error');
+            if (!(await verifyPwd(sb, 'projects', p.id, v, p.pwd))) return toast('Mot de passe incorrect.', 'error');
         }
         const { data } = await sb.from('projects').select('*').eq('id', id).maybeSingle();
         state.activeProject = data || p;
@@ -2596,7 +2627,7 @@ window.__mobiusExportProject = () => state.activeProject;
         if (p.pwd) {
             const v = await askPrompt('Mot de passe requis pour télécharger :', 'Mot de passe', 'password');
             if (v === null) return;
-            if (v !== p.pwd) return toast('Mot de passe incorrect.', 'error');
+            if (!(await verifyPwd(sb, 'projects', p.id, v, p.pwd))) return toast('Mot de passe incorrect.', 'error');
         }
         const safe = (s) => String(s).replace(/[\\/:*?"<>|]/g, '_');
         const blob = new Blob([JSON.stringify(p.tree || [], null, 2)], { type: 'application/json' });
@@ -2616,7 +2647,12 @@ window.__mobiusExportProject = () => state.activeProject;
     const openId = params.get('openProjectId');
     const tabParam = params.get('tab');
     if (tabParam && TAB_META[tabParam]) { state.tab = tabParam; window.history.replaceState({}, document.title, window.location.pathname); }
+    const openItemId = params.get('openItemId');
     await loadAll();
+    if (openItemId) {
+        const it = state.data.cards.find(i => i.id === openItemId);
+        if (it) { state.tab = tabOfItem('cards', it); renderDashboard(); if (state.tab === 'cards') openCard(it.id); else openDoc(it.id); }
+    }
     if (openId) {
         window.history.replaceState({}, document.title, window.location.pathname);
         state.tab = 'projects';
@@ -2850,7 +2886,7 @@ window.MobiusProjectExport = (() => {
   if (project.pwd) {
    const r = await askPwd();
    if (r === null) return;
-   if (r !== project.pwd) { toast('Mot de passe incorrect.'); return; }
+   if (!(await verifyPwd(window.__mobiusSb, 'projects', project.id, r, project.pwd))) { toast('Mot de passe incorrect.'); return; }
   }
   const cards = new Map();
   (function walk(list) { (list || []).forEach(it => { if (it.type === 'card') cards.set(it.id, it); if (it.children) walk(it.children); }); })(project.tree);
