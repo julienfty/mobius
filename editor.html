@@ -218,7 +218,7 @@
                     <button id="tree-import-btn" title="Importer un fichier" class="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-medium flex items-center gap-1"><i data-lucide="file-up" class="w-3.5 h-3.5 text-[#5246EE]"></i>Importer</button>
                 </div>
                 <div id="tree-dest" class="mt-1.5 text-[10px] text-slate-400 truncate"></div>
-                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx,.mobtext,.mobscen,.sql,.csv,.xlsx,.xls" multiple>
+                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx,.mobtext,.mobscen,.mobql,.sql,.csv,.xlsx,.zip,.xls" multiple>
             </div>
             <div id="tree-sidebar-content" class="flex-1 p-3 overflow-y-auto space-y-1 text-xs"></div>
             <div class="p-3 border-t border-slate-200 dark:border-slate-800 relative"><button data-exbtn onclick="document.getElementById('editor-project-export').classList.toggle('hidden')" class="w-full px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-2 transition"><i data-lucide="download" class="w-4 h-4 text-red-500"></i> Exporter le projet <i data-lucide="chevron-up" class="w-3.5 h-3.5 text-slate-400"></i></button><div id="editor-project-export" class="hidden absolute bottom-full left-3 right-3 mb-1 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 space-y-1"><button onclick="document.getElementById('editor-project-export').classList.add('hidden');downloadProject()" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="folder-archive" class="w-4 h-4 text-red-500"></i> Projet (.mobpro) <span class="text-[9px] bg-red-100 dark:bg-red-950 text-red-600 px-1.5 py-0.5 rounded font-bold ml-auto">Natif</span></button><div class="px-3 pt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Tabulation</div><button data-exfmt="xlsx" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-spreadsheet" class="w-4 h-4 text-slate-400"></i> Export Excel (.xlsx)</button><button data-exfmt="csv" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4 text-slate-400"></i> Export CSV</button><button data-exfmt="json" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="braces" class="w-4 h-4 text-slate-400"></i> Export JSON</button><button data-exfmt="mql" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="terminal" class="w-4 h-4 text-[#5246EE]"></i> Export MQL <span class="text-[9px] bg-purple-100 dark:bg-purple-950 text-purple-600 px-1.5 py-0.5 rounded font-bold ml-auto">Natif</span></button><button data-exfmt="sql" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="database" class="w-4 h-4 text-slate-400"></i> Export SQL</button></div></div>
@@ -1433,6 +1433,13 @@ const currentCard = {};
                     const out = wb.SheetNames.map(n => aoaTable(XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null }), wb.SheetNames.length > 1 ? n : base)).filter(Boolean);
                     if (!out.length) throw Error('classeur vide'); return out;
                 }
+                if (ext === 'zip') {
+                    if (typeof JSZip === 'undefined') throw Error('bibliothèque ZIP non chargée');
+                    const z = await JSZip.loadAsync(await file.arrayBuffer()), out = [];
+                    const names = Object.keys(z.files).filter(n => !z.files[n].dir && !/(^|\/)(__MACOSX|\.)/.test(n) && /\.(csv|xlsx|xls|json)$/i.test(n)).sort();
+                    for (const n of names) out.push(...await fileTables(new File([await z.files[n].async('blob')], n.split('/').pop())));
+                    if (!out.length) throw Error('aucun fichier csv dans le zip'); return out;
+                }
                 if (ext === 'json' || ext === 'mobius') return jsonTables(JSON.parse((await file.text()).replace(/^\ufeff/, '')), base);
                 throw Error('format non géré');
             }
@@ -1440,7 +1447,7 @@ const currentCard = {};
                 try { const d = JSON.parse(await file.text()); return !(d && Array.isArray(d.nodes) && Array.isArray(d.links)) && (Array.isArray(d.tables) || (Array.isArray(d) && d.length > 0 && typeof d[0] === 'object')); } catch (e) { return false; }
             }
             async function fileToCards(file) {
-                if (/\.sql$/i.test(file.name)) return toCards(await file.text(), file.name);
+                if (/\.(?:mobql|mql|sql)$/i.test(file.name)) return toCards(await file.text(), file.name);
                 return toCards(emit(await fileTables(file), { mobius: true }), file.name);
             }
 return { tok, split, toCards, emit, fileTables, fileToCards, isTabularJson };
@@ -1451,8 +1458,8 @@ return Object.assign({ buildTables }, MT_core);
 
         async function treeImport(files, dest) {
             if (!requireEdit()) return;
-            const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx|mobtext|mobscen|sql|csv|xlsx|xls)$/i.test(f.name));
-            if (accepted.length < files.length) showToast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx, .mobius, .mobtext, .mobscen, .sql, .csv et .xlsx.');
+            const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx|mobtext|mobscen|mobql|mql|sql|csv|xlsx|xls|zip)$/i.test(f.name));
+            if (accepted.length < files.length) showToast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx, .mobius, .mobtext, .mobscen, .mobql, .sql, .csv, .xlsx et .zip (csv).');
             let t = dest, added = 0;
             const put = (item) => {
                 treeInsert(item, t); added++;
@@ -1460,9 +1467,10 @@ return Object.assign({ buildTables }, MT_core);
             };
             for (const file of accepted) {
                 try {
-                    if (/\.(sql|csv|xlsx|xls)$/i.test(file.name) || (/\.json$/i.test(file.name) && await MT.isTabularJson(file))) {
+                    if (/\.(mobql|sql|csv|xlsx|xls|zip)$/i.test(file.name) || (/\.json$/i.test(file.name) && await MT.isTabularJson(file))) {
                         // Excel / CSV / SQL / SQL Mobius / JSON tabulaire : une carte par table ou feuille (mêmes règles que la page map)
                         const cs = await MT.fileToCards(file);
+                        if (cs.length > 1) { showToast(`« ${file.name} » : impossible d'importer un projet dans l'arborescence (${cs.length} cartes détectées).`); continue; }
                         cs.forEach(c => put(c));
                         showToast(`« ${file.name} » : ${cs.length} carte${cs.length > 1 ? 's' : ''} créée${cs.length > 1 ? 's' : ''}.`);
                         continue;
