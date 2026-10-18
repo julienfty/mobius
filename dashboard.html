@@ -58,6 +58,7 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
   return stored != null && !/^\$2[abxy]\$|^pbkdf2\$|^locked$/.test(String(stored)) && String(typed) === String(stored);
 };
 </script>
+<style>#tree,#tree-selbar{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}</style>
 </head>
 <body class="h-full bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col selection:bg-[#5246EE] selection:text-white">
 
@@ -2404,16 +2405,52 @@ window.__mobiusSb = sb;
             return true;
         });
     }
-    function dashSelCards() {
+    function dashAllowsCentral() {
+    return [...treeMulti].every(id => { const it = findItem(tree(), id); return !it || it.type === 'card' || it.type === 'folder'; });
+}
+function dashSelCards() {
         const out = [], seen = new Set();
         const walk = it => { if (it.type === 'card' && !seen.has(it.id)) { seen.add(it.id); out.push(it.id); } (it.children || []).forEach(walk); };
         dashTop([...treeMulti]).forEach(id => { const it = findItem(tree(), id); if (it) walk(it); });
         return out;
     }
+
+    /* ===== Barre d'actions de la sélection (centrale / supprimer / désélectionner) ===== */
+    function treeSelBarUpdate() {
+        let bar = document.getElementById('tree-selbar');
+        if (!bar) {
+            const host = document.getElementById('tree');
+            if (!host || !host.parentNode) return;
+            bar = document.createElement('div');
+            bar.id = 'tree-selbar';
+            bar.style.cssText = 'display:none;align-items:center;gap:6px;padding:6px 10px;margin:0 0 6px;border-radius:12px;background:rgba(82,70,238,.10);border:1.5px solid #5246EE;font-size:11px;flex-wrap:wrap';
+            const b = 'display:inline-flex;align-items:center;gap:4px;padding:5px 9px;border-radius:9px;font-weight:600;cursor:pointer;border:0;font-size:11px';
+            bar.innerHTML = '<span data-n style="flex:1;font-weight:700;color:#5246EE;min-width:70px"></span>'
+                + '<button type="button" data-sb="centralize" style="' + b + ';background:#7c3aed;color:#fff" title="Créer une centrale avec ces cartes"><i class="fa-solid fa-code-merge"></i> Centrale</button>'
+                + '<button type="button" data-sb="delete" style="' + b + ';background:#f43f5e;color:#fff" title="Supprimer la sélection (Retour arrière)"><i class="fa-solid fa-trash"></i> Supprimer</button>'
+                + '<button type="button" data-sb="clear" style="' + b + ';background:transparent;color:#64748b" title="Désélectionner (Échap)"><i class="fa-solid fa-xmark"></i></button>';
+            host.parentNode.insertBefore(bar, host);
+            bar.addEventListener('mousedown', (e) => e.stopPropagation());
+            bar.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-sb]'); if (!btn) return;
+                const a = btn.dataset.sb;
+                if (a === 'centralize') { dashMenuAction('centralize'); }
+                else if (a === 'delete') { dashDelete([...treeMulti]); }
+                else { treeMulti.clear(); treeMultiPaint(); }
+            });
+        
+        }
+        const n = dashTop([...treeMulti]).length, nc = dashSelCards().length;
+        bar.style.display = n ? 'flex' : 'none';
+        bar.querySelector('[data-n]').textContent = n + (n > 1 ? ' sélectionnés' : ' sélectionné');
+        bar.querySelector('[data-sb="centralize"]').style.display = (nc > 1 && dashAllowsCentral()) ? 'inline-flex' : 'none';
+    }
+
     function treeMultiPaint() {
         if (!state.activeProject) return;
         [...treeMulti].forEach(id => { if (!findItem(tree(), id)) treeMulti.delete(id); });
         treeRows().forEach(r => r.classList.toggle('tree-multi', treeMulti.has(treeRowId(r))));
+        treeSelBarUpdate();
     }
 
     /* menu contextuel */
@@ -2440,7 +2477,7 @@ window.__mobiusSb = sb;
         menuEl.innerHTML = `<div class="px-4 pb-1.5 text-[10px] text-gray-400 truncate">📁 ${df ? esc(df.name) : 'Racine du projet'}</div>`
             + (isMulti ? `<div class="px-4 pb-1.5 text-[10px] font-bold text-[#5246EE]">${selTop.length} éléments sélectionnés</div>` : '')
             + btn('new-folder', 'folder-plus', 'Nouveau dossier') + btn('new-txt', 'file-lines', 'Nouveau fichier .txt') + btn('new-card', 'note-sticky', 'Nouvelle carte') + btn('new-central', 'database', 'Nouvelle centrale')
-            + (isMulti && nCards > 1 ? btn('centralize', 'code-merge', `Centraliser (${nCards} cartes)`, 'text-violet-600') : '')
+            + (isMulti && nCards > 1 && dashAllowsCentral() ? btn('centralize', 'code-merge', `Centraliser (${nCards} cartes)`, 'text-violet-600') : '')
             + btn('import', 'file-arrow-down', 'Importer un fichier')
             + (isMulti ? sep + btn('delete-sel', 'trash', `Supprimer la sélection (${selTop.length})`, 'text-rose-500')
                 : it ? sep + btn('rename', 'pen', 'Renommer') + btn('up', 'arrow-up', 'Monter') + btn('down', 'arrow-down', 'Descendre') + btn('delete', 'trash', 'Supprimer', 'text-rose-500') : '');
@@ -2508,6 +2545,7 @@ window.__mobiusSb = sb;
         if (a.startsWith('new-')) return dashCreate(a.slice(4), dest);
         if (a === 'import') { if (!requireEditTree()) return; treeImportDest = { folderId: dest }; return $('tree-file-input').click(); }
         if (a === 'centralize') {
+            if (!dashAllowsCentral()) return;
             if (!requireEditTree()) return;
             const ids = dashSelCards();
             const name = (await askPrompt('Nom de la centrale :', 'Nom de la centrale', 'text', 'Centrale'))?.trim();
@@ -2534,10 +2572,11 @@ window.__mobiusSb = sb;
         const box = document.createElement('div');
         box.style.cssText = 'position:fixed;z-index:55;pointer-events:none;display:none;border:1.5px solid #5246EE;background:rgba(82,70,238,.14);border-radius:6px';
         document.body.appendChild(box);
-        let st = null, raf = 0, px = 0, py = 0;
+        let st = null, raf = 0, px = 0, py = 0, mqEnd = 0;
+            tr.addEventListener('click', (e) => { if (Date.now() - mqEnd < 400) { e.stopPropagation(); e.stopImmediatePropagation(); } }, true);
         const scroller = () => tr.scrollHeight > tr.clientHeight + 2 ? tr : null;
         const sTop = () => scroller() ? tr.scrollTop : window.scrollY;
-        const endMq = () => { cancelAnimationFrame(raf); box.style.display = 'none'; st = null; treeRight.down = false; };
+        const endMq = () => { cancelAnimationFrame(raf); box.style.display = 'none'; st = null; treeRight.down = false; document.body.style.removeProperty('-webkit-user-select'); document.body.style.removeProperty('user-select'); };
         const update = () => {
             if (!st || !st.moved) return;
             const cr = tr.getBoundingClientRect();
@@ -2568,22 +2607,27 @@ window.__mobiusSb = sb;
             raf = requestAnimationFrame(tick);
         };
         tr.addEventListener('mousedown', (e) => {
-            if (e.button !== 2 || !canEditTree()) return;
-            e.preventDefault();
+            if (!canEditTree()) return;
             const row = e.target.closest('.folder-row, .file-row');
-            st = { x: e.clientX, y: e.clientY, sy: sTop(), moved: false, rowId: row ? treeRowId(row) : null, base: (e.ctrlKey || e.metaKey || e.shiftKey) ? new Set(treeMulti) : new Set() };
+            const isRight = e.button === 2;
+            const isLeft = e.button === 0 && (e.shiftKey || (!row && !e.target.closest('button, input, a, select, textarea')));
+            if (!isRight && !isLeft) return;
+            e.preventDefault();
+            try { window.getSelection().removeAllRanges(); } catch (_) {}
+            st = { btn: isRight ? 2 : 0, x: e.clientX, y: e.clientY, sy: sTop(), moved: false, rowId: row ? treeRowId(row) : null, base: (e.ctrlKey || e.metaKey || e.shiftKey) ? new Set(treeMulti) : new Set() };
             px = e.clientX; py = e.clientY; treeRight.down = true;
         });
         window.addEventListener('mousemove', (e) => {
             if (!st) return;
-            if (!(e.buttons & 2)) { endMq(); return; }
+            if (st.btn === 0 && !(e.buttons & 1)) { endMq(); return; }
             px = e.clientX; py = e.clientY;
-            if (!st.moved && Math.hypot(px - st.x, py - st.y) > 6) { st.moved = true; closeDashMenu(); cancelAnimationFrame(raf); raf = requestAnimationFrame(tick); }
+            if (!st.moved && Math.hypot(px - st.x, py - st.y) > 6) { st.moved = true; closeDashMenu(); document.body.style.setProperty('-webkit-user-select', 'none'); document.body.style.setProperty('user-select', 'none'); try { window.getSelection().removeAllRanges(); } catch (_) {} cancelAnimationFrame(raf); raf = requestAnimationFrame(tick); }
             if (st.moved) update();
         });
         window.addEventListener('mouseup', (e) => {
-            if (!st || e.button !== 2) return;
-            const s = st; endMq();
+            if (!st) return;
+            const s = st; endMq(); if (s.moved) mqEnd = Date.now();
+            if (s.btn !== 2) { if (s.moved) treeMultiPaint(); return; }
             treeRight.recent = true; setTimeout(() => { treeRight.recent = false; }, 80);
             if (!s.moved) openDashMenu(e.clientX, e.clientY, s.rowId); else treeMultiPaint();
         });
@@ -2610,7 +2654,7 @@ window.__mobiusSb = sb;
             const t = e.target, tag = (t.tagName || '').toLowerCase();
             if (tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable) return;
             if (e.key === 'Escape') { treeMulti.clear(); treeMultiPaint(); }
-            else if (e.key === 'Delete') { e.preventDefault(); e.stopImmediatePropagation(); dashDelete([...treeMulti]); }
+            else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); e.stopImmediatePropagation(); dashDelete([...treeMulti]); }
         }, true);
     })();
     function dashDragImage(e, n) {
