@@ -1864,7 +1864,7 @@ window.__mobiusSb = sb;
         return (item.children || []).some(c => c.id === id || containsId(c, id));
     }
 
-    let saveTimer = null;
+    let saveTimer = null, treeDirty = false;
     const canEditTree = () => !!state.activeProject && canEditItem(state.activeProject);
     function requireEditTree() {
         if (canEditTree()) return true;
@@ -1873,8 +1873,10 @@ window.__mobiusSb = sb;
     }
     function saveTree() {
         clearTimeout(saveTimer);
+        treeDirty = true;
         saveTimer = setTimeout(async () => {
             const { error } = await sb.from('projects').update({ tree: state.activeProject.tree }).eq('id', state.activeProject.id);
+            if (!error) treeDirty = false;
             if (error) toast('Sauvegarde impossible : ' + error.message, 'error');
         }, 250);
     }
@@ -1992,7 +1994,7 @@ window.__mobiusSb = sb;
         if (!name) return;
         const item = { id: 'id_' + Date.now(), type, name, content: type === 'txt' ? '' : '' };
         if (type === 'folder') item.children = [];
-        if (type === 'central') { item.name = name.endsWith('.mobius') ? name : name + '.mobius'; item.central = {kind:'central',mode:folderId?'folder':'root',folderId:folderId||null,includeSubfolders:false,selectedFolders:[],groups:[]}; }
+        if (type === 'central') { item.name = name.endsWith('.mobius') ? name : name + '.mobius'; Object.assign(item, { mode: folderId ? 'folder' : 'root', folderId: folderId || null, includeSub: false, cardIds: [], groups: [], links: {} }); }
         item.isNewDrop = true;
         insertInto(item, folderId);
         saveTree(); renderTree();
@@ -2260,7 +2262,7 @@ window.__mobiusSb = sb;
         if (fi) {
             const it = findItem(tree(), fi.dataset.file);
             if (!it) return;
-            if(it.type === 'central') { openCentral(it); return; }
+            if (it.type === 'central') { await openCentralPage(it); return; }
             topProgress.start();
             window.location.href = it.type === 'card'
                 ? `map.html?cardId=${encodeURIComponent(it.id)}`
@@ -2269,61 +2271,61 @@ window.__mobiusSb = sb;
     });
 
     // Une centrale est une vue calculée: elle ne duplique pas les cartes ni leurs personnes.
+    // Configuration d'une centrale : champs à plat (format de la page centrale) ; l'ancien format imbriqué (item.central) reste lisible
+    const centralCfg = (c) => c.mode !== undefined ? c : (c.central || {});
     function centralCards(central) {
-        const cfg = central.central || {};
+        const cfg = centralCfg(central);
+        const mode = cfg.mode === 'selection' ? 'cards' : cfg.mode;
+        const sub = !!(cfg.includeSub || cfg.includeSubfolders);
         const output = [];
         const collect = (items, descend) => (items || []).forEach(x => {
             if (x.type === 'card') output.push(x);
             if (x.type === 'folder' && descend) collect(x.children, true);
         });
-        if (cfg.mode === 'selection') {
+        if (mode === 'cards') {
             const ids = new Set(cfg.cardIds || []);
-            const scan = items => (items||[]).forEach(x => { if(x.type==='card' && ids.has(x.id)) output.push(x); if(x.children) scan(x.children); });
+            const scan = items => (items || []).forEach(x => { if (x.type === 'card' && ids.has(x.id)) output.push(x); if (x.children) scan(x.children); });
             scan(tree());
-        } else if (cfg.mode === 'root') {
-            const scan = items => (items||[]).forEach(x => { if(x.type==='card') output.push(x); if(x.children) scan(x.children); });
+        } else if (mode === 'root') {
+            const scan = items => (items || []).forEach(x => { if (x.type === 'card') output.push(x); if (x.children) scan(x.children); });
             scan(tree());
         } else {
             const folder = findItem(tree(), cfg.folderId);
-            if(folder) (folder.children||[]).forEach(x => {
-                if(x.type==='card') output.push(x);
-                if(x.type==='folder' && (cfg.includeSubfolders || (cfg.selectedFolders||[]).includes(x.id))) collect(x.children, true);
+            if (folder) (folder.children || []).forEach(x => {
+                if (x.type === 'card') output.push(x);
+                if (x.type === 'folder' && (sub || (cfg.selectedFolders || []).includes(x.id))) collect(x.children, true);
             });
         }
         return output;
     }
-    function cardPeople(card) {
-        return (card.nodes || []).map(n => ({name:[n.firstname,n.lastname].filter(Boolean).join(' ').trim() || n.name || n.label || '', id:n.globalPersonId||n.id, node:n, card})).filter(n=>n.name);
+    // Convertit une centrale créée avec l'ancien format (item.central = { mode, folderId, … }) vers celui de la page centrale
+    function normCentral(it) {
+        const cfg = it.central || {};
+        if (it.mode === undefined) it.mode = cfg.mode === 'selection' ? 'cards' : (cfg.mode || 'root');
+        if (it.folderId === undefined) it.folderId = cfg.folderId || null;
+        if (it.includeSub === undefined) it.includeSub = !!(cfg.includeSubfolders || cfg.includeSub);
+        if (!Array.isArray(it.cardIds)) it.cardIds = Array.isArray(cfg.cardIds) ? cfg.cardIds.slice() : [];
+        if (!Array.isArray(it.groups)) it.groups = [];
+        if (!it.links || typeof it.links !== 'object') it.links = {};
+        if (Array.isArray(cfg.groups) && cfg.groups.length && !it.legacyGroups) it.legacyGroups = cfg.groups;   // anciens groupes (autre structure) : conservés, non repris
+        delete it.central;
+        return it;
     }
-    function openCentral(item) {
-        const cfg=item.central||{}, cards=centralCards(item), entities=new Map();
-        cards.forEach(c=>cardPeople(c).forEach(p=>{
-            const key=p.node.globalPersonId || 'name:'+p.name.toLocaleLowerCase();
-            if(!entities.has(key))entities.set(key,{key,name:p.name,refs:[]});
-            entities.get(key).refs.push(p);
-        }));
-        const overlay=document.createElement('div');overlay.style.cssText='position:fixed;inset:0;background:#0009;z-index:99999;display:grid;place-items:center;padding:16px';
-        overlay.innerHTML=`<section style="background:white;color:#171717;border-radius:18px;padding:22px;width:min(900px,96vw);max-height:90vh;overflow:auto"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="font-size:20px;font-weight:700">🗄️ ${esc(item.name)}</h2><button data-close style="font-size:24px">×</button></div><p style="margin:10px 0;color:#666">${cards.length} carte(s) · ${entities.size} personne(s)</p><label style="display:flex;gap:8px;margin:10px 0"><input type="checkbox" data-sub ${cfg.includeSubfolders?'checked':''} ${cfg.mode!=='folder'?'disabled':''}> Inclure les sous-dossiers</label><div style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0"><button data-grid style="padding:8px;border:1px solid #aaa;border-radius:8px">Grille</button><button data-list style="padding:8px;border:1px solid #aaa;border-radius:8px">Liste</button><button data-group style="padding:8px;border:1px solid #aaa;border-radius:8px">Créer un groupe</button><button data-card style="padding:8px;border:1px solid #aaa;border-radius:8px">+ Nouvelle carte liée</button></div><div data-people style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:9px"></div><div data-detail style="margin-top:15px"></div><h3 style="margin-top:18px;font-weight:700">Cartes associées</h3><div>${cards.map(c=>`<p style="padding:4px">◈ ${esc(c.name)}</p>`).join('')||'Aucune carte'}</div></section>`;
-        document.body.append(overlay);
-        const people=overlay.querySelector('[data-people]'), detail=overlay.querySelector('[data-detail]');
-        const persist=async()=>{const {error}=await sb.from('projects').update({tree:tree()}).eq('id',state.activeProject.id);if(error)toast('Enregistrement impossible : '+error.message,'error');else toast('Modifications enregistrées');};
-        const draw=()=>{people.innerHTML=[...entities.values()].map((e,i)=>`<label style="border:1px solid #ddd;border-radius:10px;padding:12px;cursor:pointer"><input type="checkbox" data-select="${i}" style="margin-right:8px"><button data-person="${i}" style="font-weight:700">${esc(e.name)}</button><div style="font-size:11px;color:#777">${e.refs.map(p=>esc(p.card.name)).join(' · ')}</div></label>`).join('')||'<p>Aucune personne.</p>';};draw();
-        const list=()=>[...entities.values()];
-        people.onclick=e=>{const btn=e.target.closest('[data-person]');if(!btn)return;const ent=list()[Number(btn.dataset.person)];if(!ent)return;
-          const fields=new Map();ent.refs.forEach(({card,node})=>(card.fields||[]).forEach(f=>{const id=String(f.id);if(!fields.has(id))fields.set(id,{field:f,values:[]});fields.get(id).values.push({card,node});}));
-          detail.innerHTML=`<div style="border:1px solid #bbb;border-radius:12px;padding:15px"><h3 style="font-weight:700;margin-bottom:8px">Fiche : ${esc(ent.name)}</h3><p style="font-size:12px;color:#777">Modifier une valeur sur les cartes sélectionnées. Ajouter un champ modifie la structure de toutes les personnes des cartes choisies.</p><label>Prénom <input data-first style="border:1px solid #ccc;padding:6px" value="${esc(ent.refs[0].node.firstname||'')}"></label> <label>Nom <input data-last style="border:1px solid #ccc;padding:6px" value="${esc(ent.refs[0].node.lastname||'')}"></label><div data-fields></div><button data-save-person style="background:#5246ee;color:white;border-radius:8px;padding:8px;margin:8px 0">Enregistrer sur toutes les cartes</button><hr><p style="margin-top:10px">Ajouter un champ à une ou plusieurs cartes :</p><input data-new-field placeholder="Nom du champ" style="border:1px solid #ccc;padding:7px"><div data-targets>${[...new Map(ent.refs.map(r=>[r.card.id,r.card])).values()].map(c=>`<label style="display:block"><input type="checkbox" data-target="${esc(c.id)}" checked> ${esc(c.name)}</label>`).join('')}</div><button data-add-field style="padding:8px;border:1px solid #aaa;border-radius:8px">Ajouter le champ</button></div>`;
-          const fbox=detail.querySelector('[data-fields]');fbox.innerHTML=[...fields.values()].map(({field},i)=>`<label style="display:block;margin:7px 0">${esc(field.label||field.name||field.id)} <input data-fval="${i}" style="border:1px solid #ccc;padding:6px" value="${esc(String((ent.refs[0].node.fieldValues||{})[field.id]??''))}"></label>`).join('');
-          detail.querySelector('[data-save-person]').onclick=async()=>{const first=detail.querySelector('[data-first]').value,last=detail.querySelector('[data-last]').value;const gid=ent.refs.find(r=>r.node.globalPersonId)?.node.globalPersonId||crypto.randomUUID();ent.refs.forEach(({node})=>{node.firstname=first;node.lastname=last;node.globalPersonId=gid;});[...fields.values()].forEach(({field},i)=>{const val=fbox.querySelector(`[data-fval="${i}"]`).value;ent.refs.forEach(({card,node})=>{if((card.fields||[]).some(f=>String(f.id)===String(field.id))){node.fieldValues ||= {};node.fieldValues[field.id]=val;}})});ent.name=[first,last].filter(Boolean).join(' ');await persist();draw();};
-          detail.querySelector('[data-add-field]').onclick=async()=>{const name=detail.querySelector('[data-new-field]').value.trim();const ids=[...detail.querySelectorAll('[data-target]:checked')].map(x=>x.dataset.target);if(!name||!ids.length)return alert('Indique un champ et au moins une carte.');if(!confirm(`Ajouter « ${name} » à toutes les personnes des ${ids.length} carte(s) choisie(s) ?`))return;for(const card of cards.filter(c=>ids.includes(c.id))){card.fields ||= [];if(!card.fields.some(f=>(f.label||f.name)===name))card.fields.push({id:'field_'+crypto.randomUUID(),label:name,type:'text'});}await persist();alert('Champ ajouté. Rouvre la fiche pour le modifier.');};
-        };
-        overlay.querySelector('[data-close]').onclick=()=>overlay.remove();overlay.onclick=e=>{if(e.target===overlay)overlay.remove()};
-        overlay.querySelector('[data-grid]').onclick=()=>people.style.gridTemplateColumns='repeat(auto-fill,minmax(190px,1fr))';overlay.querySelector('[data-list]').onclick=()=>people.style.gridTemplateColumns='1fr';
-        overlay.querySelector('[data-sub]').onchange=async e=>{cfg.includeSubfolders=e.target.checked;item.central=cfg;await persist();overlay.remove();openCentral(item)};
-        overlay.querySelector('[data-group]').onclick=async()=>{const picked=[...people.querySelectorAll('[data-select]:checked')].map(x=>list()[+x.dataset.select]).filter(Boolean);if(!picked.length)return alert('Sélectionne des personnes avec les cases.');const name=prompt('Nom du groupe :');if(!name?.trim())return;cfg.groups ||= [];cfg.groups.push({id:crypto.randomUUID(),name:name.trim(),personIds:picked.map(p=>p.key)});item.central=cfg;await persist();alert('Groupe enregistré : '+name);};
-        overlay.querySelector('[data-card]').onclick=async()=>{const name=prompt('Nom de la nouvelle carte liée :');if(!name?.trim())return;const newCard={id:'item_'+crypto.randomUUID(),type:'card',name:name.trim(),nodes:[],links:[],fields:[],relationTypes:[]};const target=cfg.mode==='folder'?findItem(tree(),cfg.folderId)?.children:tree();if(!target)return alert('Dossier introuvable');for(const ent of entities.values()){const ref=ent.refs[0].node;const node={...structuredClone(ref),id:'node-'+crypto.randomUUID(),crossLinks:[],globalPersonId:ref.globalPersonId||crypto.randomUUID()};newCard.nodes.push(node);for(const r of ent.refs){r.node.globalPersonId=node.globalPersonId;r.node.crossLinks ||= [];r.node.crossLinks.push({cardId:newCard.id,nodeId:node.id});node.crossLinks.push({cardId:r.card.id,nodeId:r.node.id});}}target.push(newCard);await persist();renderTree();overlay.remove();openCentral(item);};
+    // Ouvre la vraie page centrale (après avoir enregistré l'arborescence, que cette page recharge depuis Supabase)
+    async function openCentralPage(it) {
+        const legacy = !!it.central || it.mode === undefined;
+        if (legacy) normCentral(it);
+        if ((legacy || treeDirty) && canEditTree()) {
+            clearTimeout(saveTimer);
+            const { error } = await sb.from('projects').update({ tree: state.activeProject.tree }).eq('id', state.activeProject.id);
+            if (error) return toast('Enregistrement impossible : ' + error.message, 'error');
+            treeDirty = false;
+        }
+        topProgress.start();
+        window.location.href = `central.html?projectId=${encodeURIComponent(state.activeProject.id)}&centralId=${encodeURIComponent(it.id)}`;
     }
     function parentFolderOf(items,id,parent=null){for(const x of items||[]){if(x.id===id)return parent;if(x.children){const f=parentFolderOf(x.children,id,x);if(f!==undefined)return f;}}return undefined;}
-    function centralNamesForCard(cardId){const arr=[];const walk=items=>(items||[]).forEach(x=>{if(x.type==='central' && (x.central||{}).mode!=='selection' && centralCards(x).some(c=>c.id===cardId))arr.push(x.name);if(x.children)walk(x.children)});walk(tree());return arr;}
+    function centralNamesForCard(cardId){const arr=[];const walk=items=>(items||[]).forEach(x=>{if(x.type==='central' && !['selection','cards'].includes(centralCfg(x).mode) && centralCards(x).some(c=>c.id===cardId))arr.push(x.name);if(x.children)walk(x.children)});walk(tree());return arr;}
     const tr = $('tree');
     const dropClasses = ['tree-drop-before', 'tree-drop-after', 'tree-drop-inside'];
     const clearDropUI = () => tr.querySelectorAll('.folder-row, .file-row').forEach(r => r.classList.remove(...dropClasses));
@@ -2511,7 +2513,7 @@ window.__mobiusSb = sb;
             const name = (await askPrompt('Nom de la centrale :', 'Nom de la centrale', 'text', 'Centrale'))?.trim();
             if (!name) return;
             tree().unshift({ id: newItemId(), type: 'central', name: name.endsWith('.mobius') ? name : name + '.mobius', content: '', isNewDrop: true,
-                central: { kind: 'central', mode: 'selection', folderId: null, includeSubfolders: false, selectedFolders: [], groups: [], cardIds: ids } });
+                mode: 'cards', folderId: null, includeSub: false, cardIds: ids, groups: [], links: {} });
             treeMulti.clear(); saveTree(); renderTree(); toast(`Centrale créée (${ids.length} cartes).`, 'success');
             return;
         }
