@@ -182,7 +182,7 @@
                     <button id="tree-import-btn" title="Importer un fichier" class="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-medium flex items-center gap-1"><i data-lucide="file-up" class="w-3.5 h-3.5 text-[#5246EE]"></i>Importer</button>
                 </div>
                 <div id="tree-dest" class="mt-1.5 text-[10px] text-slate-400 truncate"></div>
-                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx,.mobtext,.mobscen,.mobql,.mql,.sql,.csv,.xlsx,.xls" multiple>
+                <input type="file" id="tree-file-input" class="hidden" accept=".txt,.json,.mobius,.fountain,.page,.pdf,.docx,.mobtext,.mobscen,.mobql,.sql,.csv,.xlsx,.zip,.xls" multiple>
             </div>
             <div id="tree-sidebar-content" class="flex-1 p-3 overflow-y-auto space-y-1 text-xs"></div>
             <div class="p-3 border-t border-slate-200 dark:border-slate-800 relative">
@@ -3599,8 +3599,8 @@ container.addEventListener('touchstart', (e) => {
         /* ---------- Import (mêmes formats / conversions que le dashboard) ---------- */
         async function treeImport(files, dest) {
             if (!requireEdit()) return;
-            const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx|mobtext|mobscen|mql|sql|csv|xlsx|xls)$/i.test(f.name));
-            if (accepted.length < files.length) showToast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx, .mobius, .mobtext, .mobscen, .mobql, .sql, .csv et .xlsx.');
+            const accepted = files.filter(f => /\.(txt|json|mobius|fountain|page|pdf|docx|mobtext|mobscen|mobql|mql|sql|csv|xlsx|xls|zip)$/i.test(f.name));
+            if (accepted.length < files.length) showToast('Formats acceptés : .txt, .json, .fountain, .page, .pdf, .docx, .mobius, .mobtext, .mobscen, .mobql, .sql, .csv, .xlsx et .zip (csv).');
             let t = dest, added = 0;
             const put = (item) => {
                 treeInsert(item, t); added++;
@@ -3608,8 +3608,9 @@ container.addEventListener('touchstart', (e) => {
             };
             for (const file of accepted) {
                 try {
-                    if (/\.(mql|sql|csv|xlsx|xls)$/i.test(file.name) || (/\.json$/i.test(file.name) && await MT.isTabularJson(file))) {
+                    if (/\.(mobql|mql|sql|csv|xlsx|xls|zip)$/i.test(file.name) || (/\.json$/i.test(file.name) && await MT.isTabularJson(file))) {
                         const cs = await MT.fileToCards(file);
+                        if (cs.length > 1) { showToast(`« ${file.name} » : impossible d'importer un projet dans l'arborescence (${cs.length} cartes détectées).`); continue; }
                         cs.forEach(c => put(c));
                         showToast(`« ${file.name} » : ${cs.length} carte${cs.length > 1 ? 's' : ''} créée${cs.length > 1 ? 's' : ''}.`);
                         continue;
@@ -4269,6 +4270,13 @@ container.addEventListener('touchstart', (e) => {
                     const out = wb.SheetNames.map(n => aoaTable(XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null }), wb.SheetNames.length > 1 ? n : base)).filter(Boolean);
                     if (!out.length) throw Error('classeur vide'); return out;
                 }
+                if (ext === 'zip') {
+                    if (typeof JSZip === 'undefined') throw Error('bibliothèque ZIP non chargée');
+                    const z = await JSZip.loadAsync(await file.arrayBuffer()), out = [];
+                    const names = Object.keys(z.files).filter(n => !z.files[n].dir && !/(^|\/)(__MACOSX|\.)/.test(n) && /\.(csv|xlsx|xls|json)$/i.test(n)).sort();
+                    for (const n of names) out.push(...await fileTables(new File([await z.files[n].async('blob')], n.split('/').pop())));
+                    if (!out.length) throw Error('aucun fichier csv dans le zip'); return out;
+                }
                 if (ext === 'json' || ext === 'mobius') return jsonTables(JSON.parse((await file.text()).replace(/^\ufeff/, '')), base);
                 throw Error('format non géré');
             }
@@ -4276,7 +4284,7 @@ container.addEventListener('touchstart', (e) => {
                 try { const d = JSON.parse(await file.text()); return !(d && Array.isArray(d.nodes) && Array.isArray(d.links)) && (Array.isArray(d.tables) || (Array.isArray(d) && d.length > 0 && typeof d[0] === 'object')); } catch (e) { return false; }
             }
             async function fileToCards(file) {
-                if (/\.(?:mql|sql)$/i.test(file.name)) return toCards(await file.text(), file.name);
+                if (/\.(?:mobql|mql|sql)$/i.test(file.name)) return toCards(await file.text(), file.name);
                 return toCards(emit(await fileTables(file), { mobius: true }), file.name);
             }
 
@@ -4430,7 +4438,7 @@ const HLRE = /(--[^\n]*)|("(?:[^"]|"")*"|'(?:[^']|'')*'|«[^»]*»|“[^”]*”
                 const load = async files => {
                     const parts = [];
                     for (const f of files) {
-                        try { parts.push(/\.(mql|sql|txt)$/i.test(f.name) ? await f.text() : emit(await fileTables(f), { mobius: true, noCreate: true, head: `-- Importé depuis ${f.name}` })); }
+                        try { parts.push(/\.(mobql|mql|sql|txt)$/i.test(f.name) ? await f.text() : emit(await fileTables(f), { mobius: true, noCreate: true, head: `-- Importé depuis ${f.name}` })); }
                         catch (err) { msg('err', `« ${f.name} » : ${err.message}`); return; }
                     }
                     src.value = parts.join('\n\n'); upd(); msg('info', 'Fichier chargé en MQL : relis le script puis clique sur Exécuter.');
