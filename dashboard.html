@@ -35,7 +35,7 @@
         .animate-toast { animation: toastIn .25s ease-out forwards; }
         @media (max-width: 768px) { input, select, textarea { font-size: 16px !important; } }
     </style>
-    <style>.tree-drop-before{box-shadow:0 -2px 0 0 #5246EE}.tree-drop-after{box-shadow:0 2px 0 0 #5246EE}.tree-drop-inside{background:rgba(82,70,238,.12);box-shadow:inset 0 0 0 2px rgba(82,70,238,.5)}</style>
+    <style>.tree-multi{background:rgba(82,70,238,.16)!important;box-shadow:inset 0 0 0 1.5px #5246EE}.tree-drop-before{box-shadow:0 -2px 0 0 #5246EE}.tree-drop-after{box-shadow:0 2px 0 0 #5246EE}.tree-drop-inside{background:rgba(82,70,238,.12);box-shadow:inset 0 0 0 2px rgba(82,70,238,.5)}</style>
     <style>
         /* Barre de chargement fine sous le menu du haut (visible seulement à l'ouverture d'un document) */
         #top-progress { position: absolute; left: 0; right: 0; top: 100%; height: 2px; pointer-events: none; opacity: 0; transition: opacity .25s ease; z-index: 41; }
@@ -1954,21 +1954,21 @@ window.__mobiusExportProject = () => state.activeProject;
         return r ? r.value : 'skip';
     }
 
-    document.querySelectorAll('.tree-create').forEach(b => b.addEventListener('click', async () => {
+    async function dashCreate(type, folderId) {
         if (!requireEditTree()) return;
-        const type = b.dataset.create;
         const label = { folder: 'dossier', txt: 'fichier .txt', card: 'carte', central: 'centrale' }[type];
         const name = (await askPrompt(`Nom du ${label} :`, `Nom du ${label}`))?.trim();
         if (!name) return;
         const item = { id: 'id_' + Date.now(), type, name, content: type === 'txt' ? '' : '' };
         if (type === 'folder') item.children = [];
-        if (type === 'central') { item.name = name.endsWith('.mobius') ? name : name + '.mobius'; item.central = {kind:'central',mode:state.selectedFolderId?'folder':'root',folderId:state.selectedFolderId||null,includeSubfolders:false,selectedFolders:[],groups:[]}; }
+        if (type === 'central') { item.name = name.endsWith('.mobius') ? name : name + '.mobius'; item.central = {kind:'central',mode:folderId?'folder':'root',folderId:folderId||null,includeSubfolders:false,selectedFolders:[],groups:[]}; }
         item.isNewDrop = true;
-        insertInto(item, state.selectedFolderId);
+        insertInto(item, folderId);
         saveTree(); renderTree();
-    }));
+    }
+    document.querySelectorAll('.tree-create').forEach(b => b.addEventListener('click', () => dashCreate(b.dataset.create, state.selectedFolderId)));
 
-    $('import-btn').addEventListener('click', () => { if (requireEditTree()) $('tree-file-input').click(); });$('tree-file-input').addEventListener('change', (e) => { importFiles([...e.target.files], state.selectedFolderId); e.target.value = ''; });
+    $('import-btn').addEventListener('click', () => { if (requireEditTree()) { treeImportDest = null; $('tree-file-input').click(); } });$('tree-file-input').addEventListener('change', (e) => { importFiles([...e.target.files], treeImportDest || state.selectedFolderId); treeImportDest = null; e.target.value = ''; });
 
     const newItemId = () => 'id_' + Date.now() + Math.random().toString(36).slice(2, 7);
     const MAX_INPUT_BYTES = 20 * 1024 * 1024;   // taille max du fichier source
@@ -2139,6 +2139,7 @@ window.__mobiusExportProject = () => state.activeProject;
         }
         c.innerHTML = '';
         renderLevel(tree(), c);
+        treeMultiPaint();
     }
 
     function renderLevel(items, container) {
@@ -2183,6 +2184,9 @@ window.__mobiusExportProject = () => state.activeProject;
     }
 
     $('tree').addEventListener('click', async (e) => {
+        const selRow = e.target.closest('.folder-row, .file-row');
+        if (selRow && (e.ctrlKey || e.metaKey) && canEditTree()) { e.stopPropagation(); const sid = treeRowId(selRow); treeMulti.has(sid) ? treeMulti.delete(sid) : treeMulti.add(sid); treeMultiPaint(); return; }
+        if (treeMulti.size) { treeMulti.clear(); treeMultiPaint(); }
         const rn = e.target.closest('[data-rename]');
         if (rn) {
             e.stopPropagation();
@@ -2288,7 +2292,7 @@ window.__mobiusExportProject = () => state.activeProject;
         overlay.querySelector('[data-card]').onclick=async()=>{const name=prompt('Nom de la nouvelle carte liée :');if(!name?.trim())return;const newCard={id:'item_'+crypto.randomUUID(),type:'card',name:name.trim(),nodes:[],links:[],fields:[],relationTypes:[]};const target=cfg.mode==='folder'?findItem(tree(),cfg.folderId)?.children:tree();if(!target)return alert('Dossier introuvable');for(const ent of entities.values()){const ref=ent.refs[0].node;const node={...structuredClone(ref),id:'node-'+crypto.randomUUID(),crossLinks:[],globalPersonId:ref.globalPersonId||crypto.randomUUID()};newCard.nodes.push(node);for(const r of ent.refs){r.node.globalPersonId=node.globalPersonId;r.node.crossLinks ||= [];r.node.crossLinks.push({cardId:newCard.id,nodeId:node.id});node.crossLinks.push({cardId:r.card.id,nodeId:r.node.id});}}target.push(newCard);await persist();renderTree();overlay.remove();openCentral(item);};
     }
     function parentFolderOf(items,id,parent=null){for(const x of items||[]){if(x.id===id)return parent;if(x.children){const f=parentFolderOf(x.children,id,x);if(f!==undefined)return f;}}return undefined;}
-    function centralNamesForCard(cardId){const arr=[];const walk=items=>(items||[]).forEach(x=>{if(x.type==='central' && centralCards(x).some(c=>c.id===cardId))arr.push(x.name);if(x.children)walk(x.children)});walk(tree());return arr;}
+    function centralNamesForCard(cardId){const arr=[];const walk=items=>(items||[]).forEach(x=>{if(x.type==='central' && (x.central||{}).mode!=='selection' && centralCards(x).some(c=>c.id===cardId))arr.push(x.name);if(x.children)walk(x.children)});walk(tree());return arr;}
     const tr = $('tree');
     const dropClasses = ['tree-drop-before', 'tree-drop-after', 'tree-drop-inside'];
     const clearDropUI = () => tr.querySelectorAll('.folder-row, .file-row').forEach(r => r.classList.remove(...dropClasses));
@@ -2308,13 +2312,15 @@ window.__mobiusExportProject = () => state.activeProject;
         state.draggedId = el.dataset.id;
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', el.dataset.id);
+        state.draggedIds = (treeMulti.size > 1 && treeMulti.has(el.dataset.id)) ? [...treeMulti] : null;
+        if (state.draggedIds) dashDragImage(e, dashTop(state.draggedIds).length);
     });
-    tr.addEventListener('dragend', () => { state.draggedId = null; clearDropUI(); });
+    tr.addEventListener('dragend', () => { state.draggedId = null; state.draggedIds = null; clearDropUI(); });
     tr.addEventListener('dragover', (e) => {
         e.preventDefault();
         clearDropUI();
         const t = dropTarget(e);
-        if (t.row && t.id !== state.draggedId) t.row.classList.add('tree-drop-' + t.pos);
+        if (t.row && t.id !== state.draggedId && !(state.draggedIds && state.draggedIds.includes(t.id))) t.row.classList.add('tree-drop-' + t.pos);
     });
     tr.addEventListener('dragleave', (e) => { if (!tr.contains(e.relatedTarget)) clearDropUI(); });
     tr.addEventListener('drop', async (e) => {
@@ -2325,6 +2331,8 @@ window.__mobiusExportProject = () => state.activeProject;
         const dest = t.id ? { id: t.id, pos: t.pos } : null;
 
         if (e.dataTransfer.files?.length) return importFiles([...e.dataTransfer.files], dest);
+
+        if (state.draggedIds) { const ids = state.draggedIds; state.draggedIds = null; state.draggedId = null; return dashMoveMany(ids, dest); }
 
         const id = state.draggedId; state.draggedId = null;
         if (!id || id === t.id) return;
@@ -2345,6 +2353,241 @@ window.__mobiusExportProject = () => state.activeProject;
         if (dest?.pos === 'inside') state.expanded.add(dest.id);
         saveTree(); renderTree();
     });
+
+
+    /* ---------- Sélection multiple (clic droit maintenu + glisser) et menu clic droit — mêmes fonctions que map / centrale / éditeur ---------- */
+    const treeMulti = new Set();
+    let treeImportDest = null, treeMenuCtx = null, treeDeleting = false;
+    const treeRight = { down: false, recent: false };
+    const treeRowId = (row) => row.closest('[data-id]').dataset.id;
+    const treeRows = () => [...tr.querySelectorAll('.folder-row, .file-row')];
+
+    function dashTop(ids) {
+        const set = new Set(ids);
+        return ids.filter(id => {
+            if (!findItem(tree(), id)) return false;
+            let p = parentFolderOf(tree(), id);
+            while (p) { if (set.has(p.id)) return false; p = parentFolderOf(tree(), p.id); }
+            return true;
+        });
+    }
+    function dashSelCards() {
+        const out = [], seen = new Set();
+        const walk = it => { if (it.type === 'card' && !seen.has(it.id)) { seen.add(it.id); out.push(it.id); } (it.children || []).forEach(walk); };
+        dashTop([...treeMulti]).forEach(id => { const it = findItem(tree(), id); if (it) walk(it); });
+        return out;
+    }
+    function treeMultiPaint() {
+        if (!state.activeProject) return;
+        [...treeMulti].forEach(id => { if (!findItem(tree(), id)) treeMulti.delete(id); });
+        treeRows().forEach(r => r.classList.toggle('tree-multi', treeMulti.has(treeRowId(r))));
+    }
+
+    /* menu contextuel */
+    const menuEl = document.createElement('div');
+    menuEl.id = 'tree-context-menu';
+    menuEl.className = 'hidden fixed bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 py-2 z-50 text-xs w-60';
+    document.body.appendChild(menuEl);
+    const closeDashMenu = () => menuEl.classList.add('hidden');
+    function openDashMenu(x, y, targetId) {
+        if (!canEditTree()) return;
+        const it = targetId ? findItem(tree(), targetId) : null;
+        if (it && !treeMulti.has(it.id) && treeMulti.size) treeMulti.clear();
+        let dest = null;
+        if (it) {
+            if (it.type === 'folder') { dest = it.id; state.selectedFolderId = it.id; state.expanded.add(it.id); updateFolderIndicator(); renderTree(); }
+            else { const p = parentFolderOf(tree(), it.id); dest = p ? p.id : null; }
+        }
+        treeMenuCtx = { targetId: it ? it.id : null, dest };
+        const df = dest && findItem(tree(), dest);
+        const selTop = (!it || treeMulti.has(it.id)) ? dashTop([...treeMulti]) : [];
+        const isMulti = selTop.length > 1, nCards = isMulti ? dashSelCards().length : 0;
+        const btn = (a, icon, label, cls = '') => `<button data-tree-action="${a}" class="w-full text-left px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-2.5 ${cls || 'text-gray-700 dark:text-gray-200'}"><i class="fa-solid fa-${icon} w-4 text-center text-[11px]"></i><span>${label}</span></button>`;
+        const sep = '<div class="my-1 border-t border-gray-100 dark:border-gray-800"></div>';
+        menuEl.innerHTML = `<div class="px-4 pb-1.5 text-[10px] text-gray-400 truncate">📁 ${df ? esc(df.name) : 'Racine du projet'}</div>`
+            + (isMulti ? `<div class="px-4 pb-1.5 text-[10px] font-bold text-[#5246EE]">${selTop.length} éléments sélectionnés</div>` : '')
+            + btn('new-folder', 'folder-plus', 'Nouveau dossier') + btn('new-txt', 'file-lines', 'Nouveau fichier .txt') + btn('new-card', 'note-sticky', 'Nouvelle carte') + btn('new-central', 'database', 'Nouvelle centrale')
+            + (isMulti && nCards > 1 ? btn('centralize', 'code-merge', `Centraliser (${nCards} cartes)`, 'text-violet-600') : '')
+            + btn('import', 'file-arrow-down', 'Importer un fichier')
+            + (isMulti ? sep + btn('delete-sel', 'trash', `Supprimer la sélection (${selTop.length})`, 'text-rose-500')
+                : it ? sep + btn('rename', 'pen', 'Renommer') + btn('up', 'arrow-up', 'Monter') + btn('down', 'arrow-down', 'Descendre') + btn('delete', 'trash', 'Supprimer', 'text-rose-500') : '');
+        menuEl.classList.remove('hidden');
+        const w = menuEl.offsetWidth, h = menuEl.offsetHeight;
+        menuEl.style.left = Math.max(4, Math.min(x, window.innerWidth - w - 4)) + 'px';
+        menuEl.style.top = Math.max(4, Math.min(y, window.innerHeight - h - 4)) + 'px';
+        treeMultiPaint();
+    }
+
+    async function dashRename(id) {
+        if (!requireEditTree()) return;
+        const it = findItem(tree(), id); if (!it) return;
+        const label = { folder: 'du dossier', txt: 'du fichier', card: 'de la carte', pdf: 'du fichier' }[it.type] || "de l'élément";
+        const name = (await askPrompt(`Nouveau nom ${label} :`, 'Nom', 'text', it.name))?.trim();
+        if (!name || name === it.name) return;
+        it.name = name; saveTree(); updateFolderIndicator(); renderTree(); toast('Renommé.', 'success');
+    }
+    function dashStep(id, dir) {
+        if (!requireEditTree()) return;
+        const loc = locateItem(tree(), id); if (!loc) return;
+        const j = loc.index + dir;
+        if (j < 0 || j >= loc.list.length) return;
+        [loc.list[loc.index], loc.list[j]] = [loc.list[j], loc.list[loc.index]];
+        saveTree(); renderTree();
+    }
+    async function dashDelete(ids) {
+        if (!requireEditTree() || treeDeleting) return;
+        treeDeleting = true;
+        try {
+            const items = dashTop(ids).map(id => findItem(tree(), id)).filter(Boolean);
+            if (!items.length) return;
+            const label = items.length === 1 ? `« ${items[0].name} »` : `${items.length} éléments`;
+            if (!await askConfirm(`Supprimer ${label} de l'arborescence ?`)) return;
+            items.forEach(it => { state.activeProject.tree = removeItem(tree(), it.id); treeMulti.delete(it.id); });
+            if (state.selectedFolderId && !findItem(tree(), state.selectedFolderId)) state.selectedFolderId = null;
+            saveTree(); updateFolderIndicator(); renderTree();
+        } finally { treeDeleting = false; }
+    }
+    async function dashMoveMany(ids, dest) {
+        if (!requireEditTree()) return;
+        const top = dashTop(ids);
+        if (!top.length) return;
+        if (dest && dest.id && top.includes(dest.id)) return;
+        if (dest && dest.id && top.some(id => containsId(findItem(tree(), id), dest.id))) return toast("Impossible de déplacer un dossier dans lui-même.", 'error');
+        const nextFolder = dest ? (dest.pos === 'inside' ? findItem(tree(), dest.id) : (dest.id ? parentFolderOf(tree(), dest.id) : null)) : null;
+        const names = new Set();
+        top.forEach(id => {
+            const it = findItem(tree(), id); if (!it || it.type !== 'card') return;
+            const old = parentFolderOf(tree(), id);
+            if ((old && old.id) !== (nextFolder && nextFolder.id)) centralNamesForCard(id).forEach(n => names.add(n));
+        });
+        if (names.size && !await treeConfirm(`Déplacer ces éléments ? Certaines cartes pourraient ne plus être liées aux centrales : ${[...names].join(', ')}. Leurs données seront conservées.`)) return;
+        const order = []; (function w(l) { l.forEach(i => { order.push(i.id); if (i.children) w(i.children); }); })(tree());
+        top.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+        const moving = top.map(id => extractItem(tree(), id)).filter(Boolean);
+        let t = dest && dest.id ? { id: dest.id, pos: dest.pos } : null;
+        moving.forEach(it => { insertAtPos(it, t); if (t && t.pos === 'after') t = { id: it.id, pos: 'after' }; });
+        if (dest && dest.pos === 'inside') state.expanded.add(dest.id);
+        treeMulti.clear(); saveTree(); renderTree();
+    }
+    async function dashMenuAction(a) {
+        closeDashMenu();
+        const { targetId, dest } = treeMenuCtx || {};
+        if (a.startsWith('new-')) return dashCreate(a.slice(4), dest);
+        if (a === 'import') { if (!requireEditTree()) return; treeImportDest = { folderId: dest }; return $('tree-file-input').click(); }
+        if (a === 'centralize') {
+            if (!requireEditTree()) return;
+            const ids = dashSelCards();
+            const name = (await askPrompt('Nom de la centrale :', 'Nom de la centrale', 'text', 'Centrale'))?.trim();
+            if (!name) return;
+            tree().unshift({ id: newItemId(), type: 'central', name: name.endsWith('.mobius') ? name : name + '.mobius', content: '', isNewDrop: true,
+                central: { kind: 'central', mode: 'selection', folderId: null, includeSubfolders: false, selectedFolders: [], groups: [], cardIds: ids } });
+            treeMulti.clear(); saveTree(); renderTree(); toast(`Centrale créée (${ids.length} cartes).`, 'success');
+            return;
+        }
+        if (a === 'delete-sel') return dashDelete([...treeMulti]);
+        if (!targetId) return;
+        if (a === 'rename') return dashRename(targetId);
+        if (a === 'up') return dashStep(targetId, -1);
+        if (a === 'down') return dashStep(targetId, 1);
+        if (a === 'delete') return dashDelete([targetId]);
+    }
+    menuEl.addEventListener('click', (e) => { const b = e.target.closest('[data-tree-action]'); if (b) dashMenuAction(b.dataset.treeAction); });
+    document.addEventListener('mousedown', (e) => { if (!e.target.closest('#tree-context-menu')) closeDashMenu(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDashMenu(); });
+    tr.addEventListener('scroll', closeDashMenu);
+
+    /* rectangle de sélection : clic droit maintenu + glisser */
+    (function setupDashMarquee() {
+        const box = document.createElement('div');
+        box.style.cssText = 'position:fixed;z-index:55;pointer-events:none;display:none;border:1.5px solid #5246EE;background:rgba(82,70,238,.14);border-radius:6px';
+        document.body.appendChild(box);
+        let st = null, raf = 0, px = 0, py = 0;
+        const scroller = () => tr.scrollHeight > tr.clientHeight + 2 ? tr : null;
+        const sTop = () => scroller() ? tr.scrollTop : window.scrollY;
+        const endMq = () => { cancelAnimationFrame(raf); box.style.display = 'none'; st = null; treeRight.down = false; };
+        const update = () => {
+            if (!st || !st.moved) return;
+            const cr = tr.getBoundingClientRect();
+            const top0 = Math.max(cr.top, 0), bot0 = Math.min(cr.bottom, window.innerHeight);
+            const ay = st.y - (sTop() - st.sy);
+            const l = Math.max(cr.left, Math.min(st.x, px)), r = Math.min(cr.right, Math.max(st.x, px));
+            const t = Math.max(top0, Math.min(ay, py)), b = Math.min(bot0, Math.max(ay, py));
+            box.style.display = 'block';
+            box.style.left = l + 'px'; box.style.top = t + 'px';
+            box.style.width = Math.max(0, r - l) + 'px'; box.style.height = Math.max(0, b - t) + 'px';
+            treeMulti.clear(); st.base.forEach(i => treeMulti.add(i));
+            treeRows().forEach(row => {
+                const q = row.getBoundingClientRect();
+                if (!q.width || !q.height) return;
+                if (q.right > l && q.left < r && q.bottom > t && q.top < b) treeMulti.add(treeRowId(row));
+            });
+            treeMultiPaint();
+        };
+        const tick = () => {
+            if (!st) return;
+            if (st.moved) {
+                const cr = tr.getBoundingClientRect();
+                const top0 = Math.max(cr.top, 0), bot0 = Math.min(cr.bottom, window.innerHeight);
+                const d = py < top0 + 28 ? -14 : py > bot0 - 28 ? 14 : 0;
+                if (d) { if (scroller()) tr.scrollTop += d; else window.scrollBy(0, d); }
+                update();
+            }
+            raf = requestAnimationFrame(tick);
+        };
+        tr.addEventListener('mousedown', (e) => {
+            if (e.button !== 2 || !canEditTree()) return;
+            e.preventDefault();
+            const row = e.target.closest('.folder-row, .file-row');
+            st = { x: e.clientX, y: e.clientY, sy: sTop(), moved: false, rowId: row ? treeRowId(row) : null, base: (e.ctrlKey || e.metaKey || e.shiftKey) ? new Set(treeMulti) : new Set() };
+            px = e.clientX; py = e.clientY; treeRight.down = true;
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (!st) return;
+            if (!(e.buttons & 2)) { endMq(); return; }
+            px = e.clientX; py = e.clientY;
+            if (!st.moved && Math.hypot(px - st.x, py - st.y) > 6) { st.moved = true; closeDashMenu(); cancelAnimationFrame(raf); raf = requestAnimationFrame(tick); }
+            if (st.moved) update();
+        });
+        window.addEventListener('mouseup', (e) => {
+            if (!st || e.button !== 2) return;
+            const s = st; endMq();
+            treeRight.recent = true; setTimeout(() => { treeRight.recent = false; }, 80);
+            if (!s.moved) openDashMenu(e.clientX, e.clientY, s.rowId); else treeMultiPaint();
+        });
+        tr.addEventListener('contextmenu', (e) => {
+            if (!canEditTree()) return;
+            e.preventDefault();
+            if (treeRight.down || treeRight.recent) return;
+            const row = e.target.closest('.folder-row, .file-row');
+            openDashMenu(e.clientX, e.clientY, row ? treeRowId(row) : null);     // touche « menu contextuel » du clavier
+        });
+        // appui long (mobile) : même menu
+        let lp = null;
+        tr.addEventListener('touchstart', (e) => {
+            if (!canEditTree() || e.touches.length !== 1) return;
+            const t = e.touches[0], row = e.target.closest('.folder-row, .file-row');
+            lp = setTimeout(() => { lp = null; openDashMenu(t.clientX, t.clientY, row ? treeRowId(row) : null); }, 550);
+        }, { passive: true });
+        ['touchmove', 'touchend', 'touchcancel'].forEach(ev => tr.addEventListener(ev, () => { clearTimeout(lp); lp = null; }, { passive: true }));
+        // Suppr : supprime la sélection ; Échap : désélectionne
+        let focusIn = false;
+        document.addEventListener('mousedown', (e) => { focusIn = !!e.target.closest('#tree'); }, true);
+        document.addEventListener('keydown', (e) => {
+            if (!focusIn || !treeMulti.size || !canEditTree()) return;
+            const t = e.target, tag = (t.tagName || '').toLowerCase();
+            if (tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable) return;
+            if (e.key === 'Escape') { treeMulti.clear(); treeMultiPaint(); }
+            else if (e.key === 'Delete') { e.preventDefault(); e.stopImmediatePropagation(); dashDelete([...treeMulti]); }
+        }, true);
+    })();
+    function dashDragImage(e, n) {
+        const g = document.createElement('div');
+        g.textContent = n + ' éléments';
+        g.style.cssText = 'position:fixed;top:-100px;left:-100px;padding:6px 12px;border-radius:12px;background:#5246EE;color:#fff;font:600 12px sans-serif';
+        document.body.appendChild(g);
+        try { e.dataTransfer.setDragImage(g, 10, 10); } catch (_) {}
+        setTimeout(() => g.remove(), 0);
+    }
 
     /* ---------- Export .mobpro (contenu de la colonne tree) ---------- */
     $('export-btn').addEventListener('click', () => $('dash-export-menu').classList.toggle('hidden'));
