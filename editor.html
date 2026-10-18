@@ -15,7 +15,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <style>.tree-row{user-select:none}.tree-multi{background:rgba(82,70,238,.16)!important;box-shadow:inset 0 0 0 1.5px #5246EE}.tree-drop-before{box-shadow:0 -2px 0 0 #5246EE}.tree-drop-after{box-shadow:0 2px 0 0 #5246EE}.tree-drop-inside{background:rgba(82,70,238,.12);box-shadow:inset 0 0 0 2px rgba(82,70,238,.5)}</style>
+    <style>.tree-row{-webkit-user-select:none;user-select:none}.tree-multi{background:rgba(82,70,238,.16)!important;box-shadow:inset 0 0 0 1.5px #5246EE}.tree-drop-before{box-shadow:0 -2px 0 0 #5246EE}.tree-drop-after{box-shadow:0 2px 0 0 #5246EE}.tree-drop-inside{background:rgba(82,70,238,.12);box-shadow:inset 0 0 0 2px rgba(82,70,238,.5)}</style>
 
     <script>
         if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -140,6 +140,7 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
   return stored != null && !/^\$2[abxy]\$|^pbkdf2\$|^locked$/.test(String(stored)) && String(typed) === String(stored);
 };
 </script>
+<style>#tree-sidebar,#tree-sidebar-content,#tree-selbar{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}</style>
 </head>
 <body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col antialiased selection:bg-[#5246EE] selection:text-white">
 
@@ -1623,7 +1624,7 @@ return Object.assign({ buildTables }, MT_core);
             menu.innerHTML = `<div class="px-4 pb-1.5 text-[10px] text-slate-400 truncate">📁 ${df ? escapeHtml(df.name) : 'Racine du projet'}</div>`
                 + (isMulti ? `<div class="px-4 pb-1.5 text-[10px] font-bold text-[#5246EE]">${selTop.length} éléments sélectionnés</div>` : '')
                 + btn('new-folder', 'folder-plus', 'Nouveau dossier') + btn('new-txt', 'file-text', 'Nouveau fichier .txt') + btn('new-card', 'sticky-note', 'Nouvelle carte') + btn('new-central', 'users', 'Nouvelle centrale')
-                + (isMulti && nCards > 1 ? btn('centralize', 'git-merge', `Centraliser (${nCards} cartes)`, 'text-violet-600') : '')
+                + (isMulti && nCards > 1 && treeSelAllowsCentral() ? btn('centralize', 'git-merge', `Centraliser (${nCards} cartes)`, 'text-violet-600') : '')
                 + btn('import', 'file-up', 'Importer un fichier')
                 + (isMulti ? sep + btn('delete-sel', 'trash-2', `Supprimer la sélection (${selTop.length})`, 'text-rose-500')
                     : it ? sep + btn('rename', 'pencil', 'Renommer') + btn('up', 'arrow-up', 'Monter') + btn('down', 'arrow-down', 'Descendre') + btn('delete', 'trash-2', 'Supprimer', 'text-rose-500') : '');
@@ -1642,6 +1643,7 @@ return Object.assign({ buildTables }, MT_core);
             if (a.startsWith('new-')) return treeCreate(a.slice(4), { folderId: dest });
             if (a === 'import') { if (!requireEdit()) return; treeImportDest = { folderId: dest }; return document.getElementById('tree-file-input').click(); }
             if (a === 'centralize') {
+                if (!treeSelAllowsCentral()) return;
                 if (!requireEdit()) return;
                 const ids = treeSelCards();
                 const name = await treeAsk('Nom de la centrale :', 'Centrale', 'Centrale'); if (!name) return;
@@ -1670,15 +1672,51 @@ return Object.assign({ buildTables }, MT_core);
                 return true;
             });
         }
-        function treeSelCards() {
+        function treeSelAllowsCentral() {
+    return [...treeMulti].every(id => { const it = findTreeItem(projectData.tree, id); return !it || it.type === 'card' || it.type === 'folder'; });
+}
+function treeSelCards() {
             const out = [], seen = new Set();
             const walk = it => { if (it.type === 'card' && !seen.has(it.id)) { seen.add(it.id); out.push(it.id); } (it.children || []).forEach(walk); };
             treeTopLevel([...treeMulti]).forEach(id => { const it = findTreeItem(projectData.tree, id); if (it) walk(it); });
             return out;
         }
+
+        /* ===== Barre d'actions de la sélection (centrale / supprimer / désélectionner) ===== */
+        function treeSelBarUpdate() {
+            let bar = document.getElementById('tree-selbar');
+            if (!bar) {
+                const host = document.getElementById('tree-sidebar-content');
+                if (!host || !host.parentNode) return;
+                bar = document.createElement('div');
+                bar.id = 'tree-selbar';
+                bar.style.cssText = 'display:none;align-items:center;gap:6px;padding:6px 10px;margin:0 0 6px;border-radius:12px;background:rgba(82,70,238,.10);border:1.5px solid #5246EE;font-size:11px;flex-wrap:wrap';
+                const b = 'display:inline-flex;align-items:center;gap:4px;padding:5px 9px;border-radius:9px;font-weight:600;cursor:pointer;border:0;font-size:11px';
+                bar.innerHTML = '<span data-n style="flex:1;font-weight:700;color:#5246EE;min-width:70px"></span>'
+                    + '<button type="button" data-sb="centralize" style="' + b + ';background:#7c3aed;color:#fff" title="Créer une centrale avec ces cartes"><i data-lucide="git-merge" class="w-3.5 h-3.5"></i> Centrale</button>'
+                    + '<button type="button" data-sb="delete" style="' + b + ';background:#f43f5e;color:#fff" title="Supprimer la sélection (Retour arrière)"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Supprimer</button>'
+                    + '<button type="button" data-sb="clear" style="' + b + ';background:transparent;color:#64748b" title="Désélectionner (Échap)"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>';
+                host.parentNode.insertBefore(bar, host);
+                bar.addEventListener('mousedown', (e) => e.stopPropagation());
+                bar.addEventListener('click', (e) => {
+                    const btn = e.target.closest('[data-sb]'); if (!btn) return;
+                    const a = btn.dataset.sb;
+                    if (a === 'centralize') { treeMenuAction('centralize'); }
+                    else if (a === 'delete') { treeDeleteMany([...treeMulti]); }
+                    else { treeMulti.clear(); treeMultiPaint(); }
+                });
+                try { lucide.createIcons(); } catch (_) {}
+            }
+            const n = treeTopLevel([...treeMulti]).length, nc = treeSelCards().length;
+            bar.style.display = n ? 'flex' : 'none';
+            bar.querySelector('[data-n]').textContent = n + (n > 1 ? ' sélectionnés' : ' sélectionné');
+            bar.querySelector('[data-sb="centralize"]').style.display = (nc > 1 && treeSelAllowsCentral()) ? 'inline-flex' : 'none';
+        }
+
         function treeMultiPaint() {
             [...treeMulti].forEach(id => { if (!findTreeItem(projectData.tree, id)) treeMulti.delete(id); });
             document.querySelectorAll('#tree-sidebar-content .tree-row').forEach(r => r.classList.toggle('tree-multi', treeMulti.has(r.dataset.id)));
+            treeSelBarUpdate();
         }
         async function treeDeleteMany(ids) {
             if (!requireEdit() || treeDeleting) return;
@@ -1739,8 +1777,9 @@ return Object.assign({ buildTables }, MT_core);
             const box = document.createElement('div');
             box.style.cssText = 'position:fixed;z-index:55;pointer-events:none;display:none;border:1.5px solid #5246EE;background:rgba(82,70,238,.14);border-radius:6px';
             document.body.appendChild(box);
-            let st = null, raf = 0, px = 0, py = 0;
-            const endMq = () => { cancelAnimationFrame(raf); box.style.display = 'none'; st = null; treeRight.down = false; };
+            let st = null, raf = 0, px = 0, py = 0, mqEnd = 0;
+            c.addEventListener('click', (e) => { if (Date.now() - mqEnd < 400) { e.stopPropagation(); e.stopImmediatePropagation(); } }, true);
+            const endMq = () => { cancelAnimationFrame(raf); box.style.display = 'none'; st = null; treeRight.down = false; document.body.style.removeProperty('-webkit-user-select'); document.body.style.removeProperty('user-select'); };
             const update = () => {
                 if (!st || !st.moved) return;
                 const cr = c.getBoundingClientRect();
@@ -1768,22 +1807,27 @@ return Object.assign({ buildTables }, MT_core);
                 raf = requestAnimationFrame(tick);
             };
             c.addEventListener('mousedown', (e) => {
-                if (e.button !== 2 || !canEdit()) return;
-                e.preventDefault();
+                if (!canEdit()) return;
                 const row = e.target.closest('.tree-row');
-                st = { x: e.clientX, y: e.clientY, sy: c.scrollTop, moved: false, rowId: row ? row.dataset.id : null, base: (e.ctrlKey || e.metaKey || e.shiftKey) ? new Set(treeMulti) : new Set() };
+                const isRight = e.button === 2;
+                const isLeft = e.button === 0 && (e.shiftKey || (!row && !e.target.closest('button, input, a, select, textarea')));
+                if (!isRight && !isLeft) return;
+                e.preventDefault();
+                try { window.getSelection().removeAllRanges(); } catch (_) {}
+                st = { btn: isRight ? 2 : 0, x: e.clientX, y: e.clientY, sy: c.scrollTop, moved: false, rowId: row ? row.dataset.id : null, base: (e.ctrlKey || e.metaKey || e.shiftKey) ? new Set(treeMulti) : new Set() };
                 px = e.clientX; py = e.clientY; treeRight.down = true;
             });
             window.addEventListener('mousemove', (e) => {
                 if (!st) return;
-                if (!(e.buttons & 2)) { endMq(); return; }
+                if (st.btn === 0 && !(e.buttons & 1)) { endMq(); return; }
                 px = e.clientX; py = e.clientY;
-                if (!st.moved && Math.hypot(px - st.x, py - st.y) > 6) { st.moved = true; closeTreeMenu(); cancelAnimationFrame(raf); raf = requestAnimationFrame(tick); }
+                if (!st.moved && Math.hypot(px - st.x, py - st.y) > 6) { st.moved = true; closeTreeMenu(); document.body.style.setProperty('-webkit-user-select', 'none'); document.body.style.setProperty('user-select', 'none'); try { window.getSelection().removeAllRanges(); } catch (_) {} cancelAnimationFrame(raf); raf = requestAnimationFrame(tick); }
                 if (st.moved) update();
             });
             window.addEventListener('mouseup', (e) => {
-                if (!st || e.button !== 2) return;
-                const s = st; endMq();
+                if (!st) return;
+                const s = st; endMq(); if (s.moved) mqEnd = Date.now();
+                if (s.btn !== 2) { if (s.moved) treeMultiPaint(); return; }
                 treeRight.recent = true; setTimeout(() => { treeRight.recent = false; }, 80);
                 if (!s.moved) openTreeMenu(e.clientX, e.clientY, s.rowId); else treeMultiPaint();
             });
@@ -1795,7 +1839,7 @@ return Object.assign({ buildTables }, MT_core);
                 const t = e.target, tag = (t.tagName || '').toLowerCase();
                 if (tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable) return;
                 if (e.key === 'Escape') { treeMulti.clear(); treeMultiPaint(); }
-                else if (e.key === 'Delete') { e.preventDefault(); e.stopImmediatePropagation(); treeDeleteMany([...treeMulti]); }
+                else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); e.stopImmediatePropagation(); treeDeleteMany([...treeMulti]); }
             }, true);
         }
         function treeDragImage(e, n) {
