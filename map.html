@@ -3791,7 +3791,7 @@ container.addEventListener('touchstart', (e) => {
             menu.innerHTML = `<div class="px-4 pb-1.5 text-[10px] text-slate-400 truncate">📁 ${df ? escapeHtml(df.name) : 'Racine du projet'}</div>`
                 + (isMulti ? `<div class="px-4 pb-1.5 text-[10px] font-bold text-[#5246EE]">${selTop.length} éléments sélectionnés</div>` : '')
                 + btn('new-folder', 'folder-plus', 'Nouveau dossier') + btn('new-txt', 'file-text', 'Nouveau fichier .txt') + btn('new-card', 'sticky-note', 'Nouvelle carte') + btn('new-central', 'users', 'Nouvelle centrale')
-                + (isMulti && nCards > 1 ? btn('centralize', 'git-merge', `Centraliser (${nCards} cartes)`, 'text-violet-600') : '')
+                + (isMulti && nCards > 1 && treeSelAllowsCentral() ? btn('centralize', 'git-merge', `Centraliser (${nCards} cartes)`, 'text-violet-600') : '')
                 + btn('import', 'file-up', 'Importer un fichier')
                 + (isMulti ? sep + btn('delete-sel', 'trash-2', `Supprimer la sélection (${selTop.length})`, 'text-rose-500')
                     : it ? sep + btn('rename', 'pencil', 'Renommer') + btn('up', 'arrow-up', 'Monter') + btn('down', 'arrow-down', 'Descendre') + btn('delete', 'trash-2', 'Supprimer', 'text-rose-500') : '');
@@ -3810,6 +3810,7 @@ container.addEventListener('touchstart', (e) => {
             if (a.startsWith('new-')) return treeCreate(a.slice(4), { folderId: dest });
             if (a === 'import') { if (!requireEdit()) return; treeImportDest = { folderId: dest }; return document.getElementById('tree-file-input').click(); }
             if (a === 'centralize') {
+                if (!treeSelAllowsCentral()) return;
                 if (!requireEdit()) return;
                 const ids = treeSelCards();
                 const name = await treeAsk('Nom de la centrale :', 'Centrale', 'Centrale'); if (!name) return;
@@ -3838,7 +3839,10 @@ container.addEventListener('touchstart', (e) => {
                 return true;
             });
         }
-        function treeSelCards() {
+        function treeSelAllowsCentral() {
+    return [...treeMulti].every(id => { const it = findTreeItem(projectData.tree, id); return !it || it.type === 'card' || it.type === 'folder'; });
+}
+function treeSelCards() {
             const out = [], seen = new Set();
             const walk = it => { if (it.type === 'card' && !seen.has(it.id)) { seen.add(it.id); out.push(it.id); } (it.children || []).forEach(walk); };
             treeTopLevel([...treeMulti]).forEach(id => { const it = findTreeItem(projectData.tree, id); if (it) walk(it); });
@@ -3873,7 +3877,7 @@ container.addEventListener('touchstart', (e) => {
             const n = treeTopLevel([...treeMulti]).length, nc = treeSelCards().length;
             bar.style.display = n ? 'flex' : 'none';
             bar.querySelector('[data-n]').textContent = n + (n > 1 ? ' sélectionnés' : ' sélectionné');
-            bar.querySelector('[data-sb="centralize"]').style.display = nc > 1 ? 'inline-flex' : 'none';
+            bar.querySelector('[data-sb="centralize"]').style.display = (nc > 1 && treeSelAllowsCentral()) ? 'inline-flex' : 'none';
         }
 
         function treeMultiPaint() {
@@ -3940,7 +3944,8 @@ container.addEventListener('touchstart', (e) => {
             const box = document.createElement('div');
             box.style.cssText = 'position:fixed;z-index:55;pointer-events:none;display:none;border:1.5px solid #5246EE;background:rgba(82,70,238,.14);border-radius:6px';
             document.body.appendChild(box);
-            let st = null, raf = 0, px = 0, py = 0;
+            let st = null, raf = 0, px = 0, py = 0, mqEnd = 0;
+            c.addEventListener('click', (e) => { if (Date.now() - mqEnd < 400) { e.stopPropagation(); e.stopImmediatePropagation(); } }, true);
             const endMq = () => { cancelAnimationFrame(raf); box.style.display = 'none'; st = null; treeRight.down = false; document.body.style.removeProperty('-webkit-user-select'); document.body.style.removeProperty('user-select'); };
             const update = () => {
                 if (!st || !st.moved) return;
@@ -3988,7 +3993,7 @@ container.addEventListener('touchstart', (e) => {
             });
             window.addEventListener('mouseup', (e) => {
                 if (!st) return;
-                const s = st; endMq();
+                const s = st; endMq(); if (s.moved) mqEnd = Date.now();
                 if (s.btn !== 2) { if (s.moved) treeMultiPaint(); return; }
                 treeRight.recent = true; setTimeout(() => { treeRight.recent = false; }, 80);
                 if (!s.moved) openTreeMenu(e.clientX, e.clientY, s.rowId); else treeMultiPaint();
