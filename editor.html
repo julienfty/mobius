@@ -3064,30 +3064,31 @@ window.MobiusProjectExport = (() => {
  const csvCell = v => { const s = v === null || v === undefined ? '' : String(v); return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
  const sqlVal = v => v === null ? 'NULL' : typeof v === 'boolean' ? (v ? 'TRUE' : 'FALSE') : typeof v === 'number' ? (isFinite(v) ? String(v) : 'NULL') : "'" + String(v).replace(/'/g, "''") + "'";
 
- async function exportTable(format, entries, project) {
+ async function exportTable(format, entries, project, cap) {
+  const dl = (b, n) => cap ? (cap.blob = b, cap.name = n) : dlBlob(b, n);
   const tables = buildTables(entries);
   const base = entries.length > 1 ? slug(project.name || 'projet', 'projet') : tables[0].name;
   if (format === 'json') {
    const out = { tables: tables.map(t => ({ table: t.name, title: t.title, relationTypes: (t.card && t.card.relationTypes) || [], links: (t.card && t.card.links) || [], columns: [{ name: 'id', label: 'id', type: 'text' }, ...t.cols.map(c => ({ name: c.name, label: c.label, type: c.type === 'line' ? 'text' : c.type }))], rows: t.rows.map(r => ({ id: r.id, _x: r.x, _y: r.y, ...Object.fromEntries(t.cols.map((c, i) => [c.name, r.vals[i]])) })) })) };
-   dlBlob(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }), base + '.json');
+   dl(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }), base + '.json');
   } else if (format === 'mql') {
    const M = window.MT || (typeof MT !== 'undefined' ? MT : null);
    if (!M || !M.emit) { toast('Moteur MQL indisponible.'); return; }
-   dlBlob(new Blob([M.emit(tables, { mobius: true, head: '-- MQL (Mobius Query Language) : SQL compatible + commandes de relations Mobius' })], { type: 'text/plain;charset=utf-8' }), base + '.mobql');
+   dl(new Blob([M.emit(tables, { mobius: true, head: '-- MQL (Mobius Query Language) : SQL compatible + commandes de relations Mobius' })], { type: 'text/plain;charset=utf-8' }), base + '.mobql');
   } else if (format === 'sql') {
    const ty = { line: 'TEXT', text: 'TEXT', number: 'NUMERIC', bool: 'BOOLEAN', date: 'DATE' };
    const sql = ['-- Export Mobius : une carte = une table', ...tables.map(t =>
     `\nCREATE TABLE "${t.name}" (\n  "id" TEXT PRIMARY KEY` + t.cols.map(c => `,\n  "${c.name}" ${ty[c.type]}`).join('') + `\n);` +
     t.rows.map(r => `\nINSERT INTO "${t.name}" ("id"${t.cols.map(c => `, "${c.name}"`).join('')}) VALUES (${sqlVal(r.id)}${r.vals.map(v => ', ' + sqlVal(v)).join('')});`).join(''))].join('\n') + '\n';
    const relations = window.mobiusRelationSQL ? window.mobiusRelationSQL(tables.map(t => ({ card: t.card, table: t.name }))) : '';
-   dlBlob(new Blob([sql + (relations ? '\n-- Relations avec clés étrangères\n' + relations + '\n' : '')], { type: 'application/sql' }), base + '.sql');
+   dl(new Blob([sql + (relations ? '\n-- Relations avec clés étrangères\n' + relations + '\n' : '')], { type: 'application/sql' }), base + '.sql');
   } else if (format === 'csv') {
    const csv = t => '\ufeff' + [['id', ...t.cols.map(c => c.label)], ...t.rows.map(r => [r.id, ...r.vals])].map(row => row.map(csvCell).join(';')).join('\r\n');
-   if (tables.length === 1) dlBlob(new Blob([csv(tables[0])], { type: 'text/csv;charset=utf-8' }), base + '.csv');
+   if (tables.length === 1) dl(new Blob([csv(tables[0])], { type: 'text/csv;charset=utf-8' }), base + '.csv');
    else {
     if (typeof JSZip === 'undefined') { toast('Bibliothèque ZIP non chargée.'); return; }
     const zip = new JSZip(); tables.forEach(t => zip.file(t.name + '.csv', csv(t)));
-    dlBlob(await zip.generateAsync({ type: 'blob' }), base + '_csv.zip');
+    dl(await zip.generateAsync({ type: 'blob' }), base + '_csv.zip');
    }
   } else if (format === 'xlsx') {
    if (typeof XLSX === 'undefined') { toast('Bibliothèque Excel non chargée.'); return; }
@@ -3098,9 +3099,9 @@ window.MobiusProjectExport = (() => {
     used.add(sn.toLowerCase());
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['id', ...t.cols.map(c => c.label)], ...t.rows.map(r => [r.id, ...r.vals.map(v => v === null ? '' : v)])]), sn);
    });
-   XLSX.writeFile(wb, base + '.xlsx');
+   dl(new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), base + '.xlsx');
   }
-  toast(`Export ${format.toUpperCase()} terminé (${tables.length} table${tables.length > 1 ? 's' : ''}).`);
+  if (!cap) toast(`Export ${format.toUpperCase()} terminé (${tables.length} table${tables.length > 1 ? 's' : ''}).`);
  }
 
  function treeHtml(items) {
@@ -3159,12 +3160,32 @@ window.MobiusProjectExport = (() => {
     </section>
    </div>
    <div class="px-5 py-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
-    <span class="text-slate-400">${selIds.length} carte${selIds.length > 1 ? 's' : ''} · ${nRows} ligne${nRows > 1 ? 's' : ''}</span>
+    <span class="text-slate-400">${selIds.length} carte${selIds.length > 1 ? 's' : ''} · ${nRows} ligne${nRows > 1 ? 's' : ''}<span id="ex-size">${exSizeText()}</span></span>
     <button data-act="go" ${selIds.length ? '' : 'disabled'} class="px-5 py-2.5 rounded-xl bg-[#5246EE] hover:bg-[#4538d8] disabled:opacity-40 text-white font-semibold flex items-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> Télécharger ${F.ext}</button>
    </div>`;
   [...ov.querySelectorAll('[data-sc]')].forEach((e, i) => { if (sc[i]) e.scrollTop = sc[i]; });
+        exSizeUpdate();
   icons();
  }
+
+        /* ---- poids du fichier affiché dans le pied de la page d'export ---- */
+        const exFmtSize = b => b < 1024 ? `${b} octets` : b < 1048576 ? `${(b / 1024).toFixed(1).replace('.', ',')} Ko` : `${(b / 1048576).toFixed(2).replace('.', ',')} Mo`;
+        const exSz = { key: '', text: '', timer: null };
+        const exSizeKey = () => EX.fmt + '|' + [...EX.cards.keys()].filter(id => EX.sel.has(id)).map(id => id + ':' + [...(EX.fl[id] || [])].join(',')).join(';');
+        function exSizeText() { if (!EX || ![...EX.cards.keys()].some(id => EX.sel.has(id))) return ''; return exSizeKey() === exSz.key ? exSz.text : ' · calcul…'; }
+        function exSizeUpdate() {
+            if (!EX || exSizeKey() === exSz.key) return;
+            const key = exSizeKey(); clearTimeout(exSz.timer);
+            exSz.timer = setTimeout(async () => {
+                if (!EX || exSizeKey() !== key) return;
+                const entries = [...EX.cards.keys()].filter(id => EX.sel.has(id)).map(id => ({ card: EX.cards.get(id), fieldIds: EX.fl[id] }));
+                let text = '';
+                if (entries.length) { const cap = {}; try { await exportTable(EX.fmt, entries, EX.project, cap); if (cap.blob) text = ' · ' + exFmtSize(cap.blob.size); } catch (e) { text = ''; } }
+                if (!EX || exSizeKey() !== key) return;
+                exSz.key = key; exSz.text = text;
+                const el = document.getElementById('ex-size'); if (el) el.textContent = text;
+            }, 120);
+        }
 
  function close() { const ov = document.getElementById('export-page'); if (ov) ov.remove(); EX = null; }
  document.addEventListener('keydown', e => { if (e.key === 'Escape' && EX && !document.querySelector('.fixed.z-\\[100\\]')) close(); });
