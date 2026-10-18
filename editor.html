@@ -15,7 +15,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <style>.tree-row{user-select:none}.tree-drop-before{box-shadow:0 -2px 0 0 #5246EE}.tree-drop-after{box-shadow:0 2px 0 0 #5246EE}.tree-drop-inside{background:rgba(82,70,238,.12);box-shadow:inset 0 0 0 2px rgba(82,70,238,.5)}</style>
+    <style>.tree-row{user-select:none}.tree-multi{background:rgba(82,70,238,.16)!important;box-shadow:inset 0 0 0 1.5px #5246EE}.tree-drop-before{box-shadow:0 -2px 0 0 #5246EE}.tree-drop-after{box-shadow:0 2px 0 0 #5246EE}.tree-drop-inside{background:rgba(82,70,238,.12);box-shadow:inset 0 0 0 2px rgba(82,70,238,.5)}</style>
 
     <script>
         if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -124,6 +124,22 @@
         #top-progress.active { opacity: 1; }
         #top-progress > div { height: 100%; width: 0; background: #3b82f6; box-shadow: 0 0 6px rgba(59,130,246,.55); transition: width .3s ease; }
     </style>
+<script>
+/* ===== Mots de passe : vérification côté serveur (fonction SQL check_item_pwd — voir protect_pwd.sql) ===== */
+window.verifyPwd = async function (client, table, id, typed, stored) {
+  if (typed == null) return false;
+  try {
+    const { data, error } = await client.rpc('check_item_pwd', { p_table: table, p_id: String(id), p_pwd: String(typed) });
+    if (!error) return data === true;
+    const msg = String(error.message || '');
+    if (/too_many_attempts/.test(msg)) { alert('Trop de tentatives incorrectes. Réessayez dans quelques minutes.'); return false; }
+    const missing = error.code === 'PGRST202' || error.code === '42883' || /could not find the function|does not exist/i.test(msg);
+    if (!missing) { console.warn('check_item_pwd :', msg); return false; }
+  } catch (e) { console.warn('check_item_pwd :', e); return false; }
+  // fonction SQL pas encore installée : ancien mode (mot de passe encore en clair dans la colonne)
+  return stored != null && !/^\$2[abxy]\$|^pbkdf2\$|^locked$/.test(String(stored)) && String(typed) === String(stored);
+};
+</script>
 </head>
 <body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col antialiased selection:bg-[#5246EE] selection:text-white">
 
@@ -482,6 +498,7 @@
             const SUPABASE_URL = 'https://nfvnayuqrmlldtixzdpx.supabase.co';
             const SUPABASE_KEY = 'sb_publishable_EwONSAsqSfu8_SocZ7wZBA_rVODWqSF';
             supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            window.__mobiusSb = supabaseClient;
 
             const urlParams = new URLSearchParams(window.location.search);
             projectId = urlParams.get('projectId');
@@ -502,16 +519,14 @@
             if (standalone) {
                 const { data, error } = await supabaseClient.from('cards').select('*').eq('id', cardId).single();
                 if (error || !data) {
-                    await dlgAlert("Impossible de charger le fichier.");
-                    window.location.href = 'dashboard.html';
+                    window.location.href = 'dashboard.html?openItemId=' + encodeURIComponent(cardId);   // verrouillé : le dashboard demande le mot de passe
                     return;
                 }
                 currentCard = standaloneFromRow(data);
             } else {
                 const { data, error } = await supabaseClient.from('projects').select('*').eq('id', projectId).single();
                 if (error || !data) {
-                    await dlgAlert("Impossible de charger le projet.");
-                    window.location.href = 'dashboard.html';
+                    window.location.href = 'dashboard.html?openProjectId=' + encodeURIComponent(projectId);   // verrouillé : le dashboard demande le mot de passe
                     return;
                 }
                 projectData = data;
@@ -1508,7 +1523,7 @@ return Object.assign({ buildTables }, MT_core);
             if (projectData.pwd) {
                 const r = await treeAsk('Mot de passe requis pour télécharger :', 'Mot de passe', '', 'password');
                 if (r === null) return;
-                if (r !== projectData.pwd) { showToast('Mot de passe incorrect.'); return; }
+                if (!(await verifyPwd(supabaseClient, 'projects', projectData.id, r, projectData.pwd))) { showToast('Mot de passe incorrect.'); return; }
             }
             updateCardInTree(projectData.tree, currentCard);   // inclut l'état courant de la carte ouverte
             const safe = (s) => String(s).replace(/[\\/:*?"<>|]/g, '_');
@@ -1546,6 +1561,7 @@ return Object.assign({ buildTables }, MT_core);
                 return;
             }
             renderTreeList(projectData.tree, container);
+            treeMultiPaint();
             lucide.createIcons();
         }
 
@@ -1593,6 +1609,7 @@ return Object.assign({ buildTables }, MT_core);
             if (!canEdit()) return;
             const loc = targetId ? locateTreeItem(projectData.tree, targetId) : null;
             const it = loc && loc.item;
+            if (it && !treeMulti.has(it.id) && treeMulti.size) treeMulti.clear();
             let dest = null;
             if (it) { if (it.type === 'folder') { dest = it.id; treeSelectedId = it.id; treeExpanded.add(it.id); treeStoreUI(); renderTreeSidebarContent(); } else { const p = treeParentOf(projectData.tree, it.id); dest = p ? p.id : null; } }
             else dest = null;
@@ -1600,9 +1617,17 @@ return Object.assign({ buildTables }, MT_core);
             const df = dest && findTreeItem(projectData.tree, dest);
             const btn = (a, icon, label, cls = '') => `<button data-tree-action="${a}" class="w-full text-left px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 ${cls || 'text-slate-700 dark:text-slate-200'}"><i data-lucide="${icon}" class="w-3.5 h-3.5"></i><span>${label}</span></button>`;
             const menu = document.getElementById('tree-context-menu');
+            const selTop = (!it || treeMulti.has(it.id)) ? treeTopLevel([...treeMulti]) : [];
+            const isMulti = selTop.length > 1, nCards = isMulti ? treeSelCards().length : 0;
+            const sep = `<div class="my-1 border-t border-slate-100 dark:border-slate-800"></div>`;
             menu.innerHTML = `<div class="px-4 pb-1.5 text-[10px] text-slate-400 truncate">📁 ${df ? escapeHtml(df.name) : 'Racine du projet'}</div>`
-                + btn('new-folder', 'folder-plus', 'Nouveau dossier') + btn('new-txt', 'file-text', 'Nouveau fichier .txt') + btn('new-card', 'sticky-note', 'Nouvelle carte') + btn('new-central', 'users', 'Nouvelle centrale') + (treeMulti.size > 1 ? btn('centralize', 'git-merge', `Centraliser (${treeMulti.size} cartes)`, 'text-violet-600') : '') + btn('import', 'file-up', 'Importer un fichier')
-                + (it ? `<div class="my-1 border-t border-slate-100 dark:border-slate-800"></div>` + btn('rename', 'pencil', 'Renommer') + btn('up', 'arrow-up', 'Monter') + btn('down', 'arrow-down', 'Descendre') + btn('delete', 'trash-2', 'Supprimer', 'text-rose-500') : '');
+                + (isMulti ? `<div class="px-4 pb-1.5 text-[10px] font-bold text-[#5246EE]">${selTop.length} éléments sélectionnés</div>` : '')
+                + btn('new-folder', 'folder-plus', 'Nouveau dossier') + btn('new-txt', 'file-text', 'Nouveau fichier .txt') + btn('new-card', 'sticky-note', 'Nouvelle carte') + btn('new-central', 'users', 'Nouvelle centrale')
+                + (isMulti && nCards > 1 ? btn('centralize', 'git-merge', `Centraliser (${nCards} cartes)`, 'text-violet-600') : '')
+                + btn('import', 'file-up', 'Importer un fichier')
+                + (isMulti ? sep + btn('delete-sel', 'trash-2', `Supprimer la sélection (${selTop.length})`, 'text-rose-500')
+                    : it ? sep + btn('rename', 'pencil', 'Renommer') + btn('up', 'arrow-up', 'Monter') + btn('down', 'arrow-down', 'Descendre') + btn('delete', 'trash-2', 'Supprimer', 'text-rose-500') : '');
+            treeMultiPaint();
             menu.classList.remove('hidden');
             lucide.createIcons();
             const w = menu.offsetWidth, h = menu.offsetHeight;
@@ -1611,17 +1636,20 @@ return Object.assign({ buildTables }, MT_core);
         }
         const closeTreeMenu = () => document.getElementById('tree-context-menu').classList.add('hidden');
 
-        function treeMenuAction(a) {
+        async function treeMenuAction(a) {
             closeTreeMenu();
             const { targetId, dest } = treeMenuCtx || {};
             if (a.startsWith('new-')) return treeCreate(a.slice(4), { folderId: dest });
             if (a === 'import') { if (!requireEdit()) return; treeImportDest = { folderId: dest }; return document.getElementById('tree-file-input').click(); }
             if (a === 'centralize') {
-                const ids = [...treeMulti]; treeMulti.clear();
-                const name = prompt('Nom de la centrale :', 'Centrale'); if (!name) return renderTreeSidebarContent();
+                if (!requireEdit()) return;
+                const ids = treeSelCards();
+                const name = await treeAsk('Nom de la centrale :', 'Centrale', 'Centrale'); if (!name) return;
+                treeMulti.clear();
                 projectData.tree.unshift({ id: 'id_' + Date.now() + 'c', type: 'central', name, mode: 'cards', folderId: null, includeSub: false, cardIds: ids, groups: [], links: {} });
                 return refreshTree();
             }
+            if (a === 'delete-sel') return treeDeleteMany([...treeMulti]);
             if (!targetId) return;
             if (a === 'rename') return treeRename(targetId);
             if (a === 'up') return treeMoveStep(targetId, -1);
@@ -1629,7 +1657,158 @@ return Object.assign({ buildTables }, MT_core);
             if (a === 'delete') return treeDelete(targetId);
         }
 
+
+        /* ===== Sélection multiple : clic droit maintenu + glisser = rectangle de sélection ===== */
+        let treeDragIds = null, treeDeleting = false;
+        const treeRight = { down: false, recent: false };
+        function treeTopLevel(ids) {
+            const set = new Set(ids);
+            return ids.filter(id => {
+                if (!findTreeItem(projectData.tree, id)) return false;
+                let p = treeParentOf(projectData.tree, id);
+                while (p) { if (set.has(p.id)) return false; p = treeParentOf(projectData.tree, p.id); }
+                return true;
+            });
+        }
+        function treeSelCards() {
+            const out = [], seen = new Set();
+            const walk = it => { if (it.type === 'card' && !seen.has(it.id)) { seen.add(it.id); out.push(it.id); } (it.children || []).forEach(walk); };
+            treeTopLevel([...treeMulti]).forEach(id => { const it = findTreeItem(projectData.tree, id); if (it) walk(it); });
+            return out;
+        }
+        function treeMultiPaint() {
+            [...treeMulti].forEach(id => { if (!findTreeItem(projectData.tree, id)) treeMulti.delete(id); });
+            document.querySelectorAll('#tree-sidebar-content .tree-row').forEach(r => r.classList.toggle('tree-multi', treeMulti.has(r.dataset.id)));
+        }
+        async function treeDeleteMany(ids) {
+            if (!requireEdit() || treeDeleting) return;
+            treeDeleting = true;
+            try {
+                const items = treeTopLevel(ids).map(id => findTreeItem(projectData.tree, id)).filter(Boolean);
+                const blocked = items.filter(it => it.id === cardId || treeContainsId(it, cardId));
+                const ok = items.filter(it => !blocked.includes(it));
+                if (blocked.length) showToast("« " + blocked[0].name + " » contient l'élément actuellement ouvert : il n'est pas supprimé.");
+                if (!ok.length) return;
+                const label = ok.length === 1 ? '« ' + ok[0].name + ' »' : ok.length + ' éléments';
+                if (!await treeConfirm('Supprimer ' + label + " de l'arborescence ?")) return;
+                const gone = new Set();
+                ok.forEach(it => {
+                    (function w(x) { gone.add(x.id); (x.children || []).forEach(w); })(it);
+                    const loc = locateTreeItem(projectData.tree, it.id);
+                    if (loc) loc.list.splice(loc.index, 1);
+                });
+                gone.forEach(i => treeMulti.delete(i));
+                
+                if (!findTreeItem(projectData.tree, treeSelectedId)) treeSelectedId = null;
+                treeStoreUI(); refreshTree();
+            } finally { treeDeleting = false; }
+        }
+        function treeMoveMany(ids, t) {
+            if (!requireEdit()) return;
+            const root = projectData.tree;
+            const top = treeTopLevel(ids);
+            if (!top.length) return;
+            if (t.id && top.includes(t.id)) return;
+            if (t.id && top.some(id => treeContainsId(findTreeItem(root, id), t.id))) { showToast("Impossible de déplacer un dossier dans lui-même."); return; }
+            const order = []; (function w(l) { l.forEach(i => { order.push(i.id); if (i.children) w(i.children); }); })(root);
+            top.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+            const items = top.map(id => findTreeItem(root, id));
+            const moved = [];
+            items.forEach(function c(it) { if (it.type === 'card') moved.push(it.id); (it.children || []).forEach(c); });
+            const before = new Map(moved.map(i => [i, centralsOf(i).filter(x => x.mode === 'folder').map(x => x.id)]));
+            const rootSnap = root.slice(), snap = new Map();
+            (function s(l) { l.forEach(i => { if (i.children) { snap.set(i.id, i.children.slice()); s(i.children); } }); })(root);
+            items.forEach(it => { const loc = locateTreeItem(root, it.id); if (loc) loc.list.splice(loc.index, 1); });
+            let tt = t.id ? { id: t.id, pos: t.pos } : null;
+            items.forEach(it => { treeInsert(it, tt); if (tt && tt.pos === 'after') tt = { id: it.id, pos: 'after' }; });
+            const lost = [];
+            moved.forEach(i => { const now = new Set(centralsOf(i).map(x => x.id)); before.get(i).forEach(cid => { if (!now.has(cid)) lost.push({ i, cid }); }); });
+            if (lost.length) {
+                const cn = [...new Set(lost.map(l => (findTreeItem(root, l.cid) || {}).name))].join(', ');
+                const kn = [...new Set(lost.map(l => (findTreeItem(root, l.i) || {}).name))].join(', ');
+                if (!confirm('« ' + kn + ' » ne sera plus liée à la centrale « ' + cn + ' » (ses liens avec les autres cartes seront perdus). Continuer ?')) {
+                    root.splice(0, root.length, ...rootSnap);
+                    (function r(l) { l.forEach(i => { if (i.children) { i.children.splice(0, i.children.length, ...(snap.get(i.id) || [])); r(i.children); } }); })(root);
+                    return refreshTree();
+                }
+            }
+            treeMulti.clear();
+            refreshTree();
+        }
+        function setupTreeMarquee(c) {
+            const box = document.createElement('div');
+            box.style.cssText = 'position:fixed;z-index:55;pointer-events:none;display:none;border:1.5px solid #5246EE;background:rgba(82,70,238,.14);border-radius:6px';
+            document.body.appendChild(box);
+            let st = null, raf = 0, px = 0, py = 0;
+            const endMq = () => { cancelAnimationFrame(raf); box.style.display = 'none'; st = null; treeRight.down = false; };
+            const update = () => {
+                if (!st || !st.moved) return;
+                const cr = c.getBoundingClientRect();
+                const ay = st.y - (c.scrollTop - st.sy);
+                const l = Math.max(cr.left, Math.min(st.x, px)), r = Math.min(cr.right, Math.max(st.x, px));
+                const t = Math.max(cr.top, Math.min(ay, py)), b = Math.min(cr.bottom, Math.max(ay, py));
+                box.style.display = 'block';
+                box.style.left = l + 'px'; box.style.top = t + 'px';
+                box.style.width = Math.max(0, r - l) + 'px'; box.style.height = Math.max(0, b - t) + 'px';
+                treeMulti.clear(); st.base.forEach(i => treeMulti.add(i));
+                c.querySelectorAll('.tree-row').forEach(row => {
+                    const q = row.getBoundingClientRect();
+                    if (!q.width || !q.height) return;
+                    if (q.right > l && q.left < r && q.bottom > t && q.top < b) treeMulti.add(row.dataset.id);
+                });
+                treeMultiPaint();
+            };
+            const tick = () => {
+                if (!st) return;
+                if (st.moved) {
+                    const cr = c.getBoundingClientRect();
+                    if (py < cr.top + 28) c.scrollTop -= 14; else if (py > cr.bottom - 28) c.scrollTop += 14;
+                    update();
+                }
+                raf = requestAnimationFrame(tick);
+            };
+            c.addEventListener('mousedown', (e) => {
+                if (e.button !== 2 || !canEdit()) return;
+                e.preventDefault();
+                const row = e.target.closest('.tree-row');
+                st = { x: e.clientX, y: e.clientY, sy: c.scrollTop, moved: false, rowId: row ? row.dataset.id : null, base: (e.ctrlKey || e.metaKey || e.shiftKey) ? new Set(treeMulti) : new Set() };
+                px = e.clientX; py = e.clientY; treeRight.down = true;
+            });
+            window.addEventListener('mousemove', (e) => {
+                if (!st) return;
+                if (!(e.buttons & 2)) { endMq(); return; }
+                px = e.clientX; py = e.clientY;
+                if (!st.moved && Math.hypot(px - st.x, py - st.y) > 6) { st.moved = true; closeTreeMenu(); cancelAnimationFrame(raf); raf = requestAnimationFrame(tick); }
+                if (st.moved) update();
+            });
+            window.addEventListener('mouseup', (e) => {
+                if (!st || e.button !== 2) return;
+                const s = st; endMq();
+                treeRight.recent = true; setTimeout(() => { treeRight.recent = false; }, 80);
+                if (!s.moved) openTreeMenu(e.clientX, e.clientY, s.rowId); else treeMultiPaint();
+            });
+            // Suppr : supprime la sélection ; Échap : désélectionne (uniquement si le dernier clic était dans l'arborescence)
+            let focusIn = false;
+            document.addEventListener('mousedown', (e) => { focusIn = !!e.target.closest('#tree-sidebar-content'); }, true);
+            document.addEventListener('keydown', (e) => {
+                if (!focusIn || !treeMulti.size || !canEdit()) return;
+                const t = e.target, tag = (t.tagName || '').toLowerCase();
+                if (tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable) return;
+                if (e.key === 'Escape') { treeMulti.clear(); treeMultiPaint(); }
+                else if (e.key === 'Delete') { e.preventDefault(); e.stopImmediatePropagation(); treeDeleteMany([...treeMulti]); }
+            }, true);
+        }
+        function treeDragImage(e, n) {
+            const g = document.createElement('div');
+            g.textContent = n + ' éléments';
+            g.style.cssText = 'position:fixed;top:-100px;left:-100px;padding:6px 12px;border-radius:12px;background:#5246EE;color:#fff;font:600 12px sans-serif';
+            document.body.appendChild(g);
+            try { e.dataTransfer.setDragImage(g, 10, 10); } catch (_) {}
+            setTimeout(() => g.remove(), 0);
+        }
+
         function setupTreeInteractions(c) {
+            setupTreeMarquee(c);
             // boutons de la barre d'outils
             document.querySelectorAll('[data-tree-create]').forEach(b => b.addEventListener('click', () => treeCreate(b.dataset.treeCreate, { folderId: treeSelectedId })));
             document.getElementById('tree-import-btn').addEventListener('click', () => { if (!requireEdit()) return; treeImportDest = { folderId: treeSelectedId }; document.getElementById('tree-file-input').click(); });
@@ -1641,8 +1820,11 @@ return Object.assign({ buildTables }, MT_core);
 
             // clic : (dé)sélection d'un dossier destination / ouverture
             c.addEventListener('click', async (e) => {
-                const row = e.target.closest('.tree-row'); if (!row) return;
+                const row = e.target.closest('.tree-row');
+                if (!row) { if (treeMulti.size) { treeMulti.clear(); treeMultiPaint(); } return; }
                 const it = findTreeItem(projectData.tree, row.dataset.id); if (!it) return;
+                if (e.ctrlKey || e.metaKey) { if (!canEdit()) return; treeMulti.has(it.id) ? treeMulti.delete(it.id) : treeMulti.add(it.id); return renderTreeSidebarContent(); }
+                if (treeMulti.size) { treeMulti.clear(); treeMultiPaint(); }
                 if (it.type === 'folder') {
                     const tg = e.target.closest('[data-toggle]');
                     if (tg) { treeExpanded.has(it.id) ? treeExpanded.delete(it.id) : treeExpanded.add(it.id); }
@@ -1664,7 +1846,7 @@ return Object.assign({ buildTables }, MT_core);
             });
 
             // clic droit + appui long (mobile)
-            c.addEventListener('contextmenu', (e) => { if (!canEdit()) return; e.preventDefault(); const row = e.target.closest('.tree-row'); openTreeMenu(e.clientX, e.clientY, row ? row.dataset.id : null); });
+            c.addEventListener('contextmenu', (e) => { if (!canEdit()) return; e.preventDefault(); if (treeRight.down || treeRight.recent) return; const row = e.target.closest('.tree-row'); openTreeMenu(e.clientX, e.clientY, row ? row.dataset.id : null); });
             let lpTimer = null;
             c.addEventListener('touchstart', (e) => {
                 if (!canEdit() || e.touches.length !== 1) return;
@@ -1677,13 +1859,15 @@ return Object.assign({ buildTables }, MT_core);
             c.addEventListener('dragstart', (e) => {
                 const row = e.target.closest('.tree-row'); if (!row || !canEdit()) return;
                 treeDragId = row.dataset.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', treeDragId);
+                treeDragIds = (treeMulti.size > 1 && treeMulti.has(treeDragId)) ? [...treeMulti] : null;
+                if (treeDragIds) treeDragImage(e, treeTopLevel(treeDragIds).length);
             });
-            c.addEventListener('dragend', () => { treeDragId = null; treeClearDrop(); });
+            c.addEventListener('dragend', () => { treeDragId = null; treeDragIds = null; treeClearDrop(); });
             c.addEventListener('dragover', (e) => {
                 if (!canEdit()) return;
                 e.preventDefault(); treeClearDrop();
                 const t = treeDropTarget(e);
-                if (t.row && t.id !== treeDragId) t.row.classList.add('tree-drop-' + t.pos);
+                if (t.row && t.id !== treeDragId && !(treeDragIds && treeDragIds.includes(t.id))) t.row.classList.add('tree-drop-' + t.pos);
             });
             c.addEventListener('dragleave', (e) => { if (!c.contains(e.relatedTarget)) treeClearDrop(); });
             c.addEventListener('drop', (e) => {
@@ -1691,7 +1875,8 @@ return Object.assign({ buildTables }, MT_core);
                 if (!requireEdit()) return;
                 const t = treeDropTarget(e);
                 if (e.dataTransfer.files && e.dataTransfer.files.length) return treeImport([...e.dataTransfer.files], t.id ? { id: t.id, pos: t.pos } : null);
-                const id = treeDragId; treeDragId = null;
+                const id = treeDragId, ids = treeDragIds; treeDragId = null; treeDragIds = null;
+                if (ids) return treeMoveMany(ids, t.id ? { id: t.id, pos: t.pos } : { id: null });
                 if (id) treeMoveTo(id, t.id ? { id: t.id, pos: t.pos } : { id: null });
             });
         }
@@ -3214,7 +3399,7 @@ window.MobiusProjectExport = (() => {
   if (project.pwd) {
    const r = await askPwd();
    if (r === null) return;
-   if (r !== project.pwd) { toast('Mot de passe incorrect.'); return; }
+   if (!(await verifyPwd(window.__mobiusSb, 'projects', project.id, r, project.pwd))) { toast('Mot de passe incorrect.'); return; }
   }
   const cards = new Map();
   (function walk(list) { (list || []).forEach(it => { if (it.type === 'card') cards.set(it.id, it); if (it.children) walk(it.children); }); })(project.tree);
