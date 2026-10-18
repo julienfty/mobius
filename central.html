@@ -14,9 +14,25 @@
 html,main,aside,#plist{scroll-behavior:auto!important;overflow-anchor:none}
 .sel{box-shadow:0 0 0 2px #5246EE,0 6px 16px rgba(82,70,238,.25)}
 .dragover{outline:2px dashed #5246EE;outline-offset:2px;background:rgba(82,70,238,.08)}
-.tree-row{user-select:none}.tree-drop-before{box-shadow:0 -2px 0 0 #5246EE}.tree-drop-after{box-shadow:0 2px 0 0 #5246EE}.tree-drop-inside{background:rgba(82,70,238,.12);box-shadow:inset 0 0 0 2px rgba(82,70,238,.5)}
+.tree-row{user-select:none}.tree-multi{background:rgba(82,70,238,.16)!important;box-shadow:inset 0 0 0 1.5px #5246EE}.tree-drop-before{box-shadow:0 -2px 0 0 #5246EE}.tree-drop-after{box-shadow:0 2px 0 0 #5246EE}.tree-drop-inside{background:rgba(82,70,238,.12);box-shadow:inset 0 0 0 2px rgba(82,70,238,.5)}
 #box{position:fixed;border:1.5px dashed #5246EE;background:rgba(82,70,238,.1);pointer-events:none;display:none;z-index:40}
-</style></head>
+</style><script>
+/* ===== Mots de passe : vérification côté serveur (fonction SQL check_item_pwd — voir protect_pwd.sql) ===== */
+window.verifyPwd = async function (client, table, id, typed, stored) {
+  if (typed == null) return false;
+  try {
+    const { data, error } = await client.rpc('check_item_pwd', { p_table: table, p_id: String(id), p_pwd: String(typed) });
+    if (!error) return data === true;
+    const msg = String(error.message || '');
+    if (/too_many_attempts/.test(msg)) { alert('Trop de tentatives incorrectes. Réessayez dans quelques minutes.'); return false; }
+    const missing = error.code === 'PGRST202' || error.code === '42883' || /could not find the function|does not exist/i.test(msg);
+    if (!missing) { console.warn('check_item_pwd :', msg); return false; }
+  } catch (e) { console.warn('check_item_pwd :', e); return false; }
+  // fonction SQL pas encore installée : ancien mode (mot de passe encore en clair dans la colonne)
+  return stored != null && !/^\$2[abxy]\$|^pbkdf2\$|^locked$/.test(String(stored)) && String(typed) === String(stored);
+};
+</script>
+</head>
 <body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 text-xs flex flex-col">
 <header class="flex items-center gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex-wrap">
   <a id="back" class="px-2.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700"><i data-lucide="arrow-left" class="w-3.5 h-3.5"></i></a>
@@ -572,7 +588,7 @@ function fieldVal(node, f) { return f.key ? node[f.key] : (node.custom || {})[f.
             if (scope === 'project' && projectData && projectData.pwd) {
                 const r = await treeAsk('Mot de passe requis pour exporter :', 'Mot de passe', '', 'password');
                 if (r === null) return;
-                if (r !== projectData.pwd) { showToast('Mot de passe incorrect.'); return; }
+                if (!(await verifyPwd(sb, 'projects', projectData.id, r, projectData.pwd))) { showToast('Mot de passe incorrect.'); return; }
             }
             const hasProject = !!(projectId && projectData);
             const tree = projectData.tree;
@@ -1507,7 +1523,7 @@ async function treeImport(files, dest) {
 
         
 async function downloadProject(){if(!P)return;
-  if(P.pwd){const r=await treeAsk('Mot de passe requis pour télécharger :','Mot de passe','','password');if(r===null)return;if(r!==P.pwd){showToast('Mot de passe incorrect.');return}}
+  if(P.pwd){const r=await treeAsk('Mot de passe requis pour télécharger :','Mot de passe','','password');if(r===null)return;if(!(await verifyPwd(sb,'projects',P.id,r,P.pwd))){showToast('Mot de passe incorrect.');return}}
   await flush();const safe=s=>String(s).replace(/[\\/:*?"<>|]/g,'_'),blob=new Blob([JSON.stringify(P.tree||[],null,2)],{type:'application/json'}),fileName=`${safe(P.name||'projet').toLowerCase().replace(/\s+/g,'_')}.mobpro`;
   const fmtSize=b=>b<1024?`${b} octets`:b<1048576?`${(b/1024).toFixed(1).replace('.',',')} Ko`:`${(b/1048576).toFixed(2).replace('.',',')} Mo`;
   if(!await treeConfirm(`Télécharger « ${fileName} » ?\nTaille du fichier : ${fmtSize(blob.size)}`))return;
@@ -1525,7 +1541,7 @@ function renderTree(){if(!treeOpen||innerWidth<768||!P||!C)return;const containe
   if(treeSelectedId&&!findTreeItem(P.tree,treeSelectedId))treeSelectedId=null;
   const f=treeDestFolder();$('tree-dest').textContent=f?`📁 Destination : ${f.name}`:'📁 Destination : racine du projet';
   container.innerHTML='';if(!P.tree.length){container.innerHTML='<div class="text-center py-10 text-slate-400">Arborescence vide.<br>Clic droit pour créer, ou glissez des fichiers ici.</div>';return}
-  renderTreeList(P.tree,container);lucide.createIcons()}
+  renderTreeList(P.tree,container);treeMultiPaint();lucide.createIcons()}
 function renderTreeList(items,container){items.forEach(item=>{const wrap=document.createElement('div');wrap.dataset.wrap=item.id;const row=document.createElement('div');row.dataset.id=item.id;row.dataset.type=item.type;row.draggable=true;const name=escapeHtml(item.name);
   if(item.type==='folder'){const open=treeExpanded.has(item.id),sel=treeSelectedId===item.id;
     row.className=`tree-row flex items-center gap-1.5 p-2 rounded-xl cursor-pointer ${sel?'bg-[#5246EE]/10 text-[#5246EE] font-semibold ring-1 ring-[#5246EE]':'font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`;
@@ -1538,41 +1554,216 @@ function renderTreeList(items,container){items.forEach(item=>{const wrap=documen
 function treeDropTarget(e){const row=e.target.closest('.tree-row');if(!row)return{id:null,pos:'end',row:null};const r=row.getBoundingClientRect(),y=(e.clientY-r.top)/r.height,
   pos=row.dataset.type==='folder'?(y<0.25?'before':y>0.75?'after':'inside'):(y<0.5?'before':'after');return{id:row.dataset.id,pos,row}}
 const treeClearDrop=()=>document.querySelectorAll('#tree-sidebar-content .tree-row').forEach(r=>r.classList.remove('tree-drop-before','tree-drop-after','tree-drop-inside'));
-function openTreeMenu(x,y,targetId){const loc=targetId?locateTreeItem(P.tree,targetId):null,it=loc&&loc.item;let dest=null;
+function openTreeMenu(x,y,targetId){const loc=targetId?locateTreeItem(P.tree,targetId):null,it=loc&&loc.item;let dest=null;if(it&&!treeMulti.has(it.id)&&treeMulti.size)treeMulti.clear();
   if(it){if(it.type==='folder'){dest=it.id;treeSelectedId=it.id;treeExpanded.add(it.id);treeStoreUI();renderTree()}else{const p=treeParentOf(P.tree,it.id);dest=p?p.id:null}}
   treeMenuCtx={targetId:it?it.id:null,dest};const df=dest&&findTreeItem(P.tree,dest);
   const btn=(a,icon,label,cls='')=>`<button data-tree-action="${a}" class="w-full text-left px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 ${cls||'text-slate-700 dark:text-slate-200'}"><i data-lucide="${icon}" class="w-3.5 h-3.5"></i><span>${label}</span></button>`,menu=$('tree-context-menu');
-  menu.innerHTML=`<div class="px-4 pb-1.5 text-[10px] text-slate-400 truncate">📁 ${df?escapeHtml(df.name):'Racine du projet'}</div>`+btn('new-folder','folder-plus','Nouveau dossier')+btn('new-txt','file-text','Nouveau fichier .txt')+btn('new-card','sticky-note','Nouvelle carte')+btn('new-central','users','Nouvelle centrale')+(treeMulti.size>1?btn('centralize','git-merge',`Centraliser (${treeMulti.size} cartes)`,'text-violet-600'):'')+btn('import','file-up','Importer un fichier')
-   +(it?`<div class="my-1 border-t border-slate-100 dark:border-slate-800"></div>`+btn('rename','pencil','Renommer')+btn('up','arrow-up','Monter')+btn('down','arrow-down','Descendre')+btn('delete','trash-2','Supprimer','text-rose-500'):'');
+  const selTop = (!it || treeMulti.has(it.id)) ? treeTopLevel([...treeMulti]) : [];
+            const isMulti = selTop.length > 1, nCards = isMulti ? treeSelCards().length : 0;
+            const sep = `<div class="my-1 border-t border-slate-100 dark:border-slate-800"></div>`;
+            menu.innerHTML = `<div class="px-4 pb-1.5 text-[10px] text-slate-400 truncate">📁 ${df ? escapeHtml(df.name) : 'Racine du projet'}</div>`
+                + (isMulti ? `<div class="px-4 pb-1.5 text-[10px] font-bold text-[#5246EE]">${selTop.length} éléments sélectionnés</div>` : '')
+                + btn('new-folder', 'folder-plus', 'Nouveau dossier') + btn('new-txt', 'file-text', 'Nouveau fichier .txt') + btn('new-card', 'sticky-note', 'Nouvelle carte') + btn('new-central', 'users', 'Nouvelle centrale')
+                + (isMulti && nCards > 1 ? btn('centralize', 'git-merge', `Centraliser (${nCards} cartes)`, 'text-violet-600') : '')
+                + btn('import', 'file-up', 'Importer un fichier')
+                + (isMulti ? sep + btn('delete-sel', 'trash-2', `Supprimer la sélection (${selTop.length})`, 'text-rose-500')
+                    : it ? sep + btn('rename', 'pencil', 'Renommer') + btn('up', 'arrow-up', 'Monter') + btn('down', 'arrow-down', 'Descendre') + btn('delete', 'trash-2', 'Supprimer', 'text-rose-500') : '');
+            treeMultiPaint();
   menu.classList.remove('hidden');lucide.createIcons();const w=menu.offsetWidth,h=menu.offsetHeight;menu.style.left=Math.max(4,Math.min(x,innerWidth-w-4))+'px';menu.style.top=Math.max(4,Math.min(y,innerHeight-h-4))+'px'}
 const closeTreeMenu=()=>$('tree-context-menu').classList.add('hidden');
-function treeMenuAction(a){closeTreeMenu();const{targetId,dest}=treeMenuCtx||{};
-  if(a.startsWith('new-'))return treeCreate(a.slice(4),{folderId:dest});
-  if(a==='import'){treeImportDest={folderId:dest};return $('tree-file-input').click()}
-  if(a==='centralize'){const ids=[...treeMulti];treeMulti.clear();const name=prompt('Nom de la centrale :','Centrale');if(!name)return renderTree();
-    P.tree.unshift({id:'id_'+Date.now()+'c',type:'central',name,mode:'cards',folderId:null,includeSub:false,cardIds:ids,groups:[],links:{}});return refreshTree()}
-  if(!targetId)return;if(a==='rename')return treeRename(targetId);if(a==='up')return treeMoveStep(targetId,-1);if(a==='down')return treeMoveStep(targetId,1);if(a==='delete')return treeDelete(targetId)}
-function setupTreeInteractions(c){
+async function treeMenuAction(a) {
+            closeTreeMenu();
+            const { targetId, dest } = treeMenuCtx || {};
+            if (a.startsWith('new-')) return treeCreate(a.slice(4), { folderId: dest });
+            if (a === 'import') { if (!requireEdit()) return; treeImportDest = { folderId: dest }; return document.getElementById('tree-file-input').click(); }
+            if (a === 'centralize') {
+                if (!requireEdit()) return;
+                const ids = treeSelCards();
+                const name = await treeAsk('Nom de la centrale :', 'Centrale', 'Centrale'); if (!name) return;
+                treeMulti.clear();
+                P.tree.unshift({ id: 'id_' + Date.now() + 'c', type: 'central', name, mode: 'cards', folderId: null, includeSub: false, cardIds: ids, groups: [], links: {} });
+                return refreshTree();
+            }
+            if (a === 'delete-sel') return treeDeleteMany([...treeMulti]);
+            if (!targetId) return;
+            if (a === 'rename') return treeRename(targetId);
+            if (a === 'up') return treeMoveStep(targetId, -1);
+            if (a === 'down') return treeMoveStep(targetId, 1);
+            if (a === 'delete') return treeDelete(targetId);
+        }
+
+        /* ===== Sélection multiple : clic droit maintenu + glisser = rectangle de sélection ===== */
+        let treeDragIds = null, treeDeleting = false;
+        const treeRight = { down: false, recent: false };
+        function treeTopLevel(ids) {
+            const set = new Set(ids);
+            return ids.filter(id => {
+                if (!findTreeItem(P.tree, id)) return false;
+                let p = treeParentOf(P.tree, id);
+                while (p) { if (set.has(p.id)) return false; p = treeParentOf(P.tree, p.id); }
+                return true;
+            });
+        }
+        function treeSelCards() {
+            const out = [], seen = new Set();
+            const walk = it => { if (it.type === 'card' && !seen.has(it.id)) { seen.add(it.id); out.push(it.id); } (it.children || []).forEach(walk); };
+            treeTopLevel([...treeMulti]).forEach(id => { const it = findTreeItem(P.tree, id); if (it) walk(it); });
+            return out;
+        }
+        function treeMultiPaint() {
+            [...treeMulti].forEach(id => { if (!findTreeItem(P.tree, id)) treeMulti.delete(id); });
+            document.querySelectorAll('#tree-sidebar-content .tree-row').forEach(r => r.classList.toggle('tree-multi', treeMulti.has(r.dataset.id)));
+        }
+        async function treeDeleteMany(ids) {
+            if (!requireEdit() || treeDeleting) return;
+            treeDeleting = true;
+            try {
+                const items = treeTopLevel(ids).map(id => findTreeItem(P.tree, id)).filter(Boolean);
+                const blocked = items.filter(it => it.id === C.id || treeContainsId(it, C.id));
+                const ok = items.filter(it => !blocked.includes(it));
+                if (blocked.length) showToast("« " + blocked[0].name + " » contient l'élément actuellement ouvert : il n'est pas supprimé.");
+                if (!ok.length) return;
+                const label = ok.length === 1 ? '« ' + ok[0].name + ' »' : ok.length + ' éléments';
+                if (!await treeConfirm('Supprimer ' + label + " de l'arborescence ?")) return;
+                const gone = new Set();
+                ok.forEach(it => {
+                    (function w(x) { gone.add(x.id); (x.children || []).forEach(w); })(it);
+                    const loc = locateTreeItem(P.tree, it.id);
+                    if (loc) loc.list.splice(loc.index, 1);
+                });
+                gone.forEach(i => treeMulti.delete(i));
+                C.cardIds = (C.cardIds || []).filter(x => !gone.has(x)); if (gone.has(curCard)) curCard = null;
+                if (!findTreeItem(P.tree, treeSelectedId)) treeSelectedId = null;
+                treeStoreUI(); refreshTree();
+            } finally { treeDeleting = false; }
+        }
+        function treeMoveMany(ids, t) {
+            if (!requireEdit()) return;
+            const root = P.tree;
+            const top = treeTopLevel(ids);
+            if (!top.length) return;
+            if (t.id && top.includes(t.id)) return;
+            if (t.id && top.some(id => treeContainsId(findTreeItem(root, id), t.id))) { showToast("Impossible de déplacer un dossier dans lui-même."); return; }
+            const order = []; (function w(l) { l.forEach(i => { order.push(i.id); if (i.children) w(i.children); }); })(root);
+            top.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+            const items = top.map(id => findTreeItem(root, id));
+            const moved = [];
+            items.forEach(function c(it) { if (it.type === 'card') moved.push(it.id); (it.children || []).forEach(c); });
+            const before = new Map(moved.map(i => [i, centralsOf(i).filter(x => x.mode === 'folder').map(x => x.id)]));
+            const rootSnap = root.slice(), snap = new Map();
+            (function s(l) { l.forEach(i => { if (i.children) { snap.set(i.id, i.children.slice()); s(i.children); } }); })(root);
+            items.forEach(it => { const loc = locateTreeItem(root, it.id); if (loc) loc.list.splice(loc.index, 1); });
+            let tt = t.id ? { id: t.id, pos: t.pos } : null;
+            items.forEach(it => { treeInsert(it, tt); if (tt && tt.pos === 'after') tt = { id: it.id, pos: 'after' }; });
+            const lost = [];
+            moved.forEach(i => { const now = new Set(centralsOf(i).map(x => x.id)); before.get(i).forEach(cid => { if (!now.has(cid)) lost.push({ i, cid }); }); });
+            if (lost.length) {
+                const cn = [...new Set(lost.map(l => (findTreeItem(root, l.cid) || {}).name))].join(', ');
+                const kn = [...new Set(lost.map(l => (findTreeItem(root, l.i) || {}).name))].join(', ');
+                if (!confirm('« ' + kn + ' » ne sera plus liée à la centrale « ' + cn + ' » (ses liens avec les autres cartes seront perdus). Continuer ?')) {
+                    root.splice(0, root.length, ...rootSnap);
+                    (function r(l) { l.forEach(i => { if (i.children) { i.children.splice(0, i.children.length, ...(snap.get(i.id) || [])); r(i.children); } }); })(root);
+                    return refreshTree();
+                }
+            }
+            treeMulti.clear();
+            refreshTree();
+        }
+        function setupTreeMarquee(c) {
+            const box = document.createElement('div');
+            box.style.cssText = 'position:fixed;z-index:55;pointer-events:none;display:none;border:1.5px solid #5246EE;background:rgba(82,70,238,.14);border-radius:6px';
+            document.body.appendChild(box);
+            let st = null, raf = 0, px = 0, py = 0;
+            const endMq = () => { cancelAnimationFrame(raf); box.style.display = 'none'; st = null; treeRight.down = false; };
+            const update = () => {
+                if (!st || !st.moved) return;
+                const cr = c.getBoundingClientRect();
+                const ay = st.y - (c.scrollTop - st.sy);
+                const l = Math.max(cr.left, Math.min(st.x, px)), r = Math.min(cr.right, Math.max(st.x, px));
+                const t = Math.max(cr.top, Math.min(ay, py)), b = Math.min(cr.bottom, Math.max(ay, py));
+                box.style.display = 'block';
+                box.style.left = l + 'px'; box.style.top = t + 'px';
+                box.style.width = Math.max(0, r - l) + 'px'; box.style.height = Math.max(0, b - t) + 'px';
+                treeMulti.clear(); st.base.forEach(i => treeMulti.add(i));
+                c.querySelectorAll('.tree-row').forEach(row => {
+                    const q = row.getBoundingClientRect();
+                    if (!q.width || !q.height) return;
+                    if (q.right > l && q.left < r && q.bottom > t && q.top < b) treeMulti.add(row.dataset.id);
+                });
+                treeMultiPaint();
+            };
+            const tick = () => {
+                if (!st) return;
+                if (st.moved) {
+                    const cr = c.getBoundingClientRect();
+                    if (py < cr.top + 28) c.scrollTop -= 14; else if (py > cr.bottom - 28) c.scrollTop += 14;
+                    update();
+                }
+                raf = requestAnimationFrame(tick);
+            };
+            c.addEventListener('mousedown', (e) => {
+                if (e.button !== 2 || !canEdit()) return;
+                e.preventDefault();
+                const row = e.target.closest('.tree-row');
+                st = { x: e.clientX, y: e.clientY, sy: c.scrollTop, moved: false, rowId: row ? row.dataset.id : null, base: (e.ctrlKey || e.metaKey || e.shiftKey) ? new Set(treeMulti) : new Set() };
+                px = e.clientX; py = e.clientY; treeRight.down = true;
+            });
+            window.addEventListener('mousemove', (e) => {
+                if (!st) return;
+                if (!(e.buttons & 2)) { endMq(); return; }
+                px = e.clientX; py = e.clientY;
+                if (!st.moved && Math.hypot(px - st.x, py - st.y) > 6) { st.moved = true; closeTreeMenu(); cancelAnimationFrame(raf); raf = requestAnimationFrame(tick); }
+                if (st.moved) update();
+            });
+            window.addEventListener('mouseup', (e) => {
+                if (!st || e.button !== 2) return;
+                const s = st; endMq();
+                treeRight.recent = true; setTimeout(() => { treeRight.recent = false; }, 80);
+                if (!s.moved) openTreeMenu(e.clientX, e.clientY, s.rowId); else treeMultiPaint();
+            });
+            // Suppr : supprime la sélection ; Échap : désélectionne (uniquement si le dernier clic était dans l'arborescence)
+            let focusIn = false;
+            document.addEventListener('mousedown', (e) => { focusIn = !!e.target.closest('#tree-sidebar-content'); }, true);
+            document.addEventListener('keydown', (e) => {
+                if (!focusIn || !treeMulti.size || !canEdit()) return;
+                const t = e.target, tag = (t.tagName || '').toLowerCase();
+                if (tag === 'input' || tag === 'textarea' || tag === 'select' || t.isContentEditable) return;
+                if (e.key === 'Escape') { treeMulti.clear(); treeMultiPaint(); }
+                else if (e.key === 'Delete') { e.preventDefault(); e.stopImmediatePropagation(); treeDeleteMany([...treeMulti]); }
+            }, true);
+        }
+        function treeDragImage(e, n) {
+            const g = document.createElement('div');
+            g.textContent = n + ' éléments';
+            g.style.cssText = 'position:fixed;top:-100px;left:-100px;padding:6px 12px;border-radius:12px;background:#5246EE;color:#fff;font:600 12px sans-serif';
+            document.body.appendChild(g);
+            try { e.dataTransfer.setDragImage(g, 10, 10); } catch (_) {}
+            setTimeout(() => g.remove(), 0);
+        }
+
+function setupTreeInteractions(c){setupTreeMarquee(c);
   document.querySelectorAll('[data-tree-create]').forEach(b=>b.addEventListener('click',()=>treeCreate(b.dataset.treeCreate,{folderId:treeSelectedId})));
   $('tree-import-btn').addEventListener('click',()=>{treeImportDest={folderId:treeSelectedId};$('tree-file-input').click()});
   $('tree-file-input').addEventListener('change',e=>{treeImport([...e.target.files],treeImportDest||{folderId:treeSelectedId});e.target.value=''});
   $('tree-context-menu').addEventListener('click',e=>{const b=e.target.closest('[data-tree-action]');if(b)treeMenuAction(b.dataset.treeAction)});
   document.addEventListener('mousedown',e=>{if(!e.target.closest('#tree-context-menu'))closeTreeMenu()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeTreeMenu()});c.addEventListener('scroll',closeTreeMenu);
-  c.addEventListener('click',async e=>{const row=e.target.closest('.tree-row');if(!row)return;const it=findTreeItem(P.tree,row.dataset.id);if(!it)return;
+  c.addEventListener('click',async e=>{const row=e.target.closest('.tree-row');if(!row){if(treeMulti.size){treeMulti.clear();treeMultiPaint()}return}const it=findTreeItem(P.tree,row.dataset.id);if(!it)return;
+    if(e.ctrlKey||e.metaKey){treeMulti.has(it.id)?treeMulti.delete(it.id):treeMulti.add(it.id);return renderTree()}
+    if(treeMulti.size){treeMulti.clear();treeMultiPaint()}
     if(it.type==='folder'){const tg=e.target.closest('[data-toggle]');if(tg){treeExpanded.has(it.id)?treeExpanded.delete(it.id):treeExpanded.add(it.id)}else if(treeSelectedId===it.id){treeSelectedId=null;treeExpanded.delete(it.id)}else{treeSelectedId=it.id;treeExpanded.add(it.id)}treeStoreUI();return renderTree()}
     if((e.ctrlKey||e.metaKey)&&it.type==='card'){treeMulti.has(it.id)?treeMulti.delete(it.id):treeMulti.add(it.id);return renderTree()}
     treeMulti.clear();if(it.id===C.id)return;await flush();
     location.href=it.type==='central'?`central.html?projectId=${encodeURIComponent(pid)}&centralId=${encodeURIComponent(it.id)}`:it.type==='card'?`map.html?cardId=${encodeURIComponent(it.id)}&projectId=${encodeURIComponent(pid)}`:`editor.html?projectId=${encodeURIComponent(pid)}&fileId=${encodeURIComponent(it.id)}`});
-  c.addEventListener('contextmenu',e=>{e.preventDefault();const row=e.target.closest('.tree-row');openTreeMenu(e.clientX,e.clientY,row?row.dataset.id:null)});
+  c.addEventListener('contextmenu',e=>{e.preventDefault();if(treeRight.down||treeRight.recent)return;const row=e.target.closest('.tree-row');openTreeMenu(e.clientX,e.clientY,row?row.dataset.id:null)});
   let lp=null;c.addEventListener('touchstart',e=>{if(e.touches.length!==1)return;const t=e.touches[0],row=e.target.closest('.tree-row');lp=setTimeout(()=>{lp=null;openTreeMenu(t.clientX,t.clientY,row?row.dataset.id:null)},550)},{passive:true});
   ['touchmove','touchend','touchcancel'].forEach(ev=>c.addEventListener(ev,()=>{clearTimeout(lp);lp=null},{passive:true}));
-  c.addEventListener('dragstart',e=>{const row=e.target.closest('.tree-row');if(!row)return;treeDragId=row.dataset.id;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',treeDragId)});
-  c.addEventListener('dragend',()=>{treeDragId=null;treeClearDrop()});
-  c.addEventListener('dragover',e=>{e.preventDefault();treeClearDrop();const t=treeDropTarget(e);if(t.row&&t.id!==treeDragId)t.row.classList.add('tree-drop-'+t.pos)});
+  c.addEventListener('dragstart',e=>{const row=e.target.closest('.tree-row');if(!row)return;treeDragId=row.dataset.id;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',treeDragId);treeDragIds=(treeMulti.size>1&&treeMulti.has(treeDragId))?[...treeMulti]:null;if(treeDragIds)treeDragImage(e,treeTopLevel(treeDragIds).length)});
+  c.addEventListener('dragend',()=>{treeDragId=null;treeDragIds=null;treeClearDrop()});
+  c.addEventListener('dragover',e=>{e.preventDefault();treeClearDrop();const t=treeDropTarget(e);if(t.row&&t.id!==treeDragId&&!(treeDragIds&&treeDragIds.includes(t.id)))t.row.classList.add('tree-drop-'+t.pos)});
   c.addEventListener('dragleave',e=>{if(!c.contains(e.relatedTarget))treeClearDrop()});
   c.addEventListener('drop',e=>{e.preventDefault();treeClearDrop();const t=treeDropTarget(e);
     if(e.dataTransfer.files&&e.dataTransfer.files.length)return treeImport([...e.dataTransfer.files],t.id?{id:t.id,pos:t.pos}:null);
-    const id=treeDragId;treeDragId=null;if(id)treeMoveTo(id,t.id?{id:t.id,pos:t.pos}:{id:null})})}
+    const id=treeDragId,ids=treeDragIds;treeDragId=null;treeDragIds=null;if(ids)return treeMoveMany(ids,t.id?{id:t.id,pos:t.pos}:{id:null});if(id)treeMoveTo(id,t.id?{id:t.id,pos:t.pos}:{id:null})})}
 
 // en-tête
 $('bCard').onclick=()=>modal('Nouvelle carte liée',`<input id="cn" placeholder="Nom de la carte" ${inp}><p class="text-slate-400">Toutes les personnes de la centrale y seront recopiées (mêmes ID).</p>`,m=>{const n=m.querySelector('#cn').value.trim();if(!n)return false;
@@ -1590,7 +1781,7 @@ $('bMql').onclick=async()=>{dirty=true;await flush();const c=(curCard&&find(curC
   location.href=`map.html?projectId=${encodeURIComponent(pid)}&cardId=${encodeURIComponent(c.id)}&mql=1`};
 $('q').oninput=render;document.querySelectorAll('.view-btn').forEach(b=>b.onclick=()=>{view=b.dataset.view;localStorage.setItem('centralView',view);render()});
 (async()=>{const{data:{session}}=await sb.auth.getSession();if(!session){location.href='index.html';return}
-  const{data,error}=await sb.from('projects').select('*').eq('id',pid).single();if(error||!data){document.body.innerHTML='Projet introuvable.';return}
+  const{data,error}=await sb.from('projects').select('*').eq('id',pid).single();if(error||!data){location.href='dashboard.html?openProjectId='+encodeURIComponent(pid);return}
   P=data;if(typeof P.tree==='string')P.tree=JSON.parse(P.tree);projectData=P;C=find(cid);if(!C||C.type!=='central'){document.body.innerHTML='Centrale introuvable.';return}
   C.groups=(C.groups||[]).map(g=>({parent:null,...g,keys:g.keys||[]}));C.links=C.links||{};
   const from=Q.get('cardId')||(cards()[0]&&cards()[0].id);$('back').href=`map.html?projectId=${encodeURIComponent(pid)}`+(from?`&cardId=${encodeURIComponent(from)}`:'');
