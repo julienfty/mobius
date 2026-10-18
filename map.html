@@ -71,6 +71,22 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(100,100,100,0.2); border-radius: 4px; }
     </style>
+<script>
+/* ===== Mots de passe : vérification côté serveur (fonction SQL check_item_pwd — voir protect_pwd.sql) ===== */
+window.verifyPwd = async function (client, table, id, typed, stored) {
+  if (typed == null) return false;
+  try {
+    const { data, error } = await client.rpc('check_item_pwd', { p_table: table, p_id: String(id), p_pwd: String(typed) });
+    if (!error) return data === true;
+    const msg = String(error.message || '');
+    if (/too_many_attempts/.test(msg)) { alert('Trop de tentatives incorrectes. Réessayez dans quelques minutes.'); return false; }
+    const missing = error.code === 'PGRST202' || error.code === '42883' || /could not find the function|does not exist/i.test(msg);
+    if (!missing) { console.warn('check_item_pwd :', msg); return false; }
+  } catch (e) { console.warn('check_item_pwd :', e); return false; }
+  // fonction SQL pas encore installée : ancien mode (mot de passe encore en clair dans la colonne)
+  return stored != null && !/^\$2[abxy]\$|^pbkdf2\$|^locked$/.test(String(stored)) && String(typed) === String(stored);
+};
+</script>
 </head>
 <body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col antialiased selection:bg-[#5246EE] selection:text-white">
 
@@ -462,6 +478,7 @@
             const SUPABASE_URL = 'https://nfvnayuqrmlldtixzdpx.supabase.co';
             const SUPABASE_KEY = 'sb_publishable_EwONSAsqSfu8_SocZ7wZBA_rVODWqSF';
             supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            window.__mobiusSb = supabaseClient;
 
             const urlParams = new URLSearchParams(window.location.search);
             cardId = urlParams.get('cardId');
@@ -494,6 +511,7 @@
             } else {
                 const { data: pData } = await supabaseClient.from('projects').select('*').eq('id', projectId).single();
                 if (pData) projectData = pData;
+                else { window.location.href = 'dashboard.html?openProjectId=' + encodeURIComponent(projectId); return; }   // projet verrouillé : le dashboard demande le mot de passe
             }
 
             if (projectId && projectData) {
@@ -501,6 +519,7 @@
             } else {
                 const { data: cData } = await supabaseClient.from('cards').select('*').eq('id', cardId).single();
                 if (cData) currentCard = cardFromRow(cData);
+                else { window.location.href = 'dashboard.html?openItemId=' + encodeURIComponent(cardId); return; }   // carte verrouillée ou introuvable
             }
 
             if (!Array.isArray(currentCard.relationTypes)) currentCard.relationTypes = [];
@@ -1440,7 +1459,7 @@
             if (scope === 'project' && projectData && projectData.pwd) {
                 const r = await treeAsk('Mot de passe requis pour exporter :', 'Mot de passe', '', 'password');
                 if (r === null) return;
-                if (r !== projectData.pwd) { showToast('Mot de passe incorrect.'); return; }
+                if (!(await verifyPwd(supabaseClient, 'projects', projectData.id, r, projectData.pwd))) { showToast('Mot de passe incorrect.'); return; }
             }
             const hasProject = !!(projectId && projectData);
             if (hasProject) updateCardInTree(projectData.tree, currentCard);
@@ -3671,7 +3690,7 @@ container.addEventListener('touchstart', (e) => {
             if (projectData.pwd) {
                 const r = await treeAsk('Mot de passe requis pour télécharger :', 'Mot de passe', '', 'password');
                 if (r === null) return;
-                if (r !== projectData.pwd) { showToast('Mot de passe incorrect.'); return; }
+                if (!(await verifyPwd(supabaseClient, 'projects', projectData.id, r, projectData.pwd))) { showToast('Mot de passe incorrect.'); return; }
             }
             updateCardInTree(projectData.tree, currentCard);   // inclut l'état courant de la carte ouverte
             const safe = (s) => String(s).replace(/[\\/:*?"<>|]/g, '_');
