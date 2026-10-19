@@ -3840,7 +3840,8 @@ container.addEventListener('touchstart', (e) => {
             });
         }
         function treeSelAllowsCentral() {
-    return [...treeMulti].every(id => { const it = findTreeItem(projectData.tree, id); return !it || it.type === 'card' || it.type === 'folder'; });
+    const ok = it => !it || ((it.type === 'card' || it.type === 'folder') && (it.children || []).every(ok));
+    return [...treeMulti].every(id => ok(findTreeItem(projectData.tree, id)));
 }
 function treeSelCards() {
             const out = [], seen = new Set();
