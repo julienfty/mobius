@@ -111,9 +111,9 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
                     <span id="collab-count-label" class="hidden sm:inline">Collaborateurs (1)</span>
                     <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
                 </button>
-                <div id="collab-dropdown" class="hidden absolute right-0 mt-2 w-[24rem] max-w-[92vw] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-50">
+                <div id="collab-dropdown" class="hidden absolute right-0 mt-2 w-[22rem] max-w-[calc(100vw-1.5rem)] max-h-[min(70vh,26rem)] overflow-y-auto bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-50">
                     <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Gestion des collaborateurs</h4>
-                    <div id="collaborators-list" class="space-y-2 max-h-56 overflow-y-auto mb-3"></div>
+                    <div id="collaborators-list" class="space-y-2 max-h-64 overflow-y-auto mb-3"></div>
                     <div id="collab-add-section" class="pt-2 border-t border-slate-100 dark:border-slate-800">
                         <div class="flex space-x-2">
                             <input type="email" id="new-collab-email" placeholder="email@membre.com" class="flex-1 min-w-0 px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#5246EE]">
@@ -1106,11 +1106,10 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
             document.getElementById('collab-add-section').classList.toggle('hidden', !admin);
             const adminOpt = document.querySelector('#new-collab-role option[value="admin"]');
             if (adminOpt) { adminOpt.textContent = isOwner() ? 'Admin' : 'Admin (à confirmer)'; }
-            listEl.innerHTML = `
-                <div class="flex items-center justify-between gap-2 text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                    <span class="font-medium text-slate-700 dark:text-slate-300 truncate">${escapeHtml(currentUser.email)} (vous)</span>
-                    <span class="text-[10px] font-semibold text-[#5246EE] shrink-0">${isOwner() ? 'Propriétaire' : ROLE_LABELS[myRole]}</span>
-                </div>`;
+            const ownerAddress = ownerEmail() || (isOwner() ? myEmail() : 'Propriétaire');
+            const ownerRow = `<div class="mb-2 p-3 rounded-xl border border-amber-300/60 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700/50"><div class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300"><i data-lucide="crown" class="w-3.5 h-3.5"></i> Propriétaire · Owner</div><div class="text-xs font-semibold text-amber-900 dark:text-amber-100 break-all mt-1">${escapeHtml(ownerAddress)}${ownerAddress === myEmail() ? ' (vous)' : ''}</div></div>`;
+            const meRow = !isOwner() ? `<div class="flex items-center justify-between gap-2 text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded-lg"><span class="font-medium text-slate-700 dark:text-slate-300 truncate">${escapeHtml(currentUser.email)} (vous)</span><span class="text-[10px] font-semibold text-[#5246EE] shrink-0">${ROLE_LABELS[myRole] || myRole}</span></div>` : '';
+            listEl.innerHTML = ownerRow + meRow;
             collabs.forEach((c, idx) => {
                 const accepted = c.status === 'accepted';
                 const manage = canManageCollab(c);
