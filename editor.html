@@ -3714,7 +3714,7 @@ window.mobiusRelationSQL = function(cardTables) {
 };
 </script>
 <script>
-/* Navigation responsive : même contenu et mêmes fonctions que sur ordinateur. */
+/* Navigation responsive : correction du scope docReady et des onglets inspecteur. */
 (function(){
  let mobilePanel='write';
  let mobileEditorFocused=false;
@@ -3753,12 +3753,12 @@ window.mobiusRelationSQL = function(cardTables) {
    const inspecting = mobilePanel==='inspect';
    byId('ed-fab')?.classList.toggle('mobile-hide', mobile && !writing);
    const authorWrap=byId('fab-authors-wrap');
-   if(authorWrap) authorWrap.style.display = mobile && writing && window.docReady ? 'block' : 'none';
+   if(authorWrap) authorWrap.style.display = mobile && writing && docReady ? 'block' : 'none';
    const high=byId('ed-mobile-highlight');if(high)high.style.display=(typeof docType!=='undefined'&&docType==='script')?'none':'';
    const kb=byId('ed-mobile-kbbar');
-   if(kb) kb.classList.toggle('show', mobile && writing && mobileEditorFocused && window.docReady);
+   if(kb){ kb.classList.toggle('show', mobile && writing && mobileEditorFocused && docReady); if(mobile && writing && mobileEditorFocused)positionKbBar(); }
    const subtabs=byId('editor-mobile-subtabs');
-   if(subtabs) subtabs.classList.toggle('show', mobile && inspecting && window.docReady);
+   if(subtabs) subtabs.classList.toggle('show', mobile && inspecting && docReady);
    document.querySelectorAll('#editor-mobile-nav button').forEach(b=>b.classList.toggle('active',b.id==='ed-mobile-'+mobilePanel));
  }
  window.editorMobileView=function(which){
@@ -3772,12 +3772,14 @@ window.mobiusRelationSQL = function(cardTables) {
      if(typeof navTab!=='undefined' && navTab==='tree') navTab='plan';
      if(!sideOpen()) toggleTreeSidebar();
      renderNav();
+     requestAnimationFrame(()=>{ renderNav(); updateMobileChrome(); });
    } else {
      if(sideOpen()) toggleTreeSidebar();
      byId('ed-page')?.focus({preventScroll:true});
    }
    updateMobileChrome();
    layout();
+   if(which==='inspect') requestAnimationFrame(()=>{renderNav();updateMobileChrome();});
  };
  function update(){layout();}
  addEventListener('resize',update);
@@ -3787,13 +3789,15 @@ window.mobiusRelationSQL = function(cardTables) {
    new MutationObserver(layout).observe(byId('ed-work'),{attributes:true,attributeFilter:['style']});
    byId('ed-page')?.addEventListener('focusin',()=>{mobileEditorFocused=true;positionKbBar();updateMobileChrome();});
    byId('ed-page')?.addEventListener('focusout',()=>{setTimeout(()=>{mobileEditorFocused=byId('ed-page')?.contains(document.activeElement);updateMobileChrome();},120);});
+   document.addEventListener('focusin', e=>{if(e.target?.closest?.('#ed-page')){mobileEditorFocused=true;updateMobileChrome();}});
+   document.addEventListener('focusout', e=>{if(e.target?.closest?.('#ed-page'))setTimeout(()=>{mobileEditorFocused=byId('ed-page')?.contains(document.activeElement);updateMobileChrome();},180);});
    if(window.lucide && lucide.createIcons) lucide.createIcons();
  });
  let timer;
  function selectionPopup(){
    const bar=byId('ed-selection-toolbar'),root=byId('ed-page'),s=window.getSelection();if(!bar||!root)return;
    if(isMobile()){bar.style.display='none';return;}
-   if(!s||s.isCollapsed||!s.rangeCount||!root.contains(s.anchorNode)||!root.contains(s.focusNode)||!window.docReady){bar.style.display='none';return;}
+   if(!s||s.isCollapsed||!s.rangeCount||!root.contains(s.anchorNode)||!root.contains(s.focusNode)||!docReady){bar.style.display='none';return;}
    const rect=s.getRangeAt(0).getBoundingClientRect();if(!rect.width&&!rect.height){bar.style.display='none';return;}
    bar.style.display='flex';bar.style.visibility='hidden';
    const width=bar.offsetWidth,height=bar.offsetHeight;
