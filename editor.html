@@ -142,6 +142,53 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
 };
 </script>
 <style>#tree-sidebar,#tree-sidebar-content,#tree-selbar{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}</style>
+<style>
+/* Mobius : menus centrés dans le viewport sur téléphone, indépendants des boutons de l’en-tête. */
+@media (max-width: 639px) {
+  #collab-dropdown, #ed-export-menu, #download-dropdown {
+    position: fixed !important;
+    left: 50% !important; right: auto !important;
+    top: calc(64px + env(safe-area-inset-top, 0px)) !important;
+    margin-top: 0 !important;
+    transform: translateX(-50%) !important;
+    width: min(22rem, calc(100vw - 24px)) !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: calc(100dvh - 88px - env(safe-area-inset-bottom, 0px)) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    box-sizing: border-box;
+    z-index: 90 !important;
+  }
+  #ed-export-menu, #download-dropdown { width: min(18rem, calc(100vw - 24px)) !important; }
+  #collab-add-section > div { flex-wrap: wrap; gap: 6px; }
+  #new-collab-email { flex-basis: 100%; }
+  #new-collab-role { flex: 1; min-width: 0; }
+  #collab-dropdown { padding: 12px; }
+}
+</style>
+<style>
+/* Navigation mobile de l'éditeur */
+@media(max-width:767px){
+ #ed-nav-btn,#ed-authors-btn{display:none!important}
+ #editor-mobile-nav{display:flex!important}
+ body{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+ #tree-sidebar{bottom:calc(64px + env(safe-area-inset-bottom))!important}
+ #ed-tools.mobile-styles{display:flex!important;position:fixed;inset:auto 0 calc(64px + env(safe-area-inset-bottom)) 0;z-index:48;width:100%;max-height:min(70dvh,550px);overflow-y:auto;border:1px solid #e2e8f0;border-radius:20px 20px 0 0;box-shadow:0 -12px 36px #0002;padding:16px;visibility:visible!important}
+ #editor-mobile-nav button{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 2px;color:#64748b;font-size:10px;font-weight:600}
+ #editor-mobile-nav button.active{color:#5246EE}
+ #nav-tabs{flex-wrap:wrap}
+ #editor-mobile-subtabs{border-top:1px solid #e2e8f0;padding:10px 12px;order:5}
+ #editor-mobile-subtabs #nav-tabs{display:flex;width:100%;gap:4px}
+ #editor-mobile-subtabs .nv-tab{flex:1 1 auto}
+ #ed-selection-toolbar{max-width:calc(100vw - 16px);overflow-x:auto}
+}
+@media(min-width:768px){#editor-mobile-nav,#editor-mobile-subtabs{display:none!important}}
+#ed-selection-toolbar{position:fixed;display:none;align-items:center;gap:5px;z-index:90;padding:7px;background:white;color:#334155;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 8px 28px #0003;max-width:calc(100vw - 16px)}
+.dark #ed-selection-toolbar{background:#0f172a;color:#e2e8f0;border-color:#334155}
+#ed-selection-toolbar button,#ed-selection-toolbar select,#ed-selection-toolbar input{flex-shrink:0;border-radius:8px;background:#f1f5f9;padding:7px;font-size:12px;color:#334155}
+.dark #ed-selection-toolbar button,.dark #ed-selection-toolbar select,.dark #ed-selection-toolbar input{background:#1e293b;color:white}
+#ed-selection-toolbar input{width:48px}
+</style>
 </head>
 <body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col antialiased selection:bg-[#5246EE] selection:text-white">
 
@@ -166,9 +213,9 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
                     <span id="collab-count-label" class="hidden sm:inline">Collaborateurs (1)</span>
                     <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
                 </button>
-                <div id="collab-dropdown" class="hidden absolute right-0 mt-2 w-[24rem] max-w-[92vw] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-50">
+                <div id="collab-dropdown" class="hidden absolute right-0 mt-2 w-[22rem] max-w-[calc(100vw-1.5rem)] max-h-[min(70vh,26rem)] overflow-y-auto bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-50">
                     <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Gestion des collaborateurs</h4>
-                    <div id="collaborators-list" class="space-y-2 max-h-56 overflow-y-auto mb-3"></div>
+                    <div id="collaborators-list" class="space-y-2 max-h-64 overflow-y-auto mb-3"></div>
                     <div id="collab-add-section" class="pt-2 border-t border-slate-100 dark:border-slate-800">
                         <div class="flex space-x-2">
                             <input type="email" id="new-collab-email" placeholder="email@membre.com" class="flex-1 min-w-0 px-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#5246EE]">
@@ -182,7 +229,7 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
                     </div>
                 </div>
             </div>
-            <button id="ed-export-btn" onclick="exportDoc()" title="Exporter (Mobius / Fountain / PDF)" class="hidden px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl flex items-center space-x-2 transition shrink-0"><i data-lucide="download" class="w-3.5 h-3.5 text-emerald-500"></i><span class="hidden sm:inline">Exporter</span></button>
+            <div class="relative shrink-0" id="ed-export-wrap"><button id="ed-export-btn" onclick="toggleDocExportMenu()" title="Exporter le document" class="hidden px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium rounded-xl items-center space-x-2 transition"><i data-lucide="download" class="w-3.5 h-3.5 text-emerald-500"></i><span class="hidden sm:inline">Exporter</span></button><div id="ed-export-menu" class="hidden absolute right-0 mt-2 w-56 max-w-[calc(100vw-1.5rem)] max-h-[70vh] overflow-y-auto bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 space-y-1"><button onclick="exportDocFormat('mob')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-code" class="w-4 h-4 text-purple-500"></i><span id="ed-native-export-label">Format Mobius</span><span class="text-[9px] bg-purple-100 dark:bg-purple-950 text-purple-600 px-1.5 py-0.5 rounded font-bold ml-auto">Natif</span></button><button id="ed-fountain-export" onclick="exportDocFormat('fountain')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4 text-slate-400"></i>Fountain (.fountain)</button><button onclick="exportDocFormat('pdf')" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file" class="w-4 h-4 text-red-500"></i>PDF (.pdf)</button></div></div>
             <button onclick="toggleDarkMode()" class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
                 <i class="fa-solid fa-moon dark:hidden"></i>
                 <i class="fa-solid fa-sun hidden dark:block text-amber-400"></i>
@@ -242,6 +289,7 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
             <div class="p-3 border-t border-slate-200 dark:border-slate-800 relative"><button data-exbtn onclick="document.getElementById('editor-project-export').classList.toggle('hidden')" class="w-full px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-2 transition"><i data-lucide="download" class="w-4 h-4 text-red-500"></i> Exporter le projet <i data-lucide="chevron-up" class="w-3.5 h-3.5 text-slate-400"></i></button><div id="editor-project-export" class="hidden absolute bottom-full left-3 right-3 mb-1 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 space-y-1"><button onclick="document.getElementById('editor-project-export').classList.add('hidden');downloadProject()" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="folder-archive" class="w-4 h-4 text-red-500"></i> Projet (.mobpro) <span class="text-[9px] bg-red-100 dark:bg-red-950 text-red-600 px-1.5 py-0.5 rounded font-bold ml-auto">Natif</span></button><div class="px-3 pt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Tabulation</div><button data-exfmt="xlsx" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-spreadsheet" class="w-4 h-4 text-slate-400"></i> Export Excel (.xlsx)</button><button data-exfmt="csv" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4 text-slate-400"></i> Export CSV</button><button data-exfmt="json" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="braces" class="w-4 h-4 text-slate-400"></i> Export JSON</button><button data-exfmt="mql" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="terminal" class="w-4 h-4 text-[#5246EE]"></i> Export MQL <span class="text-[9px] bg-purple-100 dark:bg-purple-950 text-purple-600 px-1.5 py-0.5 rounded font-bold ml-auto">Natif</span></button><button data-exfmt="sql" class="w-full text-left px-3 py-2 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2"><i data-lucide="database" class="w-4 h-4 text-slate-400"></i> Export SQL</button></div></div>
         </div>
             <div id="nav-body" class="flex-1 overflow-y-auto p-3 text-xs" style="display:none"></div>
+<div id="editor-mobile-subtabs" class="md:hidden"><div id="editor-mobile-tab-target"></div><button onclick="toggleAuthors();editorMobileView('write')" class="mt-2 text-xs px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center gap-2"><i data-lucide="user-pen" class="w-4 h-4"></i> Qui a édité quoi</button></div>
         </aside>
 
 
@@ -276,6 +324,21 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
 </main>
     </div>
 
+    <nav id="editor-mobile-nav" style="display:none" class="fixed bottom-0 left-0 right-0 z-[60] h-16 bg-white/95 dark:bg-slate-900/95 border-t border-slate-200 dark:border-slate-800 backdrop-blur-md items-center justify-around px-2" aria-label="Navigation de l'éditeur">
+      <button id="ed-mobile-tree" onclick="editorMobileView('tree')"><i data-lucide="folder-tree" class="w-5 h-5"></i><span>Arborescence</span></button>
+      <button id="ed-mobile-write" onclick="editorMobileView('write')" class="active"><i data-lucide="file-pen-line" class="w-5 h-5"></i><span>Édition</span></button>
+      <button id="ed-mobile-style" onclick="editorMobileView('style')"><i data-lucide="sliders-horizontal" class="w-5 h-5"></i><span>Styles</span></button>
+    </nav>
+    <div id="ed-selection-toolbar" role="toolbar" aria-label="Mise en forme du texte sélectionné" onpointerdown="if(event.target.tagName==='BUTTON')event.preventDefault()">
+      <button onclick="editorSelectionAction('copy')" title="Copier">Copier</button>
+      <button onclick="editorSelectionAction('cut')" title="Couper">Couper</button>
+      <button onclick="editorSelectionAction('paste')" title="Coller">Coller</button>
+      <button onclick="cmd('bold')" title="Gras"><b>G</b></button>
+      <button onclick="cmd('italic')" title="Italique"><i>I</i></button>
+      <button onclick="cmd('underline')" title="Souligné"><u>S</u></button>
+      <select id="ed-selection-font" aria-label="Police" onchange="editorSelectionFont(this.value)"><option value="Inter">Inter</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="Courier New">Courier</option><option value="Times New Roman">Times</option></select>
+      <input type="number" id="ed-selection-size" min="8" max="120" value="16" aria-label="Taille" onchange="setSize(this.value)">
+    </div>
     <!-- MENU CONTEXTUEL DE L'ARBORESCENCE -->
     <div id="tree-context-menu" class="hidden fixed bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 py-2 z-50 text-xs w-56"></div>
 
@@ -2055,7 +2118,7 @@ function openDoc(){
   p.classList.toggle('script',docType==='script');p.contentEditable=canEdit();
   E('ed-tools').style.visibility=canEdit()?'':'hidden';
   hist={u:[],r:[],base:snap(),t:0};buildTools();renderSide();pageNo();bindEditor();updHist();
-  ['ed-export-btn','ed-authors-btn','ed-nav-btn'].forEach(id=>E(id).classList.remove('hidden'));
+  ['ed-export-btn','ed-authors-btn','ed-nav-btn'].forEach(id=>E(id).classList.remove('hidden')); E('ed-export-btn').classList.add('inline-flex');
   initModules();
   applyTreeSidebarState();renderBreadcrumb();renderNav();
   E('ed-fab').style.visibility=canEdit()?'':'hidden';
@@ -2987,18 +3050,22 @@ function toFountain(){
   });
   return (hdr.length?hdr.join('\n')+'\n\n':'')+out.join('\n').replace(/\n{3,}/g,'\n\n')+'\n';
 }
-async function exportDoc(){
+function toggleDocExportMenu(){
+  const menu=E('ed-export-menu');
+  E('ed-native-export-label').textContent=docType==='script'?'Scénario (.mobscen)':'Texte (.mobtext)';
+  E('ed-fountain-export').classList.toggle('hidden',docType!=='script');
+  menu.classList.toggle('hidden');
+}
+document.addEventListener('click',e=>{if(!e.target.closest('#ed-export-wrap'))E('ed-export-menu')?.classList.add('hidden');});
+async function exportDocFormat(format){
+  E('ed-export-menu').classList.add('hidden');
   syncDoc();const ext=docType==='script'?'mobscen':'mobtext';
   const base=String(currentCard.name).replace(/\.[^.]+$/,'').replace(/[\\/:*?"<>|]/g,'_')||'document';
-  const btns=[{label:`Sauvegarde Mobius (.${ext})`,value:'mob',primary:true}];
-  if(docType==='script')btns.push({label:'Fountain (.fountain)',value:'fountain'});
-  btns.push({label:docType==='script'?'PDF — format scénario':'PDF',value:'pdf'},{label:'Annuler',value:null});
-  const r=await dlg({title:'Exporter',message:'Dans quel format ?',buttons:btns});
-  if(!r||!r.value)return;
-  if(r.value==='mob'){
+  if(format==='fountain' && docType!=='script')return;
+  if(format==='mob'){
     const d={format:ext,version:1,type:docType,name:currentCard.name,content:currentCard.content,doc:{...doc,versions:[],proposals:docType==='script'?doc.proposals:{}}};
     await deliver(new Blob([JSON.stringify(d,null,2)],{type:'application/json'}),base+'.'+ext,`Exporté en .${ext} !`);
-  }else if(r.value==='fountain'){
+  }else if(format==='fountain'){
     await deliver(new Blob([toFountain()],{type:'text/plain;charset=utf-8'}),base+'.fountain','Exporté en Fountain !');
   }else{
     showToast('Génération du PDF…');
@@ -3256,7 +3323,10 @@ function renderCollaboratorsList(){
   E('collab-add-section').classList.toggle('hidden',!admin);
   const ao=document.querySelector('#new-collab-role option[value="admin"]');
   if(ao){ao.textContent=isOwner()?'Admin':'Admin (à confirmer)';}
-  listEl.innerHTML=`<div class="flex items-center justify-between gap-2 text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded-lg"><span class="font-medium text-slate-700 dark:text-slate-300 truncate">${escapeHtml(currentUser.email)} (vous)</span><span class="text-[10px] font-semibold text-[#5246EE] shrink-0">${isOwner()?'Propriétaire':ROLE_LABELS[myRole]}</span></div>`;
+  const ownerAddress=ownerEmail()||(isOwner()?myEmail():'Propriétaire');
+  const ownerRow=`<div class="mb-2 p-3 rounded-xl border border-amber-300/60 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700/50"><div class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300"><i data-lucide="crown" class="w-3.5 h-3.5"></i> Propriétaire · Owner</div><div class="text-xs font-semibold text-amber-900 dark:text-amber-100 break-all mt-1">${escapeHtml(ownerAddress)}${ownerAddress===myEmail()?' (vous)':''}</div></div>`;
+  const meRow=!isOwner()?`<div class="flex items-center justify-between gap-2 text-xs p-2 bg-slate-50 dark:bg-slate-800 rounded-lg"><span class="font-medium text-slate-700 dark:text-slate-300 truncate">${escapeHtml(currentUser.email)} (vous)</span><span class="text-[10px] font-semibold text-[#5246EE] shrink-0">${ROLE_LABELS[myRole]||myRole}</span></div>`:'';
+  listEl.innerHTML=ownerRow+meRow;
   collabs.forEach((c,idx)=>{
     const acc=c.status==='accepted',manage=canManageCollab(c);
     const roleCtl=manage?`<select onchange="setCollaboratorRole(${idx},this.value)" class="px-1.5 py-1 text-[10px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md focus:outline-none">${Object.entries(ROLE_LABELS).map(([k,l])=>`<option value="${k}" ${c.role===k?'selected':''}>${k==='admin'&&!isOwner()?'Admin (à confirmer)':l}</option>`).join('')}</select>`:`<span class="text-[10px] font-semibold text-slate-500">${ROLE_LABELS[c.role]||c.role}</span>`;
@@ -3588,6 +3658,61 @@ window.mobiusRelationSQL = function(cardTables) {
  }
  return out.join('\n');
 };
+</script>
+<script>
+/* Navigation responsive : même contenu et mêmes fonctions que sur ordinateur. */
+(function(){
+ let mobilePanel='write';
+ const byId=id=>document.getElementById(id);
+ const originalTabs=byId('nav-tabs')?.parentElement;
+ function layout(){
+   const mobile=innerWidth<768, tabs=byId('nav-tabs'), target=byId('editor-mobile-tab-target');
+   if(tabs&&target&&originalTabs){(mobile?target:originalTabs).appendChild(tabs);}
+   if(!mobile){byId('ed-tools')?.classList.remove('mobile-styles');return;}
+   byId('ed-tools')?.classList.toggle('mobile-styles',mobilePanel==='style' && !!window.docReady);
+ }
+ window.editorMobileView=function(which){
+   mobilePanel=which;
+   const sidebar=byId('tree-sidebar');
+   if(which==='tree'){
+     if(typeof navTab!=='undefined'&&navTab==='tree'&&typeof standalone!=='undefined'&&standalone)navTab='plan';
+     if(!sideOpen())toggleTreeSidebar();
+   }else if(sideOpen())toggleTreeSidebar();
+   if(which==='write')byId('ed-page')?.focus({preventScroll:true});
+   document.querySelectorAll('#editor-mobile-nav button').forEach(b=>b.classList.toggle('active',b.id==='ed-mobile-'+which));
+   layout();
+ };
+ function update(){layout();}
+ addEventListener('resize',update);
+ document.addEventListener('DOMContentLoaded',()=>{layout();new MutationObserver(layout).observe(byId('ed-work'),{attributes:true,attributeFilter:['style']});});
+ let timer;
+ function selectionPopup(){
+   const bar=byId('ed-selection-toolbar'),root=byId('ed-page'),s=window.getSelection();if(!bar||!root)return;
+   if(!s||s.isCollapsed||!s.rangeCount||!root.contains(s.anchorNode)||!root.contains(s.focusNode)||!window.docReady){bar.style.display='none';return;}
+   const rect=s.getRangeAt(0).getBoundingClientRect();if(!rect.width&&!rect.height){bar.style.display='none';return;}
+   bar.style.display='flex';bar.style.visibility='hidden';
+   const width=bar.offsetWidth,height=bar.offsetHeight;
+   const x=Math.max(8,Math.min(innerWidth-width-8,rect.left+rect.width/2-width/2));
+   const y=rect.top-height-10>8?rect.top-height-10:Math.min(innerHeight-height-8,rect.bottom+10);
+   bar.style.left=x+'px';bar.style.top=Math.max(8,y)+'px';bar.style.visibility='visible';
+   const size=byId('ed-selection-size');if(size){const el=s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentElement;const px=parseInt(getComputedStyle(el).fontSize);if(Number.isFinite(px))size.value=px;}
+ }
+ document.addEventListener('selectionchange',()=>{clearTimeout(timer);timer=setTimeout(selectionPopup,90)});
+ document.addEventListener('pointerup',e=>{if(byId('ed-page')?.contains(e.target))setTimeout(selectionPopup,110)});
+ document.addEventListener('pointerdown',e=>{if(!byId('ed-selection-toolbar')?.contains(e.target)&&!byId('ed-page')?.contains(e.target))byId('ed-selection-toolbar').style.display='none'});
+ window.editorSelectionFont=function(font){if(!canEdit())return;restoreSel();document.execCommand('fontName',false,font);afterEdit();syncTools();};
+ window.editorSelectionAction=async function(action){
+   if(action==='copy'||action==='cut'){
+     restoreSel();const selected=String(window.getSelection());
+     try{await navigator.clipboard.writeText(selected)}catch(e){document.execCommand('copy');}
+     if(action==='cut'&&canEdit()){restoreSel();document.execCommand('delete');afterEdit();}
+   }else if(action==='paste'){
+     if(!canEdit())return;
+     try{const txt=await navigator.clipboard.readText();restoreSel();document.execCommand('insertText',false,txt);afterEdit();}
+     catch(e){alert('Pour coller, utilisez le menu natif ou le raccourci Coller de votre appareil.');}
+   }
+ };
+})();
 </script>
 </body>
 </html>
