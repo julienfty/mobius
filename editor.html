@@ -62,7 +62,7 @@
 .script{font-family:'Courier Prime','American Typewriter','Courier New',monospace;font-size:14px}
 [data-s=title]{font-size:2.4em;font-weight:800;text-align:center;margin:.3em 0}[data-s=h1]{font-size:1.9em;font-weight:700;margin:.6em 0 .2em}[data-s=h2]{font-size:1.5em;font-weight:700;margin:.5em 0 .2em}[data-s=h3]{font-size:1.2em;font-weight:700;margin:.4em 0 .1em}[data-s=sub]{font-size:1.15em;color:#64748b;font-style:italic;margin:.2em 0}[data-s=box]{border:1px solid #c7c3fb;background:rgba(82,70,238,.07);border-radius:.75rem;padding:.6em .9em;margin:.5em 0}
 .script [data-s=title],.script [data-s=sub]{text-align:center}
-[data-s=act]{text-align:center;font-weight:700;text-transform:uppercase;text-decoration:underline;margin:2em 0 1em}[data-s=scene]{font-weight:700;text-transform:uppercase;margin:1.6em 0 .6em}[data-s=desc]{font-style:italic;margin:.6em 0}[data-s=char]{text-transform:uppercase;margin:1em 0 0 37%}[data-s=dial]{margin:0 15% 0 20%}[data-s=paren]{margin:0 25% 0 28%;font-style:italic}[data-s=action]{margin:.6em 0}
+[data-s=act]{text-align:center;font-weight:700;text-transform:uppercase;text-decoration:underline;margin:2em 0 1em}[data-s=scene],[data-s=insert]{font-weight:700;text-transform:uppercase;background:rgba(148,163,184,.28);box-decoration-break:clone;-webkit-box-decoration-break:clone;padding:.12em .3em}[data-s=scene]{margin:1.6em 0 .6em}[data-s=insert]{margin:1em 0 .5em}[data-s=desc]{font-style:italic;margin:.6em 0}[data-s=char]{text-transform:uppercase;margin:1em 0 0 37%}[data-s=dial]{margin:0 15% 0 20%}[data-s=paren]{margin:0 25% 0 28%;font-style:italic}[data-s=action]{margin:.6em 0}
 [data-bubble]{background:rgba(250,204,21,.3);border-bottom:2px dotted #eab308;cursor:pointer}[data-bubble]::after{content:'💬';font-size:.7em;margin-left:2px}
 .show-by [data-by]{box-shadow:inset 3px 0 0 var(--c,#5246EE);padding-left:8px}
 .ed-tools{display:none;width:13rem;flex-direction:column;gap:.2rem;padding:.75rem;border-left:1px solid #e2e8f0;background:#fff;overflow-y:auto;flex-shrink:0}.dark .ed-tools{background:#0f172a;border-color:#1e293b}
@@ -730,23 +730,28 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
         return { text, fixes: n };
     }
 
+    // DOCX : extrait le texte et les propriétés des paragraphes, sans charger les images.
     async function docxToText(buf) {
-        const zip = await JSZip.loadAsync(buf);
-        const entry = zip.file('word/document.xml');
+        const zip = await JSZip.loadAsync(buf), entry = zip.file('word/document.xml');
         if (!entry) throw new Error("ce n'est pas un document Word valide");
         const xml = new DOMParser().parseFromString(await entry.async('string'), 'application/xml');
-        const walk = (node) => {
-            let t = '';
-            for (const ch of node.childNodes) {
-                const n = ch.localName;
-                if (n === 't') t += ch.textContent;
-                else if (n === 'tab') t += '\t';
-                else if (n === 'br' || n === 'cr') t += '\n';
-                else if (ch.nodeType === 1) t += walk(ch);
-            }
-            return t;
-        };
-        return [...xml.getElementsByTagNameNS('*', 'p')].map(walk).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+        const paras = [...xml.getElementsByTagNameNS('*', 'p')], layout=[];
+        const child=(n,name)=>[...n.childNodes].find(c=>c.localName===name);
+        const descendants=(n,name)=>[...n.getElementsByTagNameNS('*',name)];
+        for(const para of paras){
+            const pr=child(para,'pPr'), sty=pr&&child(pr,'pStyle'), ind=pr&&child(pr,'ind');
+            const style=sty&&(sty.getAttribute('w:val')||sty.getAttribute('val')||'');
+            const left=ind&&Number(ind.getAttribute('w:left')||ind.getAttribute('left')||0)/20;
+            let text='',bold=false,italic=false;
+            const walk=n=>{for(const c of n.childNodes){if(c.localName==='r'){
+                const rp=child(c,'rPr');bold=bold||!!(rp&&child(rp,'b'));italic=italic||!!(rp&&child(rp,'i'));
+                walk(c);
+            }else if(c.localName==='t')text+=c.textContent;
+            else if(c.localName==='tab')text+='\t';else if(c.localName==='br'||c.localName==='cr')text+='\n';
+            else if(c.nodeType===1)walk(c);}};
+            walk(para);layout.push({text,x:left||0,style,bold,italic});
+        }
+        return {text:layout.map(x=>x.text).join('\n'),layout};
     }
 
     // Transforme n'importe quel fichier accepté en texte brut (images et mise en forme ignorées).
@@ -761,7 +766,7 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
             ({ text, fixes, layout } = await pdfToText(buf));
         } else if (/\.docx$/i.test(file.name)) {
             if (!(bytes[0] === 0x50 && bytes[1] === 0x4B)) throw new Error("ce n'est pas un vrai .docx");
-            text = await docxToText(buf);
+            ({ text, layout } = await docxToText(buf));
         } else {
             const kind = detectBinaryKind(bytes);
             if (kind) throw new Error(`le fichier contient ${kind}, pas du texte`);
@@ -1525,7 +1530,7 @@ return Object.assign({ buildTables }, MT_core);
                         const { text: content, fixes, layout } = await fileToText(file);
                         if (fixes) showToast(`« ${file.name} » : ${fixes} ligature(s) corrigée(s).`);
                         const name = /\.(pdf|docx)$/i.test(file.name) ? file.name.replace(/\.[^.]+$/, '') + '.txt' : file.name;
-                        const script = looksFountain(content,file.name)||/\.pdf$/i.test(file.name)&&/\b(?:INT|EXT|ACTE)\b/i.test(content);
+                        const script = looksFountain(content,file.name)||/\b(?:INT|EXT|ACTE|PERSONNAGE|INSERT)\b/i.test(content)&&/\.(?:pdf|docx|txt)$/i.test(file.name);
                         const parsed = script ? parseFountain(content,layout) : null;
                         put({ id: newItemId(), type: 'txt', name, content, ...(parsed?{docType:'script',doc:{meta:parsed.meta,bubbles:{},proposals:{},html:parsed.html}}:{}) });
                     }
@@ -1946,7 +1951,7 @@ function treeSelCards() {
 
 /* ===================== ÉDITEUR : texte & scénario ===================== */
 const TEXT_STYLES=[['title','Titre'],['h1','Titre 1'],['h2','Titre 2'],['h3','Titre 3'],['sub','Sous-titre'],['body','Corps'],['box','Container']];
-const SCRIPT_STYLES=[['act','Acte'],['scene','En-tête de scène'],['desc','Description'],['char','Personnage'],['paren','Didascalie'],['dial','Dialogue'],['action','Action']];
+const SCRIPT_STYLES=[['act','Acte'],['scene','En-tête de scène'],['insert','Insert'],['desc','Description'],['char','Personnage'],['paren','Didascalie'],['dial','Dialogue'],['action','Action']];
 let docType=null, doc=null, docReady=false, edBound=false;
 const E=id=>document.getElementById(id), rid=()=>Math.random().toString(36).slice(2,8);
 const edPage=()=>E('ed-page'), me=()=>(currentUser.email||'?').split('@')[0];
@@ -1962,6 +1967,7 @@ function syncDoc(){if(!docReady)return;doc.html=edPage().innerHTML;currentCard.d
 /* --- Imports structurés : Fountain, texte, Word et PDF textuel --- */
 const SCENE_RE=/^(?:INT|EXT|EST|INT\.?\/EXT|EXT\.?\/INT|I\/E|INTÉRIEUR|EXTÉRIEUR)\s*[.\-– ]/i;
 const ACT_RE=/^(?:(?:ACTE|ACT|PARTIE|CHAPITRE)\s+(?:[IVXLCDM]+|\d+|[A-ZÀ-Ÿ]+)|#+\s*.+)$/i;
+const INSERT_RE=/^(?:INSERT|INS[ÉE]R[ÉE]?|INSERTION|CARTON|SURIMPRESSION|TITRE À L[’']ÉCRAN)\b/i;
 const NON_CHAR=/^(?:FIN|NOIR|CUT TO|FONDU|SUITE|CONTINU|LE LENDEMAIN|QUELQUES INSTANTS PLUS TARD|THE END)$/i;
 function looksFountain(t,n){return /\.(?:fountain|mobscen)$/i.test(n||'')||/^\s*(?:title|author|credit|draft date)\s*:/im.test(t.slice(0,400))||((t.match(/^\s*(?:INT|EXT|EST|I\/E|INTÉRIEUR|EXTÉRIEUR)[. \-–]/gim)||[]).length>=1);}
 function importInline(t){
@@ -1980,23 +1986,28 @@ function classifyScriptLines(t,layout){
     if(!line){prevBlank=true;inDialogue=false;continue;}
     if(/^(?:\[\[.*\]\]|={3,})$/.test(line))continue;
     const pos=layout&&layout[i], x=pos&&pos.x;
-    const isAct=ACT_RE.test(line),isScene=SCENE_RE.test(line)||/^\.[^.]/.test(line);
+    const isAct=ACT_RE.test(line),isScene=SCENE_RE.test(line)||/^\.[^.]/.test(line),isInsert=INSERT_RE.test(line);
     const caps=line.replace(/^@/,'').replace(/\s*\([^)]*\)\s*$/,'');
     const upper=caps===caps.toLocaleUpperCase('fr')&&/[A-ZÀ-Ÿ]/.test(caps);
-    const character=!isAct&&!isScene&&!NON_CHAR.test(caps)&&upper&&caps.length<=42&&next&&!SCENE_RE.test(next)&&
+    const character=!isAct&&!isScene&&!isInsert&&!NON_CHAR.test(caps)&&upper&&caps.length<=42&&next&&!SCENE_RE.test(next)&&
       (line.startsWith('@')||(pos&&x>110&&x<420)||(prevBlank&&/^[A-ZÀ-Ÿ][A-ZÀ-Ÿ0-9 .'-]+$/.test(caps)));
     let style;
-    if(isAct)style='act';else if(isScene)style='scene';
+    if(isAct)style='act';else if(isScene)style='scene';else if(isInsert)style='insert';
     else if(inDialogue&&/^\(.*\)$/.test(line))style='paren';
     else if(character)style='char';
     else if(inDialogue)style='dial';
+    else if(pos&&/character|personnage|speaker/i.test(pos.style||''))style='char';
+    else if(pos&&/dialogue|dialog/i.test(pos.style||''))style='dial';
+    else if(pos&&/scene|slugline|heading/i.test(pos.style||''))style='scene';
+    else if(pos&&/acte|act\b/i.test(pos.style||''))style='act';
     else if(pos&&x>110&&x<410&&prevBlank&&line.length<60&&upper)style='char';
     else style='action';
     let value=line.replace(/^\.(?=[^.])/,'').replace(/^@(?=[A-ZÀ-Ÿ])/,'').replace(/^!(?=.)/,'');
     // Un PDF peut indiquer l'italique dans les métadonnées de police.
     let html=importInline(value);
     if(pos&&pos.italic&&!/<em>/.test(html))html='<em>'+html+'</em>';
-    if(pos&&pos.bold&&!/<strong>/.test(html)&&style==='action')html='<strong>'+html+'</strong>';
+    if(pos&&pos.bold&&!/<strong>/.test(html)&&style!=='scene'&&style!=='insert')html='<strong>'+html+'</strong>';
+    if(style==='scene'||style==='insert')html=html.toLocaleUpperCase('fr');
     out.push(blk(style,html));
     inDialogue=style==='char'||style==='dial'||style==='paren';prevBlank=false;
   }
@@ -2249,7 +2260,7 @@ function bindEditor(){
   p.addEventListener('keydown',e=>{
     if(e.key==='Enter'&&!e.shiftKey&&docType==='script'){
       const cur=curBlock(),prev=cur&&cur.dataset.s;
-      setTimeout(()=>{const n=curBlock();if(!n||n===cur)return;const nx={scene:'action',char:'dial',paren:'dial',dial:'char',act:'scene',desc:'action'}[prev];if(nx)n.dataset.s=nx;},0);
+      setTimeout(()=>{const n=curBlock();if(!n||n===cur)return;const nx={scene:'action',insert:'action',char:'dial',paren:'dial',dial:'char',act:'scene',desc:'action'}[prev];if(nx)n.dataset.s=nx;},0);
     }
     if(e.key==='Tab'){
       // S + Tab : S maintenu enfoncé, puis Tab. Le S déjà saisi est retiré.
@@ -2310,7 +2321,7 @@ function miniEditor(el,obj){
     if(docType!=='script')return;
     if(e.key==='Enter'&&!e.shiftKey){
       const cur=curBlock(),prev=cur&&cur.dataset.s;
-      setTimeout(()=>{const n=curBlock();if(!n||n===cur||!m.contains(n))return;const nx={scene:'action',char:'dial',paren:'dial',dial:'char',act:'scene',desc:'action'}[prev];if(nx){n.dataset.s=nx;sync();}},0);
+      setTimeout(()=>{const n=curBlock();if(!n||n===cur||!m.contains(n))return;const nx={scene:'action',insert:'action',char:'dial',paren:'dial',dial:'char',act:'scene',desc:'action'}[prev];if(nx){n.dataset.s=nx;sync();}},0);
     }else if(e.key==='Tab'){
       if(window.mobiusSHeld && !e.shiftKey){
         e.preventDefault();const b=curBlock();
