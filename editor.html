@@ -194,6 +194,7 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
  #ed-mobile-kbbar .kb-scroll{scroll-snap-type:x proximity}
  #ed-mobile-kbbar .kb-group{display:flex;gap:8px;align-items:center;scroll-snap-align:start;flex:0 0 auto}
  #ed-mobile-kbbar .kb-btn,#ed-mobile-kbbar .kb-select{min-width:max-content}
+ #ed-mobile-kbbar .kb-label{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#94a3b8;white-space:nowrap;padding:0 3px}
 
  .dark #ed-mobile-kbbar .kb-sep{background:#334155}
  #ed-mobile-kbbar select{appearance:none;-webkit-appearance:none}
@@ -353,32 +354,54 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
     <div id="ed-mobile-kbbar" aria-label="Barre d'édition mobile" onpointerdown="if(event.target.closest('button'))event.preventDefault()">
       <div class="kb-scroll">
         <div class="kb-group" aria-label="Mise en forme">
-          <button class="kb-btn" onclick="cmd('bold')"><b>B</b></button>
-          <button class="kb-btn" onclick="cmd('italic')"><i>I</i></button>
-          <button id="ed-mobile-highlight" class="kb-btn" onclick="mobileHighlight()">Surl.</button>
-          <button class="kb-btn" onclick="cmd('underline')"><u>U</u></button>
-          <select class="kb-select" onchange="editorSelectionFont(this.value)">
-            <option value="Inter">Police</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="Courier New">Courier</option><option value="Times New Roman">Times</option>
-          </select>
-          <button class="kb-btn" onclick="sizeBump(-1)">A-</button>
-          <button class="kb-btn" onclick="sizeBump(1)">A+</button>
+          <button class="kb-btn" onclick="cmd('bold')" title="Gras"><b>B</b></button>
+          <button class="kb-btn" onclick="cmd('italic')" title="Italique"><i>I</i></button>
+          <button id="ed-mobile-highlight" class="kb-btn" onclick="mobileHighlight()" title="Surligner">Surl.</button>
+          <button class="kb-btn" onclick="cmd('underline')" title="Souligner"><u>U</u></button>
+          <button class="kb-btn" onclick="cmd('strikeThrough')" title="Barrer"><s>S</s></button>
         </div>
         <span class="kb-sep"></span>
-        <div class="kb-group" aria-label="Styles du document">
+        <div class="kb-group" data-kb-type="script" aria-label="Styles de scénario">
+          <button class="kb-btn" onclick="setStyle('act')">Acte</button>
+          <button class="kb-btn" onclick="setStyle('scene')">En-tête de scène</button>
+          <button class="kb-btn" onclick="setStyle('insert')">Insert</button>
+          <button class="kb-btn" onclick="setStyle('desc')">Description</button>
+          <button class="kb-btn" onclick="setStyle('char')">Personnage</button>
+          <button class="kb-btn" onclick="setStyle('paren')">Didascalie</button>
+          <button class="kb-btn" onclick="setStyle('dial')">Dialogue</button>
+          <button class="kb-btn" onclick="setStyle('action')">Action</button>
+        </div>
+        <div class="kb-group" data-kb-type="text" aria-label="Styles de texte">
           <button class="kb-btn" onclick="setStyle('title')">Titre</button>
-          <button class="kb-btn" onclick="setStyle(docType==='script'?'act':'h1')">Sous-titre / Acte</button>
-          <button class="kb-btn" onclick="setStyle(docType==='script'?'scene':'h2')">Entête</button>
-          <button class="kb-btn" onclick="setStyle(docType==='script'?'action':'body')">Action</button>
-          <button class="kb-btn" onclick="if(docType==='script')setStyle('char')">Perso</button>
-          <button class="kb-btn" onclick="if(docType==='script')setStyle('dial')">Dialogue</button>
-          <button class="kb-btn" onclick="if(docType==='script')setStyle('paren')">Didas.</button>
+          <button class="kb-btn" onclick="setStyle('h1')">Titre 1</button>
+          <button class="kb-btn" onclick="setStyle('h2')">Titre 2</button>
+          <button class="kb-btn" onclick="setStyle('h3')">Titre 3</button>
+          <button class="kb-btn" onclick="setStyle('sub')">Sous-titre</button>
+          <button class="kb-btn" onclick="setStyle('body')">Corps</button>
+          <button class="kb-btn" onclick="setStyle('box')">Container</button>
+        </div>
+        <span class="kb-sep" data-kb-type="text"></span>
+        <div class="kb-group" data-kb-type="text" aria-label="Police">
+          <label class="kb-label" for="ed-mobile-font">Police</label>
+          <select id="ed-mobile-font" class="kb-select" aria-label="Police" onchange="editorSelectionFont(this.value)">
+            <option value="Inter">Inter</option><option value="Arial">Arial</option>
+            <option value="Georgia">Georgia</option><option value="Courier New">Courier</option>
+            <option value="Times New Roman">Times</option>
+          </select>
         </div>
         <span class="kb-sep"></span>
         <div class="kb-group" aria-label="Alignement">
-          <button class="kb-btn" onclick="setAlign('left')">◧</button>
-          <button class="kb-btn" onclick="setAlign('center')">≡</button>
-          <button class="kb-btn" onclick="setAlign('right')">◨</button>
-          <button class="kb-btn" onclick="setAlign('justify')">☰</button>
+          <span class="kb-label" data-kb-type="text">Alignement</span>
+          <button class="kb-btn" onclick="setAlign('left')" title="Gauche">◧</button>
+          <button class="kb-btn" onclick="setAlign('center')" title="Centré">≡</button>
+          <button class="kb-btn" onclick="setAlign('right')" title="Droite">◨</button>
+          <button class="kb-btn" onclick="setAlign('justify')" title="Justifié">☰</button>
+        </div>
+        <span class="kb-sep" data-kb-type="text"></span>
+        <div class="kb-group" data-kb-type="text" aria-label="Taille">
+          <span class="kb-label">Taille</span>
+          <button class="kb-btn" onclick="sizeBump(-1)">A−</button>
+          <button class="kb-btn" onclick="sizeBump(1)">A+</button>
         </div>
       </div>
     </div>
@@ -3755,6 +3778,7 @@ window.mobiusRelationSQL = function(cardTables) {
    const authorWrap=byId('fab-authors-wrap');
    if(authorWrap) authorWrap.style.display = mobile && writing && docReady ? 'block' : 'none';
    const high=byId('ed-mobile-highlight');if(high)high.style.display=(typeof docType!=='undefined'&&docType==='script')?'none':'';
+   document.querySelectorAll('#ed-mobile-kbbar [data-kb-type]').forEach(el=>{el.style.display=(el.dataset.kbType==='script')===(docType==='script')?'':'none';});
    const kb=byId('ed-mobile-kbbar');
    if(kb){ kb.classList.toggle('show', mobile && writing && mobileEditorFocused && docReady); if(mobile && writing && mobileEditorFocused)positionKbBar(); }
    const subtabs=byId('editor-mobile-subtabs');
