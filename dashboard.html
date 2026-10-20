@@ -245,6 +245,15 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
                     <input type="checkbox" id="modal-is-collab" class="w-4 h-4 accent-[#5246EE]">
                 </label>
 
+                <!-- Propriétaire du projet : visible en premier, rôle non modifiable -->
+                <div id="project-owner-panel" class="hidden rounded-xl border border-amber-300/70 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/25 px-3.5 py-3 space-y-2">
+                    <div class="text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300"><i class="fa-solid fa-crown mr-1"></i> Propriétaire du projet</div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span id="project-owner-email" class="text-xs font-semibold text-amber-950 dark:text-amber-100 break-all"></span>
+                        <span class="shrink-0 rounded-md bg-amber-500 text-white text-[10px] font-bold px-2 py-1">Owner · Propriétaire</span>
+                    </div>
+                </div>
+
                 <div id="collab-box" class="hidden space-y-2">
                     <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Inviter par e-mail</label>
                     <div class="flex gap-2">
@@ -1700,6 +1709,7 @@ window.__mobiusSb = sb;
         $('modal-item-pwd').placeholder = '••••••••'; $('create-modal-ok').textContent = 'Créer';
         ['modal-item-name', 'modal-collab-email', 'modal-item-pwd'].forEach(id => $(id).value = '');
         $('modal-is-collab').checked = false; $('modal-has-pwd').checked = false;
+        $('project-owner-panel').classList.add('hidden');
         $('collab-box').classList.add('hidden');$('pwd-box').classList.add('hidden');
         renderCollabBadges();
         $('create-modal-title').textContent = TAB_META[state.tab].createTitle;
@@ -1728,6 +1738,8 @@ window.__mobiusSb = sb;
         state.collabMeta = new Map(entries.map(c => [c.email, c]));
         state.collabRoles = new Map(entries.map(c => [c.email, c.role || 'editor']));
         state.tempCollabs = entries.map(c => c.email);
+        $('project-owner-panel').classList.toggle('hidden', table !== 'projects');
+        $('project-owner-email').textContent = item.owner_email || (isOwner(item) ? user.email : 'Propriétaire');
         $('modal-item-name').value = item.name || '';
         $('modal-collab-email').value = '';
         $('modal-is-collab').checked = !!item.is_collab || entries.length > 0;
