@@ -124,7 +124,23 @@
         #top-progress { position: absolute; left: 0; right: 0; top: 100%; height: 2px; pointer-events: none; opacity: 0; transition: opacity .25s ease; z-index: 41; }
         #top-progress.active { opacity: 1; }
         #top-progress > div { height: 100%; width: 0; background: #3b82f6; box-shadow: 0 0 6px rgba(59,130,246,.55); transition: width .3s ease; }
-    </style>
+    <style>
+/* Fenêtres de commentaires : superposées au document sur téléphone. */
+.side-item .ed-note-expand{display:inline-flex;align-items:center;justify-content:center;min-width:38px;min-height:36px;padding:6px 10px;border-radius:10px;background:#eef2ff;color:#5246EE;font-size:19px;font-weight:800;line-height:1;border:1px solid #c7d2fe;cursor:pointer}
+.dark .side-item .ed-note-expand{background:#312e81;color:#e0e7ff;border-color:#4338ca}
+.side-item .ed-note-expand:hover{background:#ddd6fe}
+@media(max-width:767px){
+ #ed-side:has(>.ed-note-overlay){position:static!important;max-width:none!important}
+ .ed-row.stack .ed-side:has(>.ed-note-overlay){position:static!important}
+ #ed-side>.ed-note-overlay{position:fixed!important;z-index:75!important;left:12px!important;right:12px!important;top:calc(env(safe-area-inset-top) + 62px)!important;width:auto!important;height:auto!important;max-height:calc(100dvh - 155px)!important;overflow:auto!important;margin:0!important;padding:14px!important;border:1px solid #cbd5e1!important;border-radius:18px!important;background:#fff!important;box-shadow:0 18px 60px #0005!important}
+ .dark #ed-side>.ed-note-overlay{background:#0f172a!important;border-color:#334155!important}
+ #ed-side>.ed-note-overlay.ed-full{inset:0!important;left:0!important;right:0!important;top:0!important;bottom:0!important;width:100vw!important;height:100dvh!important;max-height:100dvh!important;border-radius:0!important;z-index:85!important;padding:calc(12px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom))!important;display:flex!important;flex-direction:column!important}
+ #ed-side>.ed-note-overlay.ed-full .ed-mini{flex:1 1 auto;min-height:0;max-height:none!important;overflow-y:auto}
+ #ed-side>.ed-note-overlay:not(.ed-full) .ed-mini{max-height:38dvh;overflow:auto}
+ #ed-side>.ed-note-overlay .ed-note-expand{min-width:44px;min-height:40px}
+}
+</style>
+</style>
 <script>
 /* ===== Mots de passe : vérification côté serveur (fonction SQL check_item_pwd — voir protect_pwd.sql) ===== */
 window.verifyPwd = async function (client, table, id, typed, stored) {
@@ -189,7 +205,7 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
  #editor-mobile-subtabs #nav-tabs{display:flex;width:100%;gap:4px;flex-wrap:wrap}
  #editor-mobile-subtabs .nv-tab{flex:1 1 auto}
  #ed-selection-toolbar{display:none!important}
- #ed-mobile-kbbar{position:fixed;left:0;right:0;bottom:calc(56px + env(safe-area-inset-bottom));z-index:59;display:none;padding:8px 10px;background:rgba(255,255,255,.96);backdrop-filter:blur(18px);border-top:1px solid #e2e8f0;box-shadow:0 -8px 24px rgba(0,0,0,.08)}
+ #ed-mobile-kbbar{position:fixed;left:0;right:0;top:var(--mobius-keyboard-toolbar-top,auto);bottom:auto;box-sizing:border-box;height:54px;z-index:59;display:none;padding:8px 10px;background:rgba(255,255,255,.96);backdrop-filter:blur(18px);border-top:1px solid #e2e8f0;box-shadow:0 -8px 24px rgba(0,0,0,.08)}
  .dark #ed-mobile-kbbar{background:rgba(15,23,42,.96);border-color:#334155}
  #ed-mobile-kbbar.show{display:block}
  #ed-mobile-kbbar .kb-scroll{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;padding-bottom:2px}
@@ -200,8 +216,8 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
  #nav-body{order:3}
  #tree-pane{order:1}
  #editor-mobile-subtabs.show{display:block}
- #ed-mobile-kbbar{padding:8px 10px 10px}
- #ed-mobile-kbbar .kb-scroll{scroll-snap-type:x proximity}
+ #ed-mobile-kbbar{padding:8px 10px;height:54px;overflow:hidden}
+ #ed-mobile-kbbar .kb-scroll{scroll-snap-type:x proximity;height:38px;align-items:center}
  #ed-mobile-kbbar .kb-group{display:flex;gap:8px;align-items:center;scroll-snap-align:start;flex:0 0 auto}
  #ed-mobile-kbbar .kb-btn,#ed-mobile-kbbar .kb-select{min-width:max-content}
  #ed-mobile-kbbar .kb-label{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#94a3b8;white-space:nowrap;padding:0 3px}
@@ -363,6 +379,10 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
     </nav>
     <div id="ed-mobile-kbbar" aria-label="Barre d'édition mobile" onpointerdown="if(event.target.closest('button'))event.preventDefault()">
       <div class="kb-scroll">
+        <div class="kb-group" aria-label="Commentaires et propositions">
+          <button id="ed-mobile-add-note" class="kb-btn" type="button" onclick="mobileAddNote()" title="Créer une bulle ou une proposition"><span id="ed-mobile-note-icon">💬</span><span id="ed-mobile-note-label">Bulle</span></button>
+        </div>
+        <span class="kb-sep"></span>
         <div class="kb-group" aria-label="Mise en forme">
           <button class="kb-btn" onclick="cmd('bold')" title="Gras"><b>B</b></button>
           <button class="kb-btn" onclick="cmd('italic')" title="Italique"><i>I</i></button>
@@ -2334,11 +2354,23 @@ function setSize(v){
     afterEdit();syncTools();return;
   }
   document.execCommand('fontSize',false,'7');
-  const made=[];document.querySelectorAll('[contenteditable=true] font[size="7"]').forEach(f=>{const sp=document.createElement('span');sp.style.fontSize=v+'px';sp.innerHTML=f.innerHTML;f.replaceWith(sp);made.push(sp);});
+  const made=[];edPage().querySelectorAll('font[size="7"]').forEach(f=>{const sp=document.createElement('span');sp.style.fontSize=v+'px';sp.innerHTML=f.innerHTML;f.replaceWith(sp);made.push(sp);});
   if(made.length){const x=document.createRange();x.setStartBefore(made[0]);x.setEndAfter(made[made.length-1]);s.removeAllRanges();s.addRange(x);lastSel=x.cloneRange();}
-  afterEdit();syncTools();
+  afterEdit();syncTools();requestAnimationFrame(()=>window.syncMobileFormatBar?.());
 }
-function sizeBump(d){const si=E('size-in');setSize((parseInt(si&&si.value)||16)+d);}
+function sizeBump(d){
+  if(!requireEdit())return;
+  const r=restoreSel();
+  const node=r.startContainer;
+  const el=node.nodeType===1?node:node.parentElement;
+  const root=edPage();
+  const current=el&&root.contains(el)?parseFloat(getComputedStyle(el).fontSize):16;
+  const fallback=+E('size-in')?.value||16;
+  const size=Number.isFinite(current)?current:fallback;
+  setSize(Math.round(size)+d);
+  const input=E('size-in');if(input)input.value=Math.max(8,Math.min(120,Math.round(size)+d));
+  requestAnimationFrame(()=>window.syncMobileFormatBar?.());
+}
 
 function selBlocks(){
   const r=getRange(),root=selRoot(r);if(!root)return[];normalizeRoot(root);
@@ -2447,6 +2479,17 @@ function bindEditor(){
 let openNote=null,noteFull=false;
 function toggleFull(){noteFull=!noteFull;renderSide();}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&noteFull){noteFull=false;renderSide();}});
+function mobileAddNote(){
+  if(typeof docReady==='undefined'||!docReady)return;
+  if(docType==='script'){propose();return;}
+  const page=edPage(), sel=window.getSelection();
+  if((!sel||sel.isCollapsed||!page.contains(sel.anchorNode)) && typeof lastSel!=='undefined' && lastSel){
+    try{if(page.contains(lastSel.startContainer)&&page.contains(lastSel.endContainer)){
+      sel.removeAllRanges();sel.addRange(lastSel.cloneRange());
+    }}catch(e){console.warn('Sélection de bulle indisponible',e)}
+  }
+  addBubble();
+}
 function addBubble(){
   if(!requireEdit())return;const s=getSelection();
   if(!s.rangeCount||s.isCollapsed){showToast('Sélectionne un mot ou une phrase.');return;}
@@ -2486,8 +2529,8 @@ function miniEditor(el,obj){
   });
 }
 function bubbleCard(id,d){
-  const el=document.createElement('div');el.className='ed-bub side-item'+(noteFull?' ed-full':'');
-  el.innerHTML=`<div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>💬 ${escapeHtml(d.by)}</span><span><button onclick="toggleFull()" title="${noteFull?'Réduire':'Agrandir'}">${noteFull?'⤡':'⤢'}</button> ${canEdit()?`<button onclick="delBubble('${id}')">🗑</button> `:''}<button onclick="closeBubble()">✕</button></span></div><div class="ed-mini ${docType==='script'?'script':''}" contenteditable="${canEdit()}">${d.html}</div>`;
+  const el=document.createElement('div');el.className='ed-bub side-item ed-note-overlay'+(noteFull?' ed-full':'');
+  el.innerHTML=`<div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>💬 ${escapeHtml(d.by)}</span><span><button class="ed-note-expand" aria-label="${noteFull?'Réduire la fenêtre':'Agrandir la fenêtre'}" onclick="toggleFull()" title="${noteFull?'Réduire':'Agrandir'}">${noteFull?'⤡':'⤢'}</button> ${canEdit()?`<button onclick="delBubble('${id}')">🗑</button> `:''}<button onclick="closeBubble()">✕</button></span></div><div class="ed-mini ${docType==='script'?'script':''}" contenteditable="${canEdit()}">${d.html}</div>`;
   miniEditor(el,d);return el;
 }
 const q=id=>id?edPage().querySelector('[data-id="'+id+'"]'):null;
@@ -2509,10 +2552,10 @@ function propInfo(p){
 }
 function propCard(id,p,open){
   const v=Object.values(p.votes||{}),y=v.filter(x=>x===1).length,n=v.filter(x=>x===0).length,mine=(p.votes||{})[currentUser.id],el=document.createElement('div');
-  el.className='side-item '+(open?'ed-prop':'')+(open&&noteFull?' ed-full':'');
+  el.className='side-item '+(open?'ed-prop ed-note-overlay':'')+(open&&noteFull?' ed-full':'');
   if(!open){el.innerHTML=`<button class="ed-chip" onclick="openNote={k:'p',id:'${id}'};renderSide()">💡 ${escapeHtml(p.by)} · 👍 ${y} 👎 ${n}</button>`;return el;}
   const mode=p.mode||'add',kind=p.kind||'free',ed=canEdit(),dis=ed?'':'disabled',sh=sceneHead(p),sel=sh?sh.dataset.id:'';
-  el.innerHTML=`<div class="flex justify-between items-center text-[10px] text-slate-400 mb-2"><span>💡 ${escapeHtml(p.by)} · ${propInfo(p)}</span><span class="flex gap-2"><button onclick="toggleFull()" title="${noteFull?'Réduire':'Agrandir'}">${noteFull?'⤡':'⤢'}</button> ${canDelProp(p)?`<button title="Supprimer la proposition" onclick="delProp('${id}')">🗑</button>`:''}<button onclick="closeBubble()">✕</button></span></div>`
+  el.innerHTML=`<div class="flex justify-between items-center text-[10px] text-slate-400 mb-2"><span>💡 ${escapeHtml(p.by)} · ${propInfo(p)}</span><span class="flex gap-2"><button class="ed-note-expand" aria-label="${noteFull?'Réduire la fenêtre':'Agrandir la fenêtre'}" onclick="toggleFull()" title="${noteFull?'Réduire':'Agrandir'}">${noteFull?'⤡':'⤢'}</button> ${canDelProp(p)?`<button title="Supprimer la proposition" onclick="delProp('${id}')">🗑</button>`:''}<button onclick="closeBubble()">✕</button></span></div>`
   +`<div class="pm-row"><select class="pm-sel" title="Scène concernée" ${dis} onchange="propPickScene('${id}',this.value)">${sceneOptions(sel)}</select><div class="pm-seg"><button class="${mode==='edit'?'on':''}" ${dis} onclick="propMode('${id}','edit')">Modifier</button><button class="${mode==='add'?'on':''}" ${dis} onclick="propMode('${id}','add')">Ajouter</button></div></div>`
   +(mode==='add'?`<div class="pm-row"><select class="pm-sel" ${dis} onchange="propKind('${id}',this.value)">${[['free','Bloc libre (au clic)'],['act','Un acte'],['scene','Une en-tête de scène']].map(([k,l])=>`<option value="${k}" ${k===kind?'selected':''}>${l}</option>`).join('')}</select>${kind!=='free'?`<input class="pm-num" type="number" min="1" placeholder="N°" ${dis} value="${escapeHtml(String(p.num||''))}" oninput="propNum('${id}',this.value)">`:''}</div>`:'')
   +`<div class="ed-mini script" contenteditable="${ed}">${p.html}</div><div class="flex items-center gap-2 mt-3 text-xs flex-wrap"><button class="vote ${mine===1?'on':''}" onclick="vote('${id}',1)">👍 Oui ${y}</button><button class="vote ${mine===0?'on':''}" onclick="vote('${id}',0)">👎 Non ${n}</button>${mode==='edit'?`<button class="vote" onclick="compareProp('${id}')">⇄ Comparer</button>`:''}</div>${canEdit()?`<button class="w-full mt-3 py-2 rounded-xl bg-[#5246EE] text-white text-xs font-semibold" onclick="resolveProp('${id}',true)">✓ Valider et ajouter au scénario</button>`:''}`;
@@ -2539,6 +2582,9 @@ function layoutSide(){   // empile les cartes sans qu'elles se chevauchent (rapp
   const side=E('ed-side');if(!side)return;const wide=E('ed-scroll').clientWidth>=1140;let y=0;
   const fr=E('ed-work').getBoundingClientRect();
   [...side.children].forEach(el=>{
+    if(window.innerWidth<768 && el.classList.contains('ed-note-overlay')){
+      el.style.removeProperty('position');el.style.removeProperty('left');el.style.removeProperty('right');el.style.removeProperty('top');el.style.removeProperty('width');el.style.removeProperty('height');el.style.removeProperty('margin-bottom');return;
+    }
     if(el.classList.contains('ed-full')){Object.assign(el.style,{position:'fixed',left:fr.left+'px',top:fr.top+'px',width:fr.width+'px',height:fr.height+'px',right:'auto',marginBottom:''});return;}
     if(wide){const t=Math.max(el._top||0,y);Object.assign(el.style,{position:'absolute',left:0,right:0,top:t+'px',marginBottom:''});y=t+el.offsetHeight+8;}
     else Object.assign(el.style,{position:'',left:'',right:'',top:'',marginBottom:'.5rem'});
@@ -3814,15 +3860,23 @@ window.mobiusRelationSQL = function(cardTables) {
  const byId=id=>document.getElementById(id);
  const originalTabs=byId('nav-tabs')?.parentElement;
  const isMobile=()=>innerWidth<768;
- function viewportBottomOffset(){
-   const vv=window.visualViewport;
-   if(!vv) return 0;
-   return Math.max(0, window.innerHeight - (vv.height + vv.offsetTop));
- }
+ // La position est calculée depuis le bord visible du visualViewport, pas
+ // depuis le bas du layout viewport (qui peut changer avec Safari iOS).
+ let keyboardFrame=0;
  function positionKbBar(){
-   const bar=byId('ed-mobile-kbbar'); if(!bar) return;
-   const base=viewportBottomOffset();
-   bar.style.bottom=`${base}px`;
+   const bar=byId('ed-mobile-kbbar');if(!bar||!isMobile())return;
+   const vv=window.visualViewport;
+   const height=bar.offsetHeight||54;
+   const viewportTop=vv?vv.offsetTop:0;
+   const viewportHeight=vv?vv.height:window.innerHeight;
+   // Une barre à hauteur fixe, collée au bas de la zone visible.
+   const top=Math.max(viewportTop,viewportTop+viewportHeight-height);
+   bar.style.top=`${Math.round(top)}px`;
+   bar.style.bottom='auto';
+ }
+ function scheduleKbPosition(){
+   cancelAnimationFrame(keyboardFrame);
+   keyboardFrame=requestAnimationFrame(()=>{positionKbBar();requestAnimationFrame(positionKbBar)});
  }
  function layout(){
    const mobile=isMobile(), tabs=byId('nav-tabs'), target=byId('editor-mobile-tab-target');
@@ -3849,8 +3903,11 @@ window.mobiusRelationSQL = function(cardTables) {
    if(authorWrap) authorWrap.style.display = mobile && writing && docReady ? 'block' : 'none';
    const high=byId('ed-mobile-highlight');if(high)high.style.display=(typeof docType!=='undefined'&&docType==='script')?'none':'';
    document.querySelectorAll('#ed-mobile-kbbar [data-kb-type]').forEach(el=>{el.style.display=(el.dataset.kbType==='script')===(docType==='script')?'':'none';});
+   const noteLabel=byId('ed-mobile-note-label'),noteIcon=byId('ed-mobile-note-icon');
+   if(noteLabel)noteLabel.textContent=docType==='script'?'Proposition':'Bulle';
+   if(noteIcon)noteIcon.textContent=docType==='script'?'💡':'💬';
    const kb=byId('ed-mobile-kbbar');
-   if(kb){ kb.classList.toggle('show', mobile && writing && mobileEditorFocused && docReady); if(mobile && writing && mobileEditorFocused)positionKbBar(); if(kb.classList.contains('show'))requestAnimationFrame(()=>window.syncMobileFormatBar?.()); }
+   if(kb){ kb.classList.toggle('show', mobile && writing && mobileEditorFocused && docReady); if(mobile && writing && mobileEditorFocused)scheduleKbPosition(); if(kb.classList.contains('show')){scheduleKbPosition();requestAnimationFrame(()=>window.syncMobileFormatBar?.());} }
    const subtabs=byId('editor-mobile-subtabs');
    if(subtabs) subtabs.classList.toggle('show', mobile && inspecting && docReady);
    document.querySelectorAll('#editor-mobile-nav button').forEach(b=>b.classList.toggle('active',b.id==='ed-mobile-'+mobilePanel));
@@ -3877,7 +3934,9 @@ window.mobiusRelationSQL = function(cardTables) {
  };
  function update(){layout();}
  addEventListener('resize',update);
- window.visualViewport?.addEventListener('resize',()=>{positionKbBar();updateMobileChrome();});
+ window.visualViewport?.addEventListener('resize',()=>{scheduleKbPosition();updateMobileChrome();});
+ window.visualViewport?.addEventListener('scroll',scheduleKbPosition);
+ window.addEventListener('orientationchange',scheduleKbPosition);
  document.addEventListener('DOMContentLoaded',()=>{
    layout();
    new MutationObserver(layout).observe(byId('ed-work'),{attributes:true,attributeFilter:['style']});
