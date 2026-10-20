@@ -130,7 +130,7 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
             <div class="bg-gray-200/70 dark:bg-gray-800 p-1 rounded-2xl flex w-full sm:w-auto overflow-x-auto">
                 <button data-tab="projects" class="tab-btn flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold transition-all">Projets & Dossiers</button>
-                <button data-tab="cards" class="tab-btn flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold transition-all">Cartes Libres</button>
+                <button data-tab="cards" class="tab-btn flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold transition-all">Cartes</button>
                 <button data-tab="scripts" class="tab-btn flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold transition-all">Scénarios</button>
                 <button data-tab="texts" class="tab-btn flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold transition-all">Textes</button>
             </div>
@@ -149,7 +149,7 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
                     <option value="chrono">Plus récents</option>
                 </select>
                 <!-- Bouton d'importation global .mobius -->
-                <input type="file" id="import-mobius-input" accept=".mobius,.mobpro,.json,.mobscen,.mobtext,.fountain,.txt,.pdf,.docx,.page,.mobql,.sql,.csv,.xlsx,.xls,.zip" multiple class="hidden" onchange="importDashboardMobiusFile(event)">
+                <input type="file" id="import-mobius-input" accept=".mobius,.mobpro,.mobpro,.json,.mobscen,.mobscen,.mobtext,.fountain,.txt,.pdf,.docx,.page,.mobql,.sql,.csv,.xlsx,.xls,.zip" multiple class="hidden" onchange="importDashboardMobiusFile(event)">
                 <button onclick="document.getElementById('import-mobius-input').click()" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all" title="Importer une carte (.mobius), un projet (.mobpro), un scénario (.mobscen, .fountain) ou un texte (.mobtext, .txt, .pdf, .docx)">
                     <i class="fa-solid fa-file-arrow-down text-[#5246EE]"></i>
                     <span class="hidden sm:inline">Importer</span>
@@ -160,6 +160,18 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
             </div>
         </div>
 
+        <!-- Guide contextuel : formats compatibles selon l’onglet actif -->
+        <section id="dash-import-guide" class="mb-5 rounded-2xl border border-indigo-100 dark:border-indigo-900/50 bg-white dark:bg-gray-900 px-4 py-3 shadow-sm" aria-live="polite">
+            <div class="flex items-start gap-3">
+                <i class="fa-solid fa-circle-info text-[#5246EE] mt-0.5" aria-hidden="true"></i>
+                <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2 mb-1"><span class="text-xs font-bold" id="dash-import-guide-title">Importer un projet</span><span class="text-[10px] text-gray-400">Formats et compatibilité</span></div>
+                    <p id="dash-import-guide-primary" class="text-xs leading-relaxed text-gray-700 dark:text-gray-200"></p>
+                    <p id="dash-import-guide-other" class="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400 mt-1"></p>
+                    <p id="dash-import-guide-note" class="text-[10px] leading-relaxed text-gray-400 mt-1"></p>
+                </div>
+            </div>
+        </section>
         <div id="items-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
     </main>
 
@@ -474,6 +486,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     /* ---------- Rendu dashboard ---------- */
+    // Un guide par onglet : les formats externes sont convertis et ne garantissent pas une fidélité parfaite.
+    const IMPORT_GUIDES = {
+        projects: {
+            title: 'Importer un projet',
+            primary: '<strong>.mobpro</strong> — format natif : conserve l’arborescence et les données des cartes et documents contenus dans le projet.',
+            other: 'Autres formats acceptés : .json, .xlsx / .xls, .sql, .mobql, .csv.',
+            note: 'Ces autres formats sont convertis en cartes ou données structurées ; ils ne recréent pas nécessairement un projet complet.'
+        },
+        cards: {
+            title: 'Importer une carte',
+            primary: '<strong>.mobius</strong> — format natif préservant les données de la carte. <strong>.mobql</strong> — import structuré des données et relations prises en charge.',
+            other: 'Autres formats acceptés : .json, .xlsx / .xls, .sql, .csv.',
+            note: 'Les formats tabulaires sont convertis : la disposition graphique d’origine n’est pas forcément conservée.'
+        },
+        scripts: {
+            title: 'Importer un scénario',
+            primary: '<strong>.mobscen</strong> — format natif préservant les données du scénario. <strong>.fountain</strong> — recommandé pour échanger avec d’autres logiciels de scénario.',
+            other: 'Autres formats acceptés : .docx, .pdf, .txt, .page.',
+            note: 'La mise en page des documents externes est reconstituée autant que possible, sans garantie de fidélité parfaite.'
+        },
+        texts: {
+            title: 'Importer un texte',
+            primary: '<strong>.mobtext</strong> — format natif préservant les données du document Mobius.',
+            other: 'Autres formats acceptés : .pdf, .docx, .txt, .page.',
+            note: 'Les formats externes sont convertis ; les éléments complexes peuvent nécessiter des ajustements.'
+        }
+    };
+    function renderImportGuide() {
+        const g = IMPORT_GUIDES[state.tab];
+        if (!g) return;
+        $('dash-import-guide-title').textContent = g.title;
+        $('dash-import-guide-primary').innerHTML = g.primary;
+        $('dash-import-guide-other').textContent = g.other;
+        $('dash-import-guide-note').textContent = g.note;
+    }
+
     function applyTabStyles() {
         document.querySelectorAll('.tab-btn').forEach(b => {
             const active = b.dataset.tab === state.tab;
@@ -491,6 +539,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function renderDashboard() {
         applyTabStyles();
+        renderImportGuide();
         const container = $('items-grid');
         const q = $('search-input').value.trim().toLowerCase();
         const sort = $('sort-select').value;
@@ -1316,7 +1365,7 @@ window.__mobiusSb = sb;
             let d = null;
             try { d = JSON.parse(await file.text()); } catch (e) {}
             if (!d || typeof d !== 'object') { toast(`« ${file.name} » n'est pas un fichier Mobius valide.`, 'error'); return null; }
-            return insertDocCard(ext === 'mobscen' ? 'script' : 'text', String(d.name || baseName).replace(/\.(txt|fountain|pdf|docx)$/i, ''), { content: d.content || '', doc: d.doc });
+            return insertDocCard((ext === 'mobscen') ? 'script' : 'text', String(d.name || baseName).replace(/\.(txt|fountain|pdf|docx)$/i, ''), { content: d.content || '', doc: d.doc });
         }
         const { text, fixes } = await fileToText(file);
         if (fixes) toast(`« ${file.name} » : ${fixes} ligature${fixes > 1 ? 's' : ''} (ti / tt) corrigée${fixes > 1 ? 's' : ''}.`, 'info');
