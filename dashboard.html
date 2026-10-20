@@ -373,53 +373,104 @@ document.addEventListener('DOMContentLoaded', async () => {
     const hasCollab = (item) => collabEntries(item).some(c => c.status === 'accepted');
     const pendingCount = (item) => collabEntries(item).filter(c => c.status === 'pending').length;
 
-    /* ---------- Chargement ---------- */
+    /* ---------- Chargement résilient : une erreur réseau ne signifie jamais « zéro document » ---------- */
+    let loadSequence = 0;
+    let lastLoadOk = false;
+    const loadNotice = document.createElement('div');
+    loadNotice.id = 'mobius-load-notice';
+    loadNotice.setAttribute('role', 'status');
+    loadNotice.className = 'hidden max-w-7xl w-full mx-auto mt-3 px-4 sm:px-8';
+    loadNotice.innerHTML = `<div class="rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 p-3 text-xs flex flex-wrap items-center justify-between gap-2"><span id="mobius-load-message"></span><button type="button" id="mobius-retry-load" class="font-semibold underline underline-offset-2">Réessayer</button></div>`;
+    $('main-view').before(loadNotice);
+    $('mobius-retry-load').addEventListener('click', () => loadAll());
+    function showLoadNotice(message) {
+        $('mobius-load-message').textContent = message;
+        loadNotice.classList.remove('hidden');
+    }
+    function hideLoadNotice() { loadNotice.classList.add('hidden'); }
+
     async function fetchTable(table) {
         const queries = [
             sb.from(table).select('*').eq('owner_id', user.id),
             sb.from(table).select('*').contains('collaborators', JSON.stringify([{ email: myEmail }])),
             sb.from(table).select('*').contains('collaborators', JSON.stringify([myEmail]))
         ];
-        const results = await Promise.all(queries);
+        const results = await Promise.allSettled(queries);
         const map = new Map();
-        results.forEach((r, i) => {
-            if (r.error) { console.warn(`[${table}] requête ${i}`, r.error.message); return; }
-            (r.data || []).forEach(row => map.set(row.id, row));
+        const errors = [];
+        results.forEach((result, i) => {
+            if (result.status === 'rejected') {
+                errors.push(`requête ${i}: ${String(result.reason?.message || result.reason)}`);
+                return;
+            }
+            const r = result.value;
+            if (r.error || !Array.isArray(r.data)) {
+                errors.push(`requête ${i}: ${r.error?.message || 'réponse invalide'}`);
+                return;
+            }
+            r.data.forEach(row => map.set(row.id, row));
         });
+        if (errors.length) {
+            console.warn(`[${table}] chargement incomplet :`, errors.join(' ; '));
+            throw new Error(`Chargement de ${table} incomplet (${errors.length} requête(s) en erreur)`);
+        }
         return [...map.values()];
     }
 
     async function loadAll() {
-        const [projects, cards] = await Promise.all([fetchTable('projects'), fetchTable('cards')]);
-        try {   // éléments protégés que le serveur me cache tant que je n'ai pas saisi le mot de passe (protect_pwd.sql, partie 2)
-            const { data: lk, error: lkErr } = await sb.rpc('locked_items_for_me');
-            if (!lkErr && lk) [[projects, lk.projects], [cards, lk.cards]].forEach(([rows, extra]) => (extra || []).forEach(x => { if (!rows.some(r => r.id === x.id)) rows.push(x); }));
-        } catch (_) {}
-        state.data.projects = [];
-        state.data.cards = [];
-        state.invitations = [];
-        state.pwdRequests = [];
-
-        [['projects', projects], ['cards', cards]].forEach(([table, rows]) => {
-            rows.forEach(item => {
-                const entry = myEntry(item);
-                if (!isOwner(item) && entry?.status === 'pending') {
-                    state.invitations.push({ table, item, from: entry.invited_by || item.owner_email, at: entry.invited_at });
-                } else if (isOwner(item) || entry?.status === 'accepted') {
-                    state.data[table].push(item);
-                }
-            });
+        const seq = ++loadSequence;
+        // Les deux tables sont traitées séparément : une erreur ne vide jamais l'autre table.
+        const results = await Promise.allSettled([fetchTable('projects'), fetchTable('cards')]);
+        if (seq !== loadSequence) return; // réponse ancienne : ne jamais écraser un chargement plus récent
+        const failed = [];
+        const nextData = { projects: state.data.projects, cards: state.data.cards };
+        const nextInvitations = [];
+        const names = ['projects', 'cards'];
+        const raw = { projects: null, cards: null };
+        results.forEach((result, i) => {
+            if (result.status === 'fulfilled') raw[names[i]] = result.value;
+            else { failed.push(names[i]); console.error(`[Mobius] ${names[i]} :`, result.reason); }
         });
-        // demandes de mot de passe envoyées par les admins aux propriétaires
+        if (raw.projects && raw.cards) {
+            try {
+                const { data: lk, error: lkErr } = await sb.rpc('locked_items_for_me');
+                if (seq !== loadSequence) return;
+                if (!lkErr && lk) [[raw.projects, lk.projects], [raw.cards, lk.cards]].forEach(([rows, extra]) =>
+                    (extra || []).forEach(x => { if (!rows.some(r => r.id === x.id)) rows.push(x); }));
+                // L'échec de ce RPC optionnel ne doit pas vider les listes ordinaires.
+            } catch (e) { console.warn('[Mobius] locked_items_for_me :', e); }
+        }
+        names.forEach(table => {
+            if (!raw[table]) return;
+            const visible = [];
+            raw[table].forEach(item => {
+                const entry = myEntry(item);
+                if (!isOwner(item) && entry?.status === 'pending')
+                    nextInvitations.push({ table, item, from: entry.invited_by || item.owner_email, at: entry.invited_at });
+                else if (isOwner(item) || entry?.status === 'accepted') visible.push(item);
+            });
+            nextData[table] = visible;
+        });
+        if (seq !== loadSequence) return;
+        state.data.projects = nextData.projects;
+        state.data.cards = nextData.cards;
+        // Conserver les invitations de la table en erreur.
+        state.invitations = [...state.invitations.filter(x => failed.includes(x.table)), ...nextInvitations];
+        if (failed.length) {
+            showLoadNotice(`Connexion ou chargement incomplet (${failed.join(', ')}). Les dernières données disponibles sont conservées. Aucun document n'a été supprimé.`);
+        } else {
+            lastLoadOk = true;
+            hideLoadNotice();
+        }
+        renderDashboard();
         try {
             const { data: reqs, error: reqErr } = await sb.from('pwd_requests').select('*')
                 .eq('owner_id', user.id).eq('status', 'pending').order('created_at', { ascending: false });
-            if (!reqErr) {
-                state.pwdRequests = (reqs || []).map(r => ({ ...r, item: (state.data[r.table_name] || []).find(i => i.id === r.item_id) })).filter(r => r.item);
-            }
-        } catch (_) {}
-        await loadNotifs();
-        renderDashboard();
+            if (seq !== loadSequence) return;
+            if (!reqErr) state.pwdRequests = (reqs || []).map(r => ({ ...r, item: (state.data[r.table_name] || []).find(i => i.id === r.item_id) })).filter(r => r.item);
+        } catch (e) { console.warn('[Mobius] pwd_requests :', e); }
+        if (seq !== loadSequence) return;
+        try { await loadNotifs(); } catch (e) { console.warn('[Mobius] notifications :', e); }
     }
 
     /* ---------- Rendu dashboard ---------- */
@@ -452,7 +503,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             : 'flex flex-col gap-2';
 
         if (!items.length) {
-            container.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400 text-xs">${q ? 'Aucun résultat.' : 'Aucun élément pour le moment. Cliquez sur le bouton en haut pour en créer un !'}</div>`;
+            container.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400 text-xs">${q ? 'Aucun résultat.' : (!lastLoadOk ? 'Chargement des documents… Si cela persiste, cliquez sur Réessayer.' : 'Aucun élément pour le moment. Cliquez sur le bouton en haut pour en créer un !')}</div>`;
             return;
         }
 
