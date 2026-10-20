@@ -88,6 +88,30 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
 };
 </script>
 <style>#tree-sidebar,#tree-sidebar-content,#tree-selbar{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}</style>
+<style>
+/* Mobius : menus centrés dans le viewport sur téléphone, indépendants des boutons de l’en-tête. */
+@media (max-width: 639px) {
+  #collab-dropdown, #ed-export-menu, #download-dropdown {
+    position: fixed !important;
+    left: 50% !important; right: auto !important;
+    top: calc(64px + env(safe-area-inset-top, 0px)) !important;
+    margin-top: 0 !important;
+    transform: translateX(-50%) !important;
+    width: min(22rem, calc(100vw - 24px)) !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: calc(100dvh - 88px - env(safe-area-inset-bottom, 0px)) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    box-sizing: border-box;
+    z-index: 90 !important;
+  }
+  #ed-export-menu, #download-dropdown { width: min(18rem, calc(100vw - 24px)) !important; }
+  #collab-add-section > div { flex-wrap: wrap; gap: 6px; }
+  #new-collab-email { flex-basis: 100%; }
+  #new-collab-role { flex: 1; min-width: 0; }
+  #collab-dropdown { padding: 12px; }
+}
+</style>
 </head>
 <body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col antialiased selection:bg-[#5246EE] selection:text-white">
 
