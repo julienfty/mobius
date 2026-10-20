@@ -236,6 +236,34 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
 .dark #ed-selection-toolbar button,.dark #ed-selection-toolbar select,.dark #ed-selection-toolbar input{background:#1e293b;color:white}
 #ed-selection-toolbar input{width:48px}
 </style>
+<style id="patch-v22">
+/* 1) Bouton agrandir/réduire : plus gros sur grand écran */
+@media(min-width:768px){
+ .side-item .ed-note-expand{min-width:56px;min-height:48px;padding:8px 14px;font-size:30px;border-radius:14px;border-width:2px;transition:transform .12s,background .12s}
+ .side-item .ed-note-expand:hover{transform:scale(1.08)}
+ .side-item .ed-note-close{min-width:48px;min-height:48px;font-size:22px;border-radius:14px}
+}
+.side-item .ed-note-close{display:inline-flex;align-items:center;justify-content:center;min-width:36px;min-height:36px;border-radius:10px;font-size:16px;color:#64748b}
+.side-item .ed-note-close:hover{background:#f1f5f9}.dark .side-item .ed-note-close:hover{background:#1e293b}
+
+/* 2) Bouton Supprimer rouge, en bas à droite, animation au survol / dragover */
+.ed-del-row{display:flex;justify-content:flex-end;margin-top:.75rem}
+.ed-del{display:inline-flex;align-items:center;gap:.45rem;padding:.5rem 1rem;border-radius:.75rem;border:1.5px solid rgba(239,68,68,.55);background:rgba(239,68,68,.10);color:#dc2626;font-size:.78rem;font-weight:600;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:background .2s ease,border-color .2s ease,color .2s ease,box-shadow .2s ease,transform .12s ease}
+.dark .ed-del{background:rgba(239,68,68,.14);color:#f87171;border-color:rgba(248,113,113,.5)}
+.ed-del:hover,.ed-del.dragover{background:#ef4444;border-color:#ef4444;color:#fff;box-shadow:0 6px 18px rgba(239,68,68,.35)}
+.ed-del:active{transform:scale(.97)}
+.ed-del:focus-visible{outline:2px solid #ef4444;outline-offset:2px}
+.side-item.ed-full .ed-del-row{flex-shrink:0}
+
+/* 3) Outil de taille + 4) pas de chevauchement de caractères */
+.ed-page,.ed-mini{line-height:1.6;overflow-wrap:anywhere}
+.ed-page [data-s],.ed-mini [data-s]{line-height:1.6;min-height:1.6em;display:block;overflow:visible}
+.ed-page span,.ed-mini span,.ed-page font,.ed-mini font{line-height:inherit}
+.ed-page span[style*="font-size"],.ed-mini span[style*="font-size"]{line-height:1.5;vertical-align:baseline}
+.ed-page span[style*="font-size"] span[style*="font-size"],.ed-mini span[style*="font-size"] span[style*="font-size"]{font-size:inherit!important}
+.ed-page{caret-color:#5246EE}.ed-mini{caret-color:#5246EE}
+.stepper input{font-variant-numeric:tabular-nums}
+</style>
 </head>
 <body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col antialiased selection:bg-[#5246EE] selection:text-white">
 
@@ -2344,31 +2372,30 @@ function cleanEnterHl(){   // un retour à la ligne ne doit pas emporter un surl
 }
 
 /* Taille : sur la sélection, ou sur la suite de la frappe si rien n'est sélectionné */
+function sizeEl(r){const n=r.startContainer;let el=n.nodeType===1?n:n.parentElement;
+  if(r.collapsed&&n.nodeType===1&&n.childNodes[r.startOffset-1]&&n.childNodes[r.startOffset-1].nodeType===1)el=n.childNodes[r.startOffset-1];return el;}
+function flattenSize(sp){sp.querySelectorAll('[style*="font-size"]').forEach(x=>{x.style.removeProperty('font-size');if(!x.getAttribute('style'))x.removeAttribute('style');if(x.tagName==='SPAN'&&!x.attributes.length)unwrap(x);});}
 function setSize(v){
-  if(!requireEdit())return;v=Math.max(8,Math.min(120,parseInt(v)||16));
+  if(!requireEdit())return;v=Math.max(8,Math.min(120,Math.round(parseFloat(v))||16));
   const r=restoreSel(),s=getSelection();
+  const input=E('size-in');if(input)input.value=v;
   if(r.collapsed){
-    const p=r.startContainer.parentElement;
-    if(p&&p.style&&p.style.fontSize&&p.textContent==='\u200b'){p.style.fontSize=v+'px';}
+    const n=r.startContainer,p=n.nodeType===1?n:n.parentElement;
+    if(p&&p.style&&p.style.fontSize&&p.textContent.replace(/\u200b/g,'')===''){p.style.fontSize=v+'px';const t=p.firstChild;if(t&&t.nodeType===3){const x=document.createRange();x.setStart(t,t.length);x.collapse(true);s.removeAllRanges();s.addRange(x);lastSel=x.cloneRange();}}
     else{const sp=document.createElement('span');sp.style.fontSize=v+'px';sp.appendChild(document.createTextNode('\u200b'));r.insertNode(sp);const x=document.createRange();x.setStart(sp.firstChild,1);x.collapse(true);s.removeAllRanges();s.addRange(x);lastSel=x.cloneRange();}
     afterEdit();syncTools();return;
   }
   document.execCommand('fontSize',false,'7');
-  const made=[];edPage().querySelectorAll('font[size="7"]').forEach(f=>{const sp=document.createElement('span');sp.style.fontSize=v+'px';sp.innerHTML=f.innerHTML;f.replaceWith(sp);made.push(sp);});
+  const made=[];edPage().querySelectorAll('font[size="7"]').forEach(f=>{const sp=document.createElement('span');sp.style.fontSize=v+'px';sp.innerHTML=f.innerHTML;flattenSize(sp);f.replaceWith(sp);made.push(sp);});
   if(made.length){const x=document.createRange();x.setStartBefore(made[0]);x.setEndAfter(made[made.length-1]);s.removeAllRanges();s.addRange(x);lastSel=x.cloneRange();}
   afterEdit();syncTools();requestAnimationFrame(()=>window.syncMobileFormatBar?.());
 }
 function sizeBump(d){
   if(!requireEdit())return;
-  const r=restoreSel();
-  const node=r.startContainer;
-  const el=node.nodeType===1?node:node.parentElement;
-  const root=edPage();
-  const current=el&&root.contains(el)?parseFloat(getComputedStyle(el).fontSize):16;
-  const fallback=+E('size-in')?.value||16;
-  const size=Number.isFinite(current)?current:fallback;
-  setSize(Math.round(size)+d);
-  const input=E('size-in');if(input)input.value=Math.max(8,Math.min(120,Math.round(size)+d));
+  const r=restoreSel(),el=sizeEl(r),root=edPage();
+  let size=el&&root.contains(el)?parseFloat(getComputedStyle(el).fontSize):NaN;
+  if(!Number.isFinite(size))size=+E('size-in')?.value||16;
+  setSize(Math.max(8,Math.min(120,Math.round(size)+d)));
   requestAnimationFrame(()=>window.syncMobileFormatBar?.());
 }
 
@@ -2528,10 +2555,17 @@ function miniEditor(el,obj){
     }
   });
 }
+const delBtn=(fn,t)=>`<div class="ed-del-row"><button type="button" class="ed-del" title="${t}" onclick="${fn}"><i class="fa-solid fa-trash-can"></i><span>Supprimer</span></button></div>`;
+function wireDel(el){   // animation « dragover » : le bouton réagit aussi quand on survole en glissant
+  el.querySelectorAll('.ed-del').forEach(b=>{
+    ['dragenter','dragover'].forEach(ev=>b.addEventListener(ev,e=>{e.preventDefault();b.classList.add('dragover');}));
+    ['dragleave','drop'].forEach(ev=>b.addEventListener(ev,()=>b.classList.remove('dragover')));
+  });
+}
 function bubbleCard(id,d){
   const el=document.createElement('div');el.className='ed-bub side-item ed-note-overlay'+(noteFull?' ed-full':'');
-  el.innerHTML=`<div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>💬 ${escapeHtml(d.by)}</span><span><button class="ed-note-expand" aria-label="${noteFull?'Réduire la fenêtre':'Agrandir la fenêtre'}" onclick="toggleFull()" title="${noteFull?'Réduire':'Agrandir'}">${noteFull?'⤡':'⤢'}</button> ${canEdit()?`<button onclick="delBubble('${id}')">🗑</button> `:''}<button onclick="closeBubble()">✕</button></span></div><div class="ed-mini ${docType==='script'?'script':''}" contenteditable="${canEdit()}">${d.html}</div>`;
-  miniEditor(el,d);return el;
+  el.innerHTML=`<div class="flex justify-between text-[10px] text-slate-400 mb-1"><span>💬 ${escapeHtml(d.by)}</span><span><button class="ed-note-expand" aria-label="${noteFull?'Réduire la fenêtre':'Agrandir la fenêtre'}" onclick="toggleFull()" title="${noteFull?'Réduire':'Agrandir'}">${noteFull?'⤡':'⤢'}</button> <button class="ed-note-close" aria-label="Fermer" onclick="closeBubble()">✕</button></span></div><div class="ed-mini ${docType==='script'?'script':''}" contenteditable="${canEdit()}">${d.html}</div>${canEdit()?delBtn(`delBubble('${id}')`,'Supprimer la bulle'):''}`;
+  miniEditor(el,d);wireDel(el);return el;
 }
 const q=id=>id?edPage().querySelector('[data-id="'+id+'"]'):null;
 const headerText=b=>(b.innerText||b.textContent||'').replace(/\u200b/g,'').trim();
@@ -2555,11 +2589,11 @@ function propCard(id,p,open){
   el.className='side-item '+(open?'ed-prop ed-note-overlay':'')+(open&&noteFull?' ed-full':'');
   if(!open){el.innerHTML=`<button class="ed-chip" onclick="openNote={k:'p',id:'${id}'};renderSide()">💡 ${escapeHtml(p.by)} · 👍 ${y} 👎 ${n}</button>`;return el;}
   const mode=p.mode||'add',kind=p.kind||'free',ed=canEdit(),dis=ed?'':'disabled',sh=sceneHead(p),sel=sh?sh.dataset.id:'';
-  el.innerHTML=`<div class="flex justify-between items-center text-[10px] text-slate-400 mb-2"><span>💡 ${escapeHtml(p.by)} · ${propInfo(p)}</span><span class="flex gap-2"><button class="ed-note-expand" aria-label="${noteFull?'Réduire la fenêtre':'Agrandir la fenêtre'}" onclick="toggleFull()" title="${noteFull?'Réduire':'Agrandir'}">${noteFull?'⤡':'⤢'}</button> ${canDelProp(p)?`<button title="Supprimer la proposition" onclick="delProp('${id}')">🗑</button>`:''}<button onclick="closeBubble()">✕</button></span></div>`
+  el.innerHTML=`<div class="flex justify-between items-center text-[10px] text-slate-400 mb-2"><span>💡 ${escapeHtml(p.by)} · ${propInfo(p)}</span><span class="flex gap-2"><button class="ed-note-expand" aria-label="${noteFull?'Réduire la fenêtre':'Agrandir la fenêtre'}" onclick="toggleFull()" title="${noteFull?'Réduire':'Agrandir'}">${noteFull?'⤡':'⤢'}</button> <button class="ed-note-close" aria-label="Fermer" onclick="closeBubble()">✕</button></span></div>`
   +`<div class="pm-row"><select class="pm-sel" title="Scène concernée" ${dis} onchange="propPickScene('${id}',this.value)">${sceneOptions(sel)}</select><div class="pm-seg"><button class="${mode==='edit'?'on':''}" ${dis} onclick="propMode('${id}','edit')">Modifier</button><button class="${mode==='add'?'on':''}" ${dis} onclick="propMode('${id}','add')">Ajouter</button></div></div>`
   +(mode==='add'?`<div class="pm-row"><select class="pm-sel" ${dis} onchange="propKind('${id}',this.value)">${[['free','Bloc libre (au clic)'],['act','Un acte'],['scene','Une en-tête de scène']].map(([k,l])=>`<option value="${k}" ${k===kind?'selected':''}>${l}</option>`).join('')}</select>${kind!=='free'?`<input class="pm-num" type="number" min="1" placeholder="N°" ${dis} value="${escapeHtml(String(p.num||''))}" oninput="propNum('${id}',this.value)">`:''}</div>`:'')
-  +`<div class="ed-mini script" contenteditable="${ed}">${p.html}</div><div class="flex items-center gap-2 mt-3 text-xs flex-wrap"><button class="vote ${mine===1?'on':''}" onclick="vote('${id}',1)">👍 Oui ${y}</button><button class="vote ${mine===0?'on':''}" onclick="vote('${id}',0)">👎 Non ${n}</button>${mode==='edit'?`<button class="vote" onclick="compareProp('${id}')">⇄ Comparer</button>`:''}</div>${canEdit()?`<button class="w-full mt-3 py-2 rounded-xl bg-[#5246EE] text-white text-xs font-semibold" onclick="resolveProp('${id}',true)">✓ Valider et ajouter au scénario</button>`:''}`;
-  miniEditor(el,p);return el;
+  +`<div class="ed-mini script" contenteditable="${ed}">${p.html}</div><div class="flex items-center gap-2 mt-3 text-xs flex-wrap"><button class="vote ${mine===1?'on':''}" onclick="vote('${id}',1)">👍 Oui ${y}</button><button class="vote ${mine===0?'on':''}" onclick="vote('${id}',0)">👎 Non ${n}</button>${mode==='edit'?`<button class="vote" onclick="compareProp('${id}')">⇄ Comparer</button>`:''}</div>${canEdit()?`<button class="w-full mt-3 py-2 rounded-xl bg-[#5246EE] text-white text-xs font-semibold" onclick="resolveProp('${id}',true)">✓ Valider et ajouter au scénario</button>`:''}${canDelProp(p)?delBtn(`delProp('${id}')`,'Supprimer la proposition'):''}`;
+  miniEditor(el,p);wireDel(el);return el;
 }
 function renderSide(){
   miniCur=null;if(!openNote)noteFull=false;
