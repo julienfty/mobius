@@ -58,6 +58,7 @@
 .ed-pick{width:15rem;padding:1.5rem 1rem;border-radius:1rem;border:1px solid #e2e8f0;background:#fff;display:flex;flex-direction:column;align-items:center;gap:.5rem;font-size:.75rem;color:#64748b;transition:.15s}.ed-pick:hover{border-color:#5246EE;transform:translateY(-2px)}.ed-pick b{font-size:.95rem;color:#0f172a}.dark .ed-pick{background:#0f172a;border-color:#334155}.dark .ed-pick b{color:#f1f5f9}
 .ed-page{white-space:pre-wrap;min-height:1056px;background:#fff;color:#0f172a;border:1px solid #e2e8f0;border-radius:1rem;padding:48px 56px;outline:none;box-shadow:0 1px 3px rgba(0,0,0,.06);background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 1055px,rgba(82,70,238,.45) 1055px,rgba(82,70,238,.45) 1056px);line-height:1.6;word-break:break-word}.dark .ed-page{background-color:#0f172a;color:#e2e8f0;border-color:#1e293b}
 @media(max-width:640px){.ed-page{padding:28px 20px}}
+.ed-page{tab-size:4;-moz-tab-size:4}.ed-page.script{tab-size:4;-moz-tab-size:4}
 .script{font-family:'Courier Prime','American Typewriter','Courier New',monospace;font-size:14px}
 [data-s=title]{font-size:2.4em;font-weight:800;text-align:center;margin:.3em 0}[data-s=h1]{font-size:1.9em;font-weight:700;margin:.6em 0 .2em}[data-s=h2]{font-size:1.5em;font-weight:700;margin:.5em 0 .2em}[data-s=h3]{font-size:1.2em;font-weight:700;margin:.4em 0 .1em}[data-s=sub]{font-size:1.15em;color:#64748b;font-style:italic;margin:.2em 0}[data-s=box]{border:1px solid #c7c3fb;background:rgba(82,70,238,.07);border-radius:.75rem;padding:.6em .9em;margin:.5em 0}
 .script [data-s=title],.script [data-s=sub]{text-align:center}
@@ -680,25 +681,38 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
         catch (e) { return new TextDecoder('windows-1252').decode(bytes); }
     }
 
+    // PDF textuel : reconstruit les lignes à partir des coordonnées plutôt que
+    // d'aplatir tous les fragments. Les marges et la typographie guident le style.
     async function pdfToText(buf) {
-        if (!window.pdfjsLib) throw new Error("lecteur PDF indisponible (connexion ?)");
+        if (!window.pdfjsLib) throw new Error('Lecteur PDF indisponible');
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
-        const pages = [];
-        for (let n = 1; n <= pdf.numPages; n++) {
-            const content = await (await pdf.getPage(n)).getTextContent();
-            let out = '', lastY = null;
-            for (const it of content.items) {
-                if (it.str === '') { if (it.hasEOL && out && !out.endsWith('\n')) out += '\n'; continue; }
-                const y = it.transform ? it.transform[5] : null;
-                if (lastY !== null && y !== null && Math.abs(y - lastY) > 2 && out && !out.endsWith('\n')) out += '\n';
-                out += it.str;
-                if (it.hasEOL && !out.endsWith('\n')) out += '\n';
-                if (y !== null) lastY = y;
+        const pdf = await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
+        const lines=[];
+        for(let pageNo=1;pageNo<=pdf.numPages;pageNo++){
+            const page=await pdf.getPage(pageNo), content=await page.getTextContent();
+            const rows=[];
+            for(const it of content.items){
+                if(!it.str || !it.str.trim())continue;
+                const x=it.transform[4], y=it.transform[5];
+                let row=rows.find(r=>Math.abs(r.y-y)<Math.max(2,Math.min(4,Math.abs(it.transform[0])*.3)));
+                if(!row){row={y,items:[]};rows.push(row);}
+                row.items.push({x,t:it.str,w:it.width||0,font:it.fontName||'',height:Math.abs(it.transform[3])||12});
             }
-            pages.push(out.trim());
+            rows.sort((a,b)=>b.y-a.y);
+            for(const row of rows){
+                row.items.sort((a,b)=>a.x-b.x);
+                let str='',lastRight=null;
+                for(const it of row.items){
+                    if(lastRight!==null&&it.x-lastRight>Math.max(2,it.height*.28)&&str&&!/\s$/.test(str)&&!/^\s/.test(it.t))str+=' ';
+                    str+=it.t;lastRight=Math.max(lastRight||0,it.x+it.w);
+                }
+                const text=str.trim();if(!text)continue;
+                lines.push({text,x:row.items[0].x,y:row.y,page:pageNo,italic:row.items.some(it=>/italic|oblique/i.test(it.font)),bold:row.items.some(it=>/bold/i.test(it.font))});
+            }
+            if(pageNo<pdf.numPages)lines.push({text:'',page:pageNo,break:true});
         }
-        return fixPdfLigatures(pages.filter(Boolean).join('\n\n'));
+        const result=fixPdfLigatures(lines.map(l=>l.text).join('\n'));
+        return {...result, layout:lines};
     }
 
     // Beaucoup de PDF (Keynote, Pages, certaines polices) encodent les ligatures « ti » / « tt »
@@ -741,10 +755,10 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
         if (file.size > MAX_INPUT_BYTES) throw new Error('fichier trop volumineux (max 20 Mo)');
         const buf = await file.arrayBuffer();
         const bytes = new Uint8Array(buf);
-        let text, fixes = 0;
+        let text, fixes = 0, layout = null;
         if (/\.pdf$/i.test(file.name)) {
             if (!(bytes[0] === 0x25 && bytes[1] === 0x50)) throw new Error("ce n'est pas un vrai PDF");
-            ({ text, fixes } = await pdfToText(buf));
+            ({ text, fixes, layout } = await pdfToText(buf));
         } else if (/\.docx$/i.test(file.name)) {
             if (!(bytes[0] === 0x50 && bytes[1] === 0x4B)) throw new Error("ce n'est pas un vrai .docx");
             text = await docxToText(buf);
@@ -755,7 +769,7 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
         }
         if (!text.trim()) throw new Error('aucun texte trouvé (document scanné ou composé uniquement d\'images ?)');
         if (text.length > MAX_TEXT_CHARS) throw new Error('texte trop long (max 2 millions de caractères)');
-        return { text, fixes };
+        return { text, fixes, layout };
     }
 
 
@@ -1508,10 +1522,12 @@ return Object.assign({ buildTables }, MT_core);
                         const { text } = await fileToText(file);
                         put({ id: newItemId(), type: 'txt', name: choice === 'txt' ? file.name.replace(/\.json$/i, '.txt') : file.name, content: text });
                     } else {
-                        const { text: content, fixes } = await fileToText(file);
-                        if (fixes) showToast(`« ${file.name} » : ${fixes} ligature(s) (ti / tt) corrigée(s).`);
+                        const { text: content, fixes, layout } = await fileToText(file);
+                        if (fixes) showToast(`« ${file.name} » : ${fixes} ligature(s) corrigée(s).`);
                         const name = /\.(pdf|docx)$/i.test(file.name) ? file.name.replace(/\.[^.]+$/, '') + '.txt' : file.name;
-                        put({ id: newItemId(), type: 'txt', name, content });
+                        const script = looksFountain(content,file.name)||/\.pdf$/i.test(file.name)&&/\b(?:INT|EXT|ACTE)\b/i.test(content);
+                        const parsed = script ? parseFountain(content,layout) : null;
+                        put({ id: newItemId(), type: 'txt', name, content, ...(parsed?{docType:'script',doc:{meta:parsed.meta,bubbles:{},proposals:{},html:parsed.html}}:{}) });
                     }
                 } catch (err) { console.error(err); showToast(`« ${file.name} » refusé : ${err.message}.`); }
             }
@@ -1943,28 +1959,57 @@ function scheduleSave(){if(!canEdit())return;editVer++;setUnsaved(true);armAuto(
 function armAuto(){clearTimeout(autoTimer);autoTimer=setTimeout(()=>{autoTimer=null;if(unsaved&&!saving&&canEdit())saveCurrentMapState();},AUTOSAVE_MS);}
 function syncDoc(){if(!docReady)return;doc.html=edPage().innerHTML;currentCard.doc=doc;currentCard.docType=docType;currentCard.content=edPage().innerText.replace(/\u200b/g,'');}
 
-/* --- Fountain : conserve la mise en page du fichier d'origine (stocké en .txt) --- */
-const SCENE_RE=/^(INT|EXT|EST|INT\.?\/EXT|EXT\.?\/INT|I\/E)[. ]/i;
-function looksFountain(t,n){return /\.fountain$/i.test(n||'')||/^\s*(title|author|credit|draft date)\s*:/im.test(t.slice(0,400))||(t.match(/^(INT|EXT|EST|I\/E)[. ]/gim)||[]).length>=2;}
-function parseFountain(t){
-  const L=t.replace(/\r/g,'').split('\n'),meta={},K=/^(title|authors?|credit|source|draft date|date|contact|copyright|notes)\s*:\s*(.*)$/i;let i=0,k=null;
-  while(i<L.length&&(K.test(L[i])||(k&&/^\s+\S/.test(L[i])))){const m=L[i].match(K);if(m){k=m[1].toLowerCase();meta[k]=m[2];}else meta[k]+=' '+L[i].trim();i++;}
-  const out=[];let dlg=false;
-  if(meta.title)out.push(blk('title',escapeHtml(meta.title)));
-  if(meta.author||meta.authors)out.push(blk('sub','de '+escapeHtml(meta.author||meta.authors)));
-  for(;i<L.length;i++){
-    const l=L[i].trim();let m;
-    if(!l){dlg=false;continue;}
-    if(/^(\[\[.*\]\]|={3,})$/.test(l))continue;
-    const nm=l.replace(/\s*\(.*\)\s*$/,'');
-    if((m=l.match(/^#+\s*(.*)$/))){out.push(blk('act',escapeHtml(m[1])));dlg=false;}
-    else if(SCENE_RE.test(l)||/^\.[^.]/.test(l)){out.push(blk('scene',escapeHtml(l.replace(/^\./,''))));dlg=false;}
-    else if(dlg&&/^\(.*\)$/.test(l))out.push(blk('paren',escapeHtml(l)));
-    else if(dlg)out.push(blk('dial',escapeHtml(l)));
-    else if((l[0]==='@'||(nm===nm.toUpperCase()&&/[A-ZÀ-Ý]/.test(nm)&&!/^[>!]/.test(l)))&&L[i+1]&&L[i+1].trim()&&(i===0||!L[i-1].trim())){out.push(blk('char',escapeHtml(l.replace(/^@/,''))));dlg=true;}
-    else out.push(blk('action',escapeHtml(l.replace(/^!/,''))));
+/* --- Imports structurés : Fountain, texte, Word et PDF textuel --- */
+const SCENE_RE=/^(?:INT|EXT|EST|INT\.?\/EXT|EXT\.?\/INT|I\/E|INTÉRIEUR|EXTÉRIEUR)\s*[.\-– ]/i;
+const ACT_RE=/^(?:(?:ACTE|ACT|PARTIE|CHAPITRE)\s+(?:[IVXLCDM]+|\d+|[A-ZÀ-Ÿ]+)|#+\s*.+)$/i;
+const NON_CHAR=/^(?:FIN|NOIR|CUT TO|FONDU|SUITE|CONTINU|LE LENDEMAIN|QUELQUES INSTANTS PLUS TARD|THE END)$/i;
+function looksFountain(t,n){return /\.(?:fountain|mobscen)$/i.test(n||'')||/^\s*(?:title|author|credit|draft date)\s*:/im.test(t.slice(0,400))||((t.match(/^\s*(?:INT|EXT|EST|I\/E|INTÉRIEUR|EXTÉRIEUR)[. \-–]/gim)||[]).length>=1);}
+function importInline(t){
+  // Fountain : **gras**, *italique*, _souligné_ deviennent de vrais éléments HTML.
+  const parts=String(t).split(/(\*\*[^*\n]+\*\*|\*[^*\n]+\*|_[^_\n]+_)/g);
+  return parts.map(x=>{if(/^\*\*.+\*\*$/.test(x))return '<strong>'+escapeHtml(x.slice(2,-2))+'</strong>';
+    if(/^\*.+\*$/.test(x))return '<em>'+escapeHtml(x.slice(1,-1))+'</em>';
+    if(/^_.+_$/.test(x))return '<u>'+escapeHtml(x.slice(1,-1))+'</u>';
+    return escapeHtml(x);}).join('');
+}
+function classifyScriptLines(t,layout){
+  const raw=String(t).replace(/\r/g,'').split('\n'),out=[];
+  let inDialogue=false,prevBlank=true;
+  for(let i=0;i<raw.length;i++){
+    const original=raw[i],line=original.trim(),next=(raw.slice(i+1).find(x=>x.trim())||'').trim();
+    if(!line){prevBlank=true;inDialogue=false;continue;}
+    if(/^(?:\[\[.*\]\]|={3,})$/.test(line))continue;
+    const pos=layout&&layout[i], x=pos&&pos.x;
+    const isAct=ACT_RE.test(line),isScene=SCENE_RE.test(line)||/^\.[^.]/.test(line);
+    const caps=line.replace(/^@/,'').replace(/\s*\([^)]*\)\s*$/,'');
+    const upper=caps===caps.toLocaleUpperCase('fr')&&/[A-ZÀ-Ÿ]/.test(caps);
+    const character=!isAct&&!isScene&&!NON_CHAR.test(caps)&&upper&&caps.length<=42&&next&&!SCENE_RE.test(next)&&
+      (line.startsWith('@')||(pos&&x>110&&x<420)||(prevBlank&&/^[A-ZÀ-Ÿ][A-ZÀ-Ÿ0-9 .'-]+$/.test(caps)));
+    let style;
+    if(isAct)style='act';else if(isScene)style='scene';
+    else if(inDialogue&&/^\(.*\)$/.test(line))style='paren';
+    else if(character)style='char';
+    else if(inDialogue)style='dial';
+    else if(pos&&x>110&&x<410&&prevBlank&&line.length<60&&upper)style='char';
+    else style='action';
+    let value=line.replace(/^\.(?=[^.])/,'').replace(/^@(?=[A-ZÀ-Ÿ])/,'').replace(/^!(?=.)/,'');
+    // Un PDF peut indiquer l'italique dans les métadonnées de police.
+    let html=importInline(value);
+    if(pos&&pos.italic&&!/<em>/.test(html))html='<em>'+html+'</em>';
+    if(pos&&pos.bold&&!/<strong>/.test(html)&&style==='action')html='<strong>'+html+'</strong>';
+    out.push(blk(style,html));
+    inDialogue=style==='char'||style==='dial'||style==='paren';prevBlank=false;
   }
-  return {meta,html:out.join('')};
+  return out.join('');
+}
+function parseFountain(t,layout){
+  const L=String(t).replace(/\r/g,'').split('\n'),meta={},K=/^(title|authors?|credit|source|draft date|date|contact|copyright|notes)\s*:\s*(.*)$/i;
+  let i=0,k=null;
+  while(i<L.length&&(K.test(L[i])||(k&&/^\s+\S/.test(L[i])))){
+    const m=L[i].match(K);if(m){k=m[1].toLowerCase();meta[k]=m[2];}else meta[k]+=' '+L[i].trim();i++;
+  }
+  const head=(meta.title?blk('title',escapeHtml(meta.title)):'')+((meta.author||meta.authors)?blk('sub','de '+escapeHtml(meta.author||meta.authors)):'');
+  return {meta,html:head+classifyScriptLines(L.slice(i).join('\n'),layout?layout.slice(i):null)};
 }
 
 /* --- Démarrage : contenu existant ? type déjà choisi ? --- */
@@ -1976,7 +2021,7 @@ function initEditor(){
   if(!docType){
     if(!txt.trim()){show('ed-choose');return;}
     docType=looksFountain(txt,currentCard.name)?'script':'text';
-    doc={meta:{},bubbles:{},proposals:{},html:docType==='script'?parseFountain(txt).html:txt.split('\n').map(l=>blk('body',escapeHtml(l))).join('')};
+    doc={meta:{},bubbles:{},proposals:{},html:docType==='script'?parseFountain(txt).html:txt.split('\n').map(l=>blk('body',importInline(l))).join('')};
     currentCard.docType=docType;currentCard.doc=doc;
   }
   doc.bubbles=doc.bubbles||{};doc.proposals=doc.proposals||{};
@@ -2187,6 +2232,11 @@ window.undoAction=()=>stepHist(hist.u,hist.r,'Rien à annuler');
 window.redoAction=()=>stepHist(hist.r,hist.u,'Rien à rétablir');
 function updHist(){[['t-undo',hist.u],['fab-undo',hist.u],['t-redo',hist.r],['fab-redo',hist.r]].forEach(([id,st])=>{const b=E(id);if(b)b.style.opacity=st.length?'':'.4';});}
 
+// Raccourci S + Tab : la touche S doit être maintenue pendant Tab.
+window.mobiusSHeld=false;
+document.addEventListener('keydown',e=>{if(e.key.toLowerCase()==='s'&&!e.ctrlKey&&!e.metaKey&&!e.altKey)window.mobiusSHeld=true;},true);
+document.addEventListener('keyup',e=>{if(e.key.toLowerCase()==='s')window.mobiusSHeld=false;},true);
+window.addEventListener('blur',()=>{window.mobiusSHeld=false;});
 /* --- Événements de l'éditeur + menu clic droit --- */
 function bindEditor(){
   if(edBound)return;edBound=true;const p=edPage();
@@ -2202,9 +2252,21 @@ function bindEditor(){
       setTimeout(()=>{const n=curBlock();if(!n||n===cur)return;const nx={scene:'action',char:'dial',paren:'dial',dial:'char',act:'scene',desc:'action'}[prev];if(nx)n.dataset.s=nx;},0);
     }
     if(e.key==='Tab'){
-      e.preventDefault();
-      if(docType==='text'){if(e.shiftKey)setStyle('box');else document.execCommand('insertText',false,'\t');}
-      else{const b=curBlock();if(b){const k=SCRIPT_STYLES.map(s=>s[0]),i=k.indexOf(b.dataset.s);b.dataset.s=k[(i+(e.shiftKey?k.length-1:1))%k.length];afterEdit();}}
+      // S + Tab : S maintenu enfoncé, puis Tab. Le S déjà saisi est retiré.
+      if(docType==='script' && window.mobiusSHeld && !e.ctrlKey && !e.metaKey && !e.altKey){
+        e.preventDefault();
+        const selection=window.getSelection();
+        if(selection && selection.isCollapsed && selection.rangeCount){
+          const r=selection.getRangeAt(0),node=r.startContainer,off=r.startOffset;
+          if(node.nodeType===Node.TEXT_NODE && off>0 && /s/i.test(node.textContent.charAt(off-1))){
+            const cut=r.cloneRange();cut.setStart(node,off-1);cut.deleteContents();selection.removeAllRanges();selection.addRange(cut);
+          }
+        }
+        const block=curBlock();if(block){const styles=SCRIPT_STYLES.map(x=>x[0]);const i=styles.indexOf(block.dataset.s);block.dataset.s=styles[(i+1)%styles.length];afterEdit();}
+      }else if(!e.shiftKey){
+        e.preventDefault();document.execCommand('insertText',false,'\t');
+      }
+      // Maj+Tab garde la navigation native du navigateur.
     }
   });
   p.addEventListener('click',e=>{const sp=e.target.closest('[data-bubble]');if(sp){const open=openNote&&openNote.k==='b'&&openNote.id===sp.dataset.bubble;open?closeBubble():openBubble(sp.dataset.bubble);}});
@@ -2250,8 +2312,15 @@ function miniEditor(el,obj){
       const cur=curBlock(),prev=cur&&cur.dataset.s;
       setTimeout(()=>{const n=curBlock();if(!n||n===cur||!m.contains(n))return;const nx={scene:'action',char:'dial',paren:'dial',dial:'char',act:'scene',desc:'action'}[prev];if(nx){n.dataset.s=nx;sync();}},0);
     }else if(e.key==='Tab'){
-      e.preventDefault();const b=curBlock();
-      if(b&&m.contains(b)){const k=SCRIPT_STYLES.map(s=>s[0]),x=k.indexOf(b.dataset.s);b.dataset.s=k[(x+(e.shiftKey?k.length-1:1))%k.length];sync();syncTools();}
+      if(window.mobiusSHeld && !e.shiftKey){
+        e.preventDefault();const b=curBlock();
+        if(b&&m.contains(b)){
+          const sel=window.getSelection();if(sel&&sel.isCollapsed&&sel.rangeCount){const r=sel.getRangeAt(0),n=r.startContainer,o=r.startOffset;if(n.nodeType===Node.TEXT_NODE&&o>0&&/s/i.test(n.textContent.charAt(o-1))){const cut=r.cloneRange();cut.setStart(n,o-1);cut.deleteContents();sel.removeAllRanges();sel.addRange(cut);}}
+          const k=SCRIPT_STYLES.map(s=>s[0]),x=k.indexOf(b.dataset.s);b.dataset.s=k[(x+1)%k.length];sync();syncTools();
+        }
+      }else if(!e.shiftKey){e.preventDefault();document.execCommand('insertText',false,'\t');}
+      // Maj+Tab : comportement natif.
+
     }
   });
 }
@@ -2638,7 +2707,7 @@ async function vmRestoreAll(){
 function estBlock(b){
   const s=b.dataset.s,w=wordsIn(blkText(b));
   if(s==='dial')return w/2.6+.4;
-  if(s==='paren')return 1;
+  if(s==='paren')return 0; // les didascalies ne comptent pas dans la durée
   if(s==='scene')return 2;
   if(s==='char')return .3;
   if(s==='action'||s==='desc')return w/4.2;
