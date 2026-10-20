@@ -239,16 +239,16 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
 <style id="patch-v22">
 /* 1) Bouton agrandir/réduire : plus gros sur grand écran */
 @media(min-width:768px){
- .side-item .ed-note-expand{min-width:56px;min-height:48px;padding:8px 14px;font-size:30px;border-radius:14px;border-width:2px;transition:transform .12s,background .12s}
- .side-item .ed-note-expand:hover{transform:scale(1.08)}
- .side-item .ed-note-close{min-width:48px;min-height:48px;font-size:22px;border-radius:14px}
+ .side-item .ed-note-expand{min-width:40px;min-height:34px;padding:4px 10px;font-size:20px;border-radius:10px}
+ .side-item .ed-note-close{min-width:34px;min-height:34px;font-size:16px;border-radius:10px}
 }
 .side-item .ed-note-close{display:inline-flex;align-items:center;justify-content:center;min-width:36px;min-height:36px;border-radius:10px;font-size:16px;color:#64748b}
 .side-item .ed-note-close:hover{background:#f1f5f9}.dark .side-item .ed-note-close:hover{background:#1e293b}
 
 /* 2) Bouton Supprimer rouge, en bas à droite, animation au survol / dragover */
-.ed-del-row{display:flex;justify-content:flex-end;margin-top:.75rem}
-.ed-del{display:inline-flex;align-items:center;gap:.45rem;padding:.5rem 1rem;border-radius:.75rem;border:1.5px solid rgba(239,68,68,.55);background:rgba(239,68,68,.10);color:#dc2626;font-size:.78rem;font-weight:600;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:background .2s ease,border-color .2s ease,color .2s ease,box-shadow .2s ease,transform .12s ease}
+.ed-del-row{display:flex;justify-content:flex-end;margin-top:.6rem}.ed-del i{font-size:.7rem}
+#ed-selection-toolbar #ed-selection-size{width:3rem;text-align:center;-moz-appearance:textfield;appearance:textfield}#ed-selection-toolbar #ed-selection-size::-webkit-inner-spin-button,#ed-selection-toolbar #ed-selection-size::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.ed-del{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .65rem;border-radius:.6rem;border:1.5px solid rgba(239,68,68,.55);background:rgba(239,68,68,.10);color:#dc2626;font-size:.7rem;font-weight:600;cursor:pointer;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:background .2s ease,border-color .2s ease,color .2s ease,box-shadow .2s ease,transform .12s ease}
 .dark .ed-del{background:rgba(239,68,68,.14);color:#f87171;border-color:rgba(248,113,113,.5)}
 .ed-del:hover,.ed-del.dragover{background:#ef4444;border-color:#ef4444;color:#fff;box-shadow:0 6px 18px rgba(239,68,68,.35)}
 .ed-del:active{transform:scale(.97)}
@@ -260,7 +260,6 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
 .ed-page [data-s],.ed-mini [data-s]{line-height:1.6;min-height:1.6em;display:block;overflow:visible}
 .ed-page span,.ed-mini span,.ed-page font,.ed-mini font{line-height:inherit}
 .ed-page span[style*="font-size"],.ed-mini span[style*="font-size"]{line-height:1.5;vertical-align:baseline}
-.ed-page span[style*="font-size"] span[style*="font-size"],.ed-mini span[style*="font-size"] span[style*="font-size"]{font-size:inherit!important}
 .ed-page{caret-color:#5246EE}.ed-mini{caret-color:#5246EE}
 .stepper input{font-variant-numeric:tabular-nums}
 </style>
@@ -471,7 +470,7 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
       <button onclick="cmd('italic')" title="Italique"><i>I</i></button>
       <button onclick="cmd('underline')" title="Souligné"><u>S</u></button>
       <select id="ed-selection-font" aria-label="Police" onchange="editorSelectionFont(this.value)"><option value="Inter">Inter</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="Courier New">Courier</option><option value="Times New Roman">Times</option></select>
-      <input type="number" id="ed-selection-size" min="8" max="120" value="16" aria-label="Taille" onchange="setSize(this.value)">
+      <button onclick="sizeBump(-1)" title="Réduire la taille" aria-label="Réduire la taille">A−</button><input type="number" id="ed-selection-size" min="8" max="120" value="16" aria-label="Taille" onchange="setSize(this.value)"><button onclick="sizeBump(1)" title="Agrandir la taille" aria-label="Agrandir la taille">A+</button>
     </div>
     <!-- MENU CONTEXTUEL DE L'ARBORESCENCE -->
     <div id="tree-context-menu" class="hidden fixed bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 py-2 z-50 text-xs w-56"></div>
@@ -2326,7 +2325,7 @@ function syncTools(){
   if(b){const a=b.dataset.a||((docType==='script'?['title','sub','act']:['title']).includes(b.dataset.s)?'center':'left');['left','center','right','justify'].forEach(x=>on('t-a-'+x,a===x));const o=E('t-outdent');if(o)o.style.opacity=+b.dataset.i?'':'.4';}
   if(b){const k=b.dataset.s;E('sty-label').textContent=(edStyles().find(x=>x[0]===k)||['','—'])[1];E('sty-menu').querySelectorAll('button').forEach(x=>x.lastChild.style.opacity=x.dataset.k===k?1:0);}
   const si=E('size-in');
-  if(si&&s.anchorNode&&document.activeElement!==si){const el=s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentElement;if(el&&el.closest('#ed-page'))si.value=Math.round(parseFloat(getComputedStyle(el).fontSize));}
+  if(si&&document.activeElement!==si&&s.rangeCount&&selRoot(s.getRangeAt(0))&&edPage().contains(s.anchorNode)){const px=fontSizeAt(s.getRangeAt(0));if(Number.isFinite(px))si.value=px;}
 }
 function cmd(c){if(!requireEdit())return;restoreSel();document.execCommand(c);afterEdit();syncTools();}
 
@@ -2372,8 +2371,29 @@ function cleanEnterHl(){   // un retour à la ligne ne doit pas emporter un surl
 }
 
 /* Taille : sur la sélection, ou sur la suite de la frappe si rien n'est sélectionné */
-function sizeEl(r){const n=r.startContainer;let el=n.nodeType===1?n:n.parentElement;
-  if(r.collapsed&&n.nodeType===1&&n.childNodes[r.startOffset-1]&&n.childNodes[r.startOffset-1].nodeType===1)el=n.childNodes[r.startOffset-1];return el;}
+function fontSizeAt(r){   // vraie taille du texte sous le curseur / au début de la sélection (jamais celle du bloc par erreur)
+  let el=null;const n=r.startContainer,o=r.startOffset;
+  if(r.collapsed){
+    if(n.nodeType===1){let c=n.childNodes[o-1]||n.childNodes[o];while(c&&c.lastChild)c=c.lastChild;el=c?(c.nodeType===3?c.parentElement:c):n;}
+    else el=n.parentElement;
+  }else{
+    const ca=r.commonAncestorContainer,root=ca.nodeType===1?ca:ca.parentElement,w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let t;
+    while((t=w.nextNode())){
+      if(!r.intersectsNode(t)||!t.nodeValue.replace(/\u200b/g,''))continue;
+      if(t===r.startContainer&&r.startOffset>=t.length)continue;
+      if(t===r.endContainer&&r.endOffset===0)continue;
+      el=t.parentElement;break;
+    }
+    if(!el)el=n.nodeType===1?n:n.parentElement;
+  }
+  const px=el?parseFloat(getComputedStyle(el).fontSize):NaN;return Number.isFinite(px)?Math.round(px):NaN;
+}
+function selectSpans(made){   // re-sélectionne le texte redimensionné avec des bornes DANS les nœuds texte
+  const s=getSelection(),tn=(el,last)=>{const w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);let t,r=null;while((t=w.nextNode())){r=t;if(!last)break;}return r;};
+  const ft=tn(made[0],false),lt=tn(made[made.length-1],true),x=document.createRange();
+  if(ft&&lt){x.setStart(ft,0);x.setEnd(lt,lt.length);}else{x.setStartBefore(made[0]);x.setEndAfter(made[made.length-1]);}
+  s.removeAllRanges();s.addRange(x);lastSel=x.cloneRange();
+}
 function flattenSize(sp){sp.querySelectorAll('[style*="font-size"]').forEach(x=>{x.style.removeProperty('font-size');if(!x.getAttribute('style'))x.removeAttribute('style');if(x.tagName==='SPAN'&&!x.attributes.length)unwrap(x);});}
 function setSize(v){
   if(!requireEdit())return;v=Math.max(8,Math.min(120,Math.round(parseFloat(v))||16));
@@ -2387,14 +2407,14 @@ function setSize(v){
   }
   document.execCommand('fontSize',false,'7');
   const made=[];edPage().querySelectorAll('font[size="7"]').forEach(f=>{const sp=document.createElement('span');sp.style.fontSize=v+'px';sp.innerHTML=f.innerHTML;flattenSize(sp);f.replaceWith(sp);made.push(sp);});
-  if(made.length){const x=document.createRange();x.setStartBefore(made[0]);x.setEndAfter(made[made.length-1]);s.removeAllRanges();s.addRange(x);lastSel=x.cloneRange();}
+  if(made.length)selectSpans(made);
   afterEdit();syncTools();requestAnimationFrame(()=>window.syncMobileFormatBar?.());
 }
 function sizeBump(d){
   if(!requireEdit())return;
-  const r=restoreSel(),el=sizeEl(r),root=edPage();
-  let size=el&&root.contains(el)?parseFloat(getComputedStyle(el).fontSize):NaN;
-  if(!Number.isFinite(size))size=+E('size-in')?.value||16;
+  const r=restoreSel();
+  let size=fontSizeAt(r);
+  if(!Number.isFinite(size))size=+E('size-in')?.value||+E('ed-selection-size')?.value||16;
   setSize(Math.max(8,Math.min(120,Math.round(size)+d)));
   requestAnimationFrame(()=>window.syncMobileFormatBar?.());
 }
@@ -3984,6 +4004,7 @@ window.mobiusRelationSQL = function(cardTables) {
  function selectionPopup(){
    const bar=byId('ed-selection-toolbar'),root=byId('ed-page'),s=window.getSelection();if(!bar||!root)return;
    if(isMobile()){bar.style.display='none';return;}
+   if(document.activeElement===byId('ed-selection-size'))return;
    if(!s||s.isCollapsed||!s.rangeCount||!root.contains(s.anchorNode)||!root.contains(s.focusNode)||!docReady){bar.style.display='none';return;}
    const rect=s.getRangeAt(0).getBoundingClientRect();if(!rect.width&&!rect.height){bar.style.display='none';return;}
    bar.style.display='flex';bar.style.visibility='hidden';
@@ -3991,7 +4012,7 @@ window.mobiusRelationSQL = function(cardTables) {
    const x=Math.max(8,Math.min(innerWidth-width-8,rect.left+rect.width/2-width/2));
    const y=rect.top-height-10>8?rect.top-height-10:Math.min(innerHeight-height-8,rect.bottom+10);
    bar.style.left=x+'px';bar.style.top=Math.max(8,y)+'px';bar.style.visibility='visible';
-   const size=byId('ed-selection-size');if(size){const el=s.anchorNode.nodeType===1?s.anchorNode:s.anchorNode.parentElement;const px=parseInt(getComputedStyle(el).fontSize);if(Number.isFinite(px))size.value=px;}
+   const size=byId('ed-selection-size');if(size&&document.activeElement!==size){const px=fontSizeAt(s.getRangeAt(0));if(Number.isFinite(px))size.value=px;}
  }
  document.addEventListener('selectionchange',()=>{clearTimeout(timer);timer=setTimeout(selectionPopup,90)});
  document.addEventListener('pointerup',e=>{if(byId('ed-page')?.contains(e.target))setTimeout(selectionPopup,110)});
