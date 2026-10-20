@@ -350,12 +350,12 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
       <button id="ed-mobile-write" onclick="editorMobileView('write')" class="active"><i data-lucide="file-pen-line" class="w-5 h-5"></i><span>Édition</span></button>
       <button id="ed-mobile-inspect" onclick="editorMobileView('inspect')"><i data-lucide="panel-right-open" class="w-5 h-5"></i><span>Inspecteur</span></button>
     </nav>
-    <div id="ed-mobile-kbbar" aria-label="Barre d'édition mobile">
+    <div id="ed-mobile-kbbar" aria-label="Barre d'édition mobile" onpointerdown="if(event.target.closest('button'))event.preventDefault()">
       <div class="kb-scroll">
         <div class="kb-group" aria-label="Mise en forme">
           <button class="kb-btn" onclick="cmd('bold')"><b>B</b></button>
           <button class="kb-btn" onclick="cmd('italic')"><i>I</i></button>
-          <button class="kb-btn" onclick="mobileHighlight()">Surl.</button>
+          <button id="ed-mobile-highlight" class="kb-btn" onclick="mobileHighlight()">Surl.</button>
           <button class="kb-btn" onclick="cmd('underline')"><u>U</u></button>
           <select class="kb-select" onchange="editorSelectionFont(this.value)">
             <option value="Inter">Police</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="Courier New">Courier</option><option value="Times New Roman">Times</option>
@@ -366,7 +366,7 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
         <span class="kb-sep"></span>
         <div class="kb-group" aria-label="Styles du document">
           <button class="kb-btn" onclick="setStyle('title')">Titre</button>
-          <button class="kb-btn" onclick="setStyle('h1')">Sous-titre</button>
+          <button class="kb-btn" onclick="setStyle(docType==='script'?'act':'h1')">Sous-titre / Acte</button>
           <button class="kb-btn" onclick="setStyle(docType==='script'?'scene':'h2')">Entête</button>
           <button class="kb-btn" onclick="setStyle(docType==='script'?'action':'body')">Action</button>
           <button class="kb-btn" onclick="if(docType==='script')setStyle('char')">Perso</button>
@@ -3137,13 +3137,13 @@ function toggleNav(force){
 function setNavTab(t){navTab=t;renderNav();if(t==='tree')renderTreeSidebarContent();}
 function renderNav(){
   const mobileView=innerWidth<768;
-  const tabs=[...((standalone||mobileView)?[]:[['tree','Projet']]),...(docReady?[['plan','Plan'],...(docType==='script'?[['pers','Personnages']]:[]),['ver','Versions']]:[])];
+  const tabs=[...((standalone)?[]:[['tree','Projet']]),...(docReady?[['plan','Plan'],...(docType==='script'?[['pers','Personnages']]:[]),['ver','Versions']]:[])];
   if(!tabs.length)return;
   if(!tabs.some(t=>t[0]===navTab))navTab=tabs[0][0];
   const isTree=navTab==='tree';
   E('tree-pane').style.display=isTree?'flex':'none';
   E('nav-body').style.display=isTree?'none':'block';
-  E('nav-tabs').innerHTML=tabs.map(([k,l])=>`<button class="nv-tab ${k===navTab?'on':''}" onclick="setNavTab('${k}')">${l}</button>`).join('');
+  E('nav-tabs').innerHTML=(mobileView?tabs.filter(([k])=>k!=='tree'):tabs).map(([k,l])=>`<button class="nv-tab ${k===navTab?'on':''}" onclick="setNavTab('${k}')">${l}</button>`).join('');
   if(isTree||!sideOpen())return;
   const body=E('nav-body'),st=body.scrollTop;
   body.innerHTML=navTab==='plan'?(docType==='script'?planScript():planText()):navTab==='pers'?persHtml():verHtml();
@@ -3728,8 +3728,8 @@ window.mobiusRelationSQL = function(cardTables) {
  }
  function positionKbBar(){
    const bar=byId('ed-mobile-kbbar'); if(!bar) return;
-   const base=56 + viewportBottomOffset();
-   bar.style.bottom=`calc(${base}px + env(safe-area-inset-bottom))`;
+   const base=viewportBottomOffset();
+   bar.style.bottom=`${base}px`;
  }
  function layout(){
    const mobile=isMobile(), tabs=byId('nav-tabs'), target=byId('editor-mobile-tab-target');
@@ -3743,6 +3743,8 @@ window.mobiusRelationSQL = function(cardTables) {
      return;
    }
    positionKbBar();
+   const crumb=byId('breadcrumb-container');
+   if(crumb){crumb.style.pointerEvents=mobile?'none':'';crumb.style.cursor=mobile?'default':'';}
    updateMobileChrome();
  }
  function updateMobileChrome(){
@@ -3752,6 +3754,7 @@ window.mobiusRelationSQL = function(cardTables) {
    byId('ed-fab')?.classList.toggle('mobile-hide', mobile && !writing);
    const authorWrap=byId('fab-authors-wrap');
    if(authorWrap) authorWrap.style.display = mobile && writing && window.docReady ? 'block' : 'none';
+   const high=byId('ed-mobile-highlight');if(high)high.style.display=(typeof docType!=='undefined'&&docType==='script')?'none':'';
    const kb=byId('ed-mobile-kbbar');
    if(kb) kb.classList.toggle('show', mobile && writing && mobileEditorFocused && window.docReady);
    const subtabs=byId('editor-mobile-subtabs');
@@ -3762,7 +3765,8 @@ window.mobiusRelationSQL = function(cardTables) {
    mobilePanel=which;
    const sidebar=byId('tree-sidebar');
    if(which==='tree'){
-     if(typeof setNavTab==='function' && typeof standalone!=='undefined' && !standalone) setNavTab('tree');
+     if(typeof standalone!=='undefined' && standalone){mobilePanel='write';updateMobileChrome();return;}
+     if(typeof setNavTab==='function') setNavTab('tree');
      if(!sideOpen()) toggleTreeSidebar(); else renderNav();
    } else if(which==='inspect'){
      if(typeof navTab!=='undefined' && navTab==='tree') navTab='plan';
