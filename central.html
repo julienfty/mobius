@@ -52,6 +52,10 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
   #proj-export-menu{max-height:60vh;overflow-y:auto}
 }
 </style>
+
+<!-- Mobius Split: embedded applications hide the duplicated project tree. -->
+<script>if(new URLSearchParams(location.search).get('split')==='1')document.documentElement.classList.add('mobius-embedded');</script>
+<style>html.mobius-embedded #tree-sidebar,html.mobius-embedded #breadcrumb-container,html.mobius-embedded #mnav-tree,html.mobius-embedded #tree-selbar{display:none!important}html.mobius-embedded #top-header,html.mobius-embedded header{max-width:100vw}</style>
 </head>
 <body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 text-xs flex flex-col">
 <header class="flex items-center gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex-wrap">
@@ -136,7 +140,7 @@ let P,C,sel=new Set(),cur=null,view=localStorage.getItem('centralView')||'grid',
 const walk=(l,f)=>(l||[]).forEach(i=>{f(i);walk(i.children,f)});
 const find=id=>{let r;walk(P.tree,i=>{if(i.id===id)r=i});return r};
 let dirty=false;
-async function flush(){clearTimeout(timer);if(!dirty)return;dirty=false;const{error}=await sb.from('projects').update({tree:P.tree}).eq('id',pid);if(error)alert('Enregistrement impossible : '+error.message)}
+async function flush(){clearTimeout(timer);timer=null;if(!dirty)return true;dirty=false;try{const{error}=await sb.from('projects').update({tree:P.tree}).eq('id',pid);if(error){dirty=true;alert('Enregistrement impossible : '+error.message);return false}if(new URLSearchParams(location.search).get('split')==='1')window.parent.postMessage({namespace:'mobius.split.v1',type:'TREE_CHANGED'},location.origin);return true}catch(e){dirty=true;console.error(e);return false}}
 function save(){syncMapGroups();dirty=true;clearTimeout(timer);timer=setTimeout(flush,500)}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flush()});
 window.addEventListener('pagehide',()=>{flush()});
@@ -1849,7 +1853,7 @@ $('expm').onclick=e=>{const b=e.target.closest('[data-ex]');if(!b)return;const d
 $('bMql').onclick=async()=>{dirty=true;await flush();const c=(curCard&&find(curCard))||cards()[0];if(!c){alert('Aucune carte dans la centrale.');return}
   location.href=`map.html?projectId=${encodeURIComponent(pid)}&cardId=${encodeURIComponent(c.id)}&mql=1`};
 $('q').oninput=render;document.querySelectorAll('.view-btn').forEach(b=>b.onclick=()=>{view=b.dataset.view;localStorage.setItem('centralView',view);render()});
-(async()=>{const{data:{session}}=await sb.auth.getSession();if(!session){location.href='index.html';return}
+(async()=>{const{data:{session}}=await sb.auth.getSession();if(!session){location.href='index.html';return}window.__mobiusCentralUserId=session.user.id;
   const{data,error}=await sb.from('projects').select('*').eq('id',pid).single();if(error||!data){location.href='dashboard.html?openProjectId='+encodeURIComponent(pid);return}
   P=data;if(typeof P.tree==='string')P.tree=JSON.parse(P.tree);projectData=P;C=find(cid);if(!C||C.type!=='central'){document.body.innerHTML='Centrale introuvable.';return}
   C.groups=(C.groups||[]).map(g=>({parent:null,...g,keys:g.keys||[]}));C.links=C.links||{};
@@ -1884,5 +1888,100 @@ document.addEventListener('click',e=>{
 });
 addEventListener('resize',()=>{if(!mobOn())return;updateMobNav()});
 updateMobNav();
+</script>
+
+<!-- Mobius Split integration: no changes to the existing database. -->
+<script>
+const mobiusCentralOriginalFlush=flush;
+const mobiusCentralPending=new Set();
+window.flush=async(...args)=>{const job=Promise.resolve().then(()=>mobiusCentralOriginalFlush(...args));mobiusCentralPending.add(job);try{return await job}finally{mobiusCentralPending.delete(job)}};
+window.MobiusSplitAdapter={
+ app:'central',
+ hasProject:()=>Boolean(pid && P && window.__mobiusCentralUserId),
+ isReady:()=>Boolean(P&&C&&pid&&cid),
+ title:()=>C?.name||'Centrale',
+ userId:()=>window.__mobiusCentralUserId,
+ ensureSaved:async()=>{
+  try{if(timer||dirty){if((await flush())===false)return false;}if(mobiusCentralPending.size){const results=await Promise.allSettled([...mobiusCentralPending]);if(results.some(x=>x.status==='rejected'||x.value===false))return false;}return true;}
+  catch(e){console.error(e);return false;}
+ }
+};
+</script>
+<script id="mobius-split-bridge-inline">
+/* Mobius Split Bridge v1 — common navigation/iframe protocol. Designed to be loaded AFTER the original page scripts. */
+(()=>{'use strict';
+ const APP=window.MobiusSplitAdapter;
+ if(!APP||!['map','editor','central'].includes(APP.app))return;
+ const PREFIX='mobius.split.v1', HIST='mobius.split.navigation.v1', INTENT='mobius.split.intent.v1', URLS=/^(map|editor|central)\.html$/i;
+ const q=new URLSearchParams(location.search), embedded=q.get('split')==='1';
+ const origin=location.origin==='null'?'*':location.origin;
+ let busy=false, readySent=false;
+ const scoped=key=>key+':'+(APP.userId?.()||'unknown');
+ const escURL=()=>location.pathname.split('/').pop()+location.search;
+ const isPhone=()=>/iPhone|iPod|Android[^;]*Mobile|Windows Phone/i.test(navigator.userAgent)&&!/iPad/i.test(navigator.userAgent);
+ const validDoc=(entry)=>{
+   if(!entry||typeof entry.url!=='string'||entry.url.length>4096)return null;
+   try{const u=new URL(entry.url,location.href);if(u.origin!==location.origin||!URLS.test(u.pathname.split('/').pop()))return null;
+     if(!u.searchParams.has('cardId')&&!u.searchParams.has('fileId')&&!u.searchParams.has('centralId'))return null;
+     return {url:u.pathname.split('/').pop()+u.search,app:u.pathname.split('/').pop().replace('.html',''),projectId:u.searchParams.get('projectId')||null,docId:u.searchParams.get('fileId')||u.searchParams.get('cardId')||u.searchParams.get('centralId')||null};
+   }catch{return null}
+ };
+ function current(){return validDoc(APP.document?.()||{url:escURL()});}
+ function remember(){if(embedded||!APP.isReady()||!APP.hasProject?.())return;const e=current();if(!e)return;let arr=[];
+   try{arr=JSON.parse(sessionStorage.getItem(scoped(HIST))||'[]')}catch{}if(!Array.isArray(arr))arr=[];
+   arr=arr.filter(x=>validDoc(x)&&x.url!==e.url);arr.unshift({...e,at:Date.now()});sessionStorage.setItem(scoped(HIST),JSON.stringify(arr.slice(0,16)));
+ }
+ function notify(type,other={}){if(!embedded||window.parent===window)return;window.parent.postMessage({namespace:PREFIX,type,...other},origin)}
+ function ready(){if(!APP.isReady())return; if(!embedded){button.hidden=!APP.hasProject?.();remember();}else if(!readySent){readySent=true;notify('READY',{document:current(),name:APP.title?.()||document.title})}}
+ async function ensureSaved(){try{const ok=(await APP.ensureSaved())===true;if(ok)notify('TREE_CHANGED');return ok}catch(err){console.error('Mobius Split: échec de sauvegarde',err);return false}}
+ async function openSplit(){if(embedded){notify('REQUEST_SPLIT');return}if(busy||!APP.isReady()||!APP.hasProject?.())return;
+   if(isPhone()||(window.innerWidth<768&&window.matchMedia('(pointer:coarse)').matches)){alert('Mobius Split est disponible sur tablette et ordinateur.');return}
+   if(document.querySelector('dialog[open],#mod:not(.hidden),[aria-modal="true"]')){alert('Ferme la fenêtre en cours avant de passer en mode Split.');return}
+   busy=true;
+   try{const ok=await ensureSaved();if(!ok){alert('Enregistrement impossible ou modification en cours : Split n’a pas été ouvert pour protéger ton travail.');return}
+     remember();const left=current();if(!left||!left.projectId)return;let arr=[];try{arr=JSON.parse(sessionStorage.getItem(scoped(HIST))||'[]')}catch{};
+     const right=(Array.isArray(arr)?arr:[]).map(validDoc).find(x=>x?.url!==left.url)||null;
+     sessionStorage.setItem(scoped(INTENT),JSON.stringify({left,right,created:Date.now()}));
+     location.assign('split.html');
+   }finally{busy=false}
+ }
+ const button=document.createElement('button');button.type='button';button.id='mobius-split-launch';button.textContent='◫ Split';button.title='Scinder les interfaces (⌘ + E ou Ctrl + E)';button.setAttribute('aria-label','Ouvrir Mobius Split');
+ button.hidden=true;button.style.cssText='display:inline-flex;align-items:center;justify-content:center;gap:4px;border:1px solid #d8d7f9;border-radius:12px;background:rgba(82,70,238,.09);color:#5246EE;padding:8px 10px;font:600 12px Inter,system-ui,sans-serif;cursor:pointer;flex-shrink:0;white-space:nowrap;';
+ const hideStyle=document.createElement('style');hideStyle.textContent='#mobius-split-launch[hidden]{display:none!important}';document.head.append(hideStyle);
+ button.addEventListener('click',openSplit);
+ if(!embedded){const hdr=document.querySelector('header');if(hdr){const target=hdr.querySelector('#role-badge')?.parentElement || hdr.lastElementChild || hdr; if(target&&target!==hdr)target.prepend(button);else hdr.append(button);}}
+ document.addEventListener('keydown',e=>{if(embedded||!APP.hasProject?.())return;const mod=e.metaKey||e.ctrlKey;if(!mod||e.altKey||e.repeat)return;
+  const primary=!e.shiftKey&&(e.key.toLowerCase()==='e'||e.code==='KeyE');
+  const fallback=e.shiftKey&&(e.key==='.'||e.code==='Period');
+  if(primary||fallback){e.preventDefault();e.stopPropagation();openSplit()}
+ },true);
+ if(embedded){
+   document.documentElement.classList.add('mobius-embedded');
+   // The split host owns all project navigation. Internal tools and inspectors remain available.
+   const style=document.createElement('style');
+   const hiddenTree=APP.app==='editor'?'#tree-pane':'#tree-sidebar';
+   style.textContent=`html.mobius-embedded ${hiddenTree},html.mobius-embedded #breadcrumb-container,html.mobius-embedded #mnav-tree,html.mobius-embedded #nav-btn-tree,html.mobius-embedded #tree-selbar{display:none!important}html.mobius-embedded .tree-only-control{display:none!important}html.mobius-embedded #canvas-container{min-width:0}html.mobius-embedded header{max-width:100vw}html.mobius-embedded #top-header{min-width:0}html.mobius-embedded .panel{min-width:0}`;
+   document.head.append(style);
+   const bc=document.getElementById('breadcrumb-container');if(bc)bc.onclick=null;
+   // The back control navigates the host, instead of ejecting an iframe to Dashboard.
+   if(APP.app==='map'||APP.app==='editor'){
+     window.goBack=()=>notify('REQUEST_CLOSE');
+   }else{
+     const back=document.getElementById('back');if(back)back.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();notify('REQUEST_CLOSE')},true);
+   }
+   window.addEventListener('message',async e=>{
+     if(e.source!==window.parent||e.origin!==location.origin)return;
+     const m=e.data;if(!m||m.namespace!==PREFIX||!['PREPARE_NAV','FOCUS','REFRESH_TREE'].includes(m.type))return;
+     if(m.type==='PREPARE_NAV'){
+       const success=await ensureSaved();notify('PREPARE_RESULT',{requestId:m.requestId,ok:success});
+     }else if(m.type==='FOCUS'){window.focus();}
+     else if(m.type==='REFRESH_TREE'){/* Le projet partagé a changé : recharger la copie locale évite une réécriture obsolète du JSON d'arborescence. */window.location.reload();}
+   });
+ }
+ document.addEventListener('DOMContentLoaded',ready);window.addEventListener('pageshow',ready);
+ // Async Supabase authentication can finish after DOMContentLoaded.
+ let polls=0;const interval=setInterval(()=>{ready();if((embedded?readySent:APP.isReady())||++polls>60)clearInterval(interval)},250);
+})();
+
 </script>
 </body></html>
