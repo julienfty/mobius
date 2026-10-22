@@ -1861,7 +1861,7 @@ $('q').oninput=render;document.querySelectorAll('.view-btn').forEach(b=>b.onclic
   {const b=msnap();syncMapGroups();if(msnap()!==b)save()}
   $('back').addEventListener('click',async e=>{if(!dirty)return;e.preventDefault();const h=$('back').href;await flush();location.href=h});
   const nid=Q.get('nodeId');if(nid){const p=persons().list.find(p=>p.at.some(a=>a.n.id===nid));if(p)cur=p.k}
-  applyTreeSidebarState();render();if(nid)setTimeout(()=>{const i=document.querySelector('[data-f="Prénom"]');if(i){i.focus();i.select&&i.select()}},50)})();
+  applyTreeSidebarState();render();window.__mobiusCentralInitialized=true;window.MobiusSplitReady?.();if(nid)setTimeout(()=>{const i=document.querySelector('[data-f="Prénom"]');if(i){i.focus();i.select&&i.select()}},50)})();
 </script>
 <script>
 /* ===== Mobile : les menus latéraux passent dans une barre de navigation en bas (comme la map) ===== */
@@ -1897,8 +1897,8 @@ const mobiusCentralPending=new Set();
 window.flush=async(...args)=>{const job=Promise.resolve().then(()=>mobiusCentralOriginalFlush(...args));mobiusCentralPending.add(job);try{return await job}finally{mobiusCentralPending.delete(job)}};
 window.MobiusSplitAdapter={
  app:'central',
- hasProject:()=>Boolean(pid && P && window.__mobiusCentralUserId),
- isReady:()=>Boolean(P&&C&&pid&&cid),
+ hasProject:()=>Boolean(pid && P && C && window.__mobiusCentralUserId),
+ isReady:()=>Boolean(P&&C&&pid&&cid&&window.__mobiusCentralInitialized),
  title:()=>C?.name||'Centrale',
  userId:()=>window.__mobiusCentralUserId,
  ensureSaved:async()=>{
@@ -1949,8 +1949,8 @@ window.MobiusSplitAdapter={
  button.hidden=true;button.style.cssText='display:inline-flex;align-items:center;justify-content:center;gap:4px;border:1px solid #d8d7f9;border-radius:12px;background:rgba(82,70,238,.09);color:#5246EE;padding:8px 10px;font:600 12px Inter,system-ui,sans-serif;cursor:pointer;flex-shrink:0;white-space:nowrap;';
  const hideStyle=document.createElement('style');hideStyle.textContent='#mobius-split-launch[hidden]{display:none!important}';document.head.append(hideStyle);
  button.addEventListener('click',openSplit);
- if(!embedded){const hdr=document.querySelector('header');if(hdr){const target=hdr.querySelector('#role-badge')?.parentElement || hdr.lastElementChild || hdr; if(target&&target!==hdr)target.prepend(button);else hdr.append(button);}}
- document.addEventListener('keydown',e=>{if(embedded||!APP.hasProject?.())return;const mod=e.metaKey||e.ctrlKey;if(!mod||e.altKey||e.repeat)return;
+ if(!embedded){const hdr=document.querySelector('header');if(hdr){if(APP.app==='central')hdr.append(button);else{const target=hdr.querySelector('#role-badge')?.parentElement || hdr.lastElementChild || hdr;if(target&&target!==hdr)target.prepend(button);else hdr.append(button);}}}
+ window.addEventListener('keydown',e=>{if(embedded||!APP.hasProject?.())return;const mod=e.metaKey||e.ctrlKey;if(!mod||e.altKey||e.repeat)return;
   const primary=!e.shiftKey&&(e.key.toLowerCase()==='e'||e.code==='KeyE');
   const fallback=e.shiftKey&&(e.key==='.'||e.code==='Period');
   if(primary||fallback){e.preventDefault();e.stopPropagation();openSplit()}
@@ -1980,7 +1980,8 @@ window.MobiusSplitAdapter={
  }
  document.addEventListener('DOMContentLoaded',ready);window.addEventListener('pageshow',ready);
  // Async Supabase authentication can finish after DOMContentLoaded.
- let polls=0;const interval=setInterval(()=>{ready();if((embedded?readySent:APP.isReady())||++polls>60)clearInterval(interval)},250);
+ window.MobiusSplitReady=ready;
+ let polls=0;const interval=setInterval(()=>{ready();if((embedded?readySent:APP.isReady())||++polls>600)clearInterval(interval)},300);
 })();
 
 </script>
