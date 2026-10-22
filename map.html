@@ -116,6 +116,27 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
 <!-- Mobius Split: embedded applications hide the duplicated project tree. -->
 <script>if(new URLSearchParams(location.search).get('split')==='1')document.documentElement.classList.add('mobius-embedded');</script>
 <style>html.mobius-embedded #tree-sidebar,html.mobius-embedded #breadcrumb-container,html.mobius-embedded #mnav-tree,html.mobius-embedded #tree-selbar{display:none!important}html.mobius-embedded #top-header,html.mobius-embedded header{max-width:100vw}</style>
+
+<style id="mobius-tree-host-css">
+/* Split sidebar : le vrai moteur Map s'affiche seul, dans toute la surface de l'iframe. */
+html.mobius-tree-host,html.mobius-tree-host body{height:100%!important;width:100%!important;overflow:hidden!important}
+html.mobius-tree-host body>header{display:none!important}
+html.mobius-tree-host #tree-sidebar{
+ position:fixed!important;inset:0!important;display:flex!important;flex-direction:column!important;
+ width:100%!important;max-width:none!important;min-width:0!important;height:100dvh!important;
+ z-index:70!important;overflow:hidden!important;box-shadow:none!important;border:0!important
+}
+html.mobius-tree-host #tree-sidebar-content{flex:1!important;min-height:0!important;overflow-y:auto!important}
+html.mobius-tree-host #tree-sidebar .tree-row{position:relative}
+html.mobius-tree-host .split-side-tags{display:inline-flex;align-items:center;gap:3px;flex:none;margin-left:4px}
+html.mobius-tree-host .split-side-tags span{font-size:9px;font-weight:800;border-radius:5px;padding:2px 5px;background:#e0e7ff;color:#4338ca}
+html.mobius-tree-host .split-side-tags span[data-side="right"]{background:#dcfce7;color:#166534}
+html.mobius-tree-host #tree-context-menu{z-index:120!important}
+html.mobius-tree-host #export-page{z-index:140!important}
+html.mobius-tree-host #toast-notification{z-index:150!important}
+html.mobius-tree-host #tree-sidebar input,html.mobius-tree-host #tree-sidebar select{max-width:100%}
+html.mobius-tree-host #tree-sidebar #proj-export-menu{max-height:65dvh;overflow:auto}
+</style>
 </head>
 <body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col antialiased selection:bg-[#5246EE] selection:text-white">
 
@@ -513,7 +534,8 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
             cardId = urlParams.get('cardId');
             projectId = urlParams.get('projectId');
 
-            if (!cardId) {
+            const treeHostMode = urlParams.get('splitTree') === '1' && window.parent !== window;
+            if (!cardId && !treeHostMode) {
                 alert("Identifiant de carte manquant.");
                 window.location.href = 'dashboard.html';
                 return;
@@ -525,6 +547,85 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
                 return;
             }
             currentUser = session.user;
+
+            if (treeHostMode) {
+                // Autentification/RLS standards; aucun document factice n'est ajouté au projet.
+                window.MOBIUS_TREE_HOST = true;
+                document.documentElement.classList.add('mobius-tree-host');
+                if (!projectId) { document.getElementById('tree-sidebar-content').textContent='Projet manquant.'; return; }
+                const {data: project, error: projectError} = await supabaseClient.from('projects').select('*').eq('id',projectId).single();
+                if (projectError || !project) {
+                    document.getElementById('tree-sidebar-content').textContent='Projet inaccessible ou verrouillé : '+(projectError?.message||'accès refusé');
+                    window.parent.postMessage({namespace:'mobius.split.v1',type:'TREE_ERROR',projectId:String(projectId)},location.origin);
+                    return;
+                }
+                projectData=project;
+                if(typeof projectData.tree==='string'){try{projectData.tree=JSON.parse(projectData.tree)}catch{projectData.tree=[]}}
+                if(!Array.isArray(projectData.tree))projectData.tree=[];
+                currentCard={id:'',name:'',nodes:[],links:[],relationTypes:[]};
+                normalizeCollaborators();myRole=computeMyRole();
+                treeOpen=true;
+                setupTreeSidebarVisibility();
+                // Ce bouton commande maintenant l'arborescence commune du parent.
+                window.closeTreeSidebar=()=>window.parent.postMessage({namespace:'mobius.split.v1',type:'TREE_HIDE'},location.origin);
+                window.MobiusTreeHost={
+                    open(item,side='left'){
+                        if(!item || item.type==='folder')return;
+                        const params=new URLSearchParams({projectId:String(projectId)});
+                        const page=item.type==='central'?'central.html':item.type==='card'?'map.html':'editor.html';
+                        params.set(item.type==='central'?'centralId':item.type==='card'?'cardId':'fileId',String(item.id));
+                        window.parent.postMessage({namespace:'mobius.split.v1',type:'TREE_OPEN',side,projectId:String(projectId),document:{url:page+'?'+params.toString(),name:item.name}},location.origin);
+                    },
+                    badges:{left:null,right:null},
+                    updateBadges(){
+                        document.querySelectorAll('#tree-sidebar-content .tree-row[data-id]').forEach(row=>{
+                            row.querySelector('.split-side-tags')?.remove();
+                            const found=['left','right'].filter(side=>{const d=this.badges[side];return d&&String(d.projectId)===String(projectId)&&String(d.docId)===String(row.dataset.id)});
+                            if(!found.length)return;
+                            const tags=document.createElement('span');tags.className='split-side-tags';
+                            for(const side of found){const tag=document.createElement('span');tag.dataset.side=side;tag.textContent=side==='left'?'G':'D';tag.title=side==='left'?'Ouvert à gauche':'Ouvert à droite';tags.appendChild(tag)}
+                            row.appendChild(tags);
+                        });
+                    }
+                };
+                window.addEventListener('message',async event=>{
+                    if(event.source!==window.parent||event.origin!==location.origin)return;
+                    const msg=event.data;
+                    if(!msg||msg.namespace!=='mobius.split.v1')return;
+                    if(msg.type==='TREE_BADGES'){
+                        window.MobiusTreeHost.badges={left:msg.left||null,right:msg.right||null};
+                        window.MobiusTreeHost.updateBadges();
+                    }else if(msg.type==='TREE_SYNC'){
+                        // Ne pas écraser les modifications locales en attente de sauvegarde.
+                        if(treeSaveTimer)return;
+                        const {data:fresh,error:e}=await supabaseClient.from('projects').select('*').eq('id',projectId).single();
+                        if(!e&&fresh){projectData={...projectData,...fresh};if(!Array.isArray(projectData.tree))projectData.tree=[];renderTreeSidebarContent();}
+                    }else if(msg.type==='TREE_PREPARE'){
+                        let ok=true;
+                        try{
+                            if(treeSaveTimer){clearTimeout(treeSaveTimer);treeSaveTimer=null;updateCardInTree(projectData.tree,currentCard);
+                                const {error:e}=await supabaseClient.from('projects').update({tree:projectData.tree}).eq('id',projectId);ok=!e;
+                                if(ok)window.parent.postMessage({namespace:'mobius.split.v1',type:'TREE_CHANGED',projectId:String(projectId)},location.origin);
+                            }
+                        }catch{ok=false}
+                        window.parent.postMessage({namespace:'mobius.split.v1',type:'TREE_PREPARE_RESULT',ok,requestId:msg.requestId},location.origin);
+                    }
+                });
+                // Les modifications reçues via Supabase actualisent la copie native de l'arbre.
+                supabaseClient.channel('split-tree:'+projectId)
+                  .on('postgres_changes',{event:'UPDATE',schema:'public',table:'projects',filter:'id=eq.'+projectId},payload=>{
+                    if(treeSaveTimer || Date.now()-lastTreeSave<1500)return;
+                    const fresh=payload.new;if(!fresh||!fresh.tree)return;
+                    projectData={...projectData,...fresh};
+                    if(typeof projectData.tree==='string'){try{projectData.tree=JSON.parse(projectData.tree)}catch{projectData.tree=[]}}
+                    if(!Array.isArray(projectData.tree))projectData.tree=[];
+                    renderTreeSidebarContent();
+                  }).subscribe();
+                topProgress.done();
+                window.parent.postMessage({namespace:'mobius.split.v1',type:'TREE_READY',projectId:String(projectId)},location.origin);
+                return;
+            }
+
 
             if (!projectId) {
                 const { data: allProjects } = await supabaseClient.from('projects').select('*');
@@ -1494,7 +1595,7 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
             const tree = hasProject ? projectData.tree : [{ id: currentCard.id, type: 'card', name: currentCard.name }];
             const cards = new Map();
             (function walk(list) { (list || []).forEach(it => { if (it.type === 'card') cards.set(it.id, it.id === currentCard.id ? currentCard : it); if (it.children) walk(it.children); }); })(tree);
-            if (!cards.has(currentCard.id)) cards.set(currentCard.id, currentCard);
+            if (!(window.MOBIUS_TREE_HOST && !currentCard.id) && !cards.has(currentCard.id)) cards.set(currentCard.id, currentCard);
             EX = { fmt, tree, hasProject, cards, sel: new Set(scope === 'project' ? [...cards.keys()] : [currentCard.id]), fl: {} };
             cards.forEach((c, id) => { EX.fl[id] = new Set(cardFields(c).map(f => f.id)); });
             renderExportPage();
@@ -3575,6 +3676,7 @@ container.addEventListener('touchstart', (e) => {
                 const { error } = await supabaseClient.from('projects').update({ tree: projectData.tree }).eq('id', projectId);
                 lastTreeSave = Date.now();
                 if (error) showToast("Sauvegarde de l'arborescence impossible.");
+                else if(window.MOBIUS_TREE_HOST)window.parent.postMessage({namespace:'mobius.split.v1',type:'TREE_CHANGED',projectId:String(projectId)},location.origin);
             }, 250);
         }
         function refreshTree() { renderTreeSidebarContent(); renderBreadcrumb(); saveProjectTree(); }
@@ -3626,6 +3728,9 @@ container.addEventListener('touchstart', (e) => {
             if (!requireEdit()) return;
             const loc = locateTreeItem(projectData.tree, id); if (!loc) return;
             if (loc.item.id === cardId || treeContainsId(loc.item, cardId)) { showToast("Impossible de supprimer la carte actuellement ouverte (ni son dossier)."); return; }
+            if(window.MOBIUS_TREE_HOST && Object.values(window.MobiusTreeHost?.badges||{}).some(d=>d && String(d.projectId)===String(projectId) && (String(loc.item.id)===String(d.docId)||treeContainsId(loc.item,d.docId)))){
+                showToast('Ce document est ouvert dans Split : ferme-le avant de le supprimer.');return;
+            }
             if (!await treeConfirm(`Supprimer « ${loc.item.name} » de l'arborescence ?`)) return;
             loc.list.splice(loc.index, 1);
             if (treeSelectedId === id || !findTreeItem(projectData.tree, treeSelectedId)) treeSelectedId = null;
@@ -3759,6 +3864,7 @@ container.addEventListener('touchstart', (e) => {
             }
             renderTreeList(projectData.tree, container);
             treeMultiPaint();
+            if(window.MOBIUS_TREE_HOST)window.MobiusTreeHost?.updateBadges();
             lucide.createIcons();
         }
 
@@ -3803,7 +3909,7 @@ container.addEventListener('touchstart', (e) => {
         const treeClearDrop = () => document.querySelectorAll('#tree-sidebar-content .tree-row').forEach(r => r.classList.remove('tree-drop-before', 'tree-drop-after', 'tree-drop-inside'));
 
         function openTreeMenu(x, y, targetId) {
-            if (!canEdit()) return;
+            if (!canEdit() && !window.MOBIUS_TREE_HOST) return;
             const loc = targetId ? locateTreeItem(projectData.tree, targetId) : null;
             const it = loc && loc.item;
             if (it && !treeMulti.has(it.id) && treeMulti.size) treeMulti.clear();
@@ -3819,11 +3925,12 @@ container.addEventListener('touchstart', (e) => {
             const sep = `<div class="my-1 border-t border-slate-100 dark:border-slate-800"></div>`;
             menu.innerHTML = `<div class="px-4 pb-1.5 text-[10px] text-slate-400 truncate">📁 ${df ? escapeHtml(df.name) : 'Racine du projet'}</div>`
                 + (isMulti ? `<div class="px-4 pb-1.5 text-[10px] font-bold text-[#5246EE]">${selTop.length} éléments sélectionnés</div>` : '')
-                + btn('new-folder', 'folder-plus', 'Nouveau dossier') + btn('new-txt', 'file-text', 'Nouveau fichier .txt') + btn('new-card', 'sticky-note', 'Nouvelle carte') + btn('new-central', 'users', 'Nouvelle centrale')
+                + (window.MOBIUS_TREE_HOST && it && it.type!=='folder' ? btn('open-left','panel-left','Ouvrir à gauche')+btn('open-right','panel-right','Ouvrir à droite')+sep : '')
+                + (canEdit() ? btn('new-folder', 'folder-plus', 'Nouveau dossier') + btn('new-txt', 'file-text', 'Nouveau fichier .txt') + btn('new-card', 'sticky-note', 'Nouvelle carte') + btn('new-central', 'users', 'Nouvelle centrale')
                 + (isMulti && nCards > 1 && treeSelAllowsCentral() ? btn('centralize', 'git-merge', `Centraliser (${nCards} cartes)`, 'text-violet-600') : '')
                 + btn('import', 'file-up', 'Importer un fichier')
                 + (isMulti ? sep + btn('delete-sel', 'trash-2', `Supprimer la sélection (${selTop.length})`, 'text-rose-500')
-                    : it ? sep + btn('rename', 'pencil', 'Renommer') + btn('up', 'arrow-up', 'Monter') + btn('down', 'arrow-down', 'Descendre') + btn('delete', 'trash-2', 'Supprimer', 'text-rose-500') : '');
+                    : it ? sep + btn('rename', 'pencil', 'Renommer') + btn('up', 'arrow-up', 'Monter') + btn('down', 'arrow-down', 'Descendre') + btn('delete', 'trash-2', 'Supprimer', 'text-rose-500') : '') : '');
             treeMultiPaint();
             menu.classList.remove('hidden');
             lucide.createIcons();
@@ -3836,6 +3943,9 @@ container.addEventListener('touchstart', (e) => {
         async function treeMenuAction(a) {
             closeTreeMenu();
             const { targetId, dest } = treeMenuCtx || {};
+            if(window.MOBIUS_TREE_HOST && (a==='open-left'||a==='open-right')){
+                const it=findTreeItem(projectData.tree,targetId);window.MobiusTreeHost.open(it,a==='open-left'?'left':'right');return;
+            }
             if (a.startsWith('new-')) return treeCreate(a.slice(4), { folderId: dest });
             if (a === 'import') { if (!requireEdit()) return; treeImportDest = { folderId: dest }; return document.getElementById('tree-file-input').click(); }
             if (a === 'centralize') {
@@ -3920,7 +4030,8 @@ function treeSelCards() {
             treeDeleting = true;
             try {
                 const items = treeTopLevel(ids).map(id => findTreeItem(projectData.tree, id)).filter(Boolean);
-                const blocked = items.filter(it => it.id === cardId || treeContainsId(it, cardId));
+                const locked=window.MOBIUS_TREE_HOST?Object.values(window.MobiusTreeHost?.badges||{}).filter(d=>d&&String(d.projectId)===String(projectId)).map(d=>String(d.docId)):[];
+                const blocked = items.filter(it => it.id === cardId || treeContainsId(it, cardId) || locked.some(id=>String(it.id)===id||treeContainsId(it,id)));
                 const ok = items.filter(it => !blocked.includes(it));
                 if (blocked.length) showToast("« " + blocked[0].name + " » contient l'élément actuellement ouvert : il n'est pas supprimé.");
                 if (!ok.length) return;
@@ -4075,6 +4186,7 @@ function treeSelCards() {
                 }
                 if ((e.ctrlKey || e.metaKey) && it.type === 'card') { treeMulti.has(it.id) ? treeMulti.delete(it.id) : treeMulti.add(it.id); return renderTreeSidebarContent(); }
                 treeMulti.clear();
+                if(window.MOBIUS_TREE_HOST){window.MobiusTreeHost.open(it,e.shiftKey?'right':'left');return;}
                 if (it.id === cardId) return;
                 topProgress.start();
                 if (saveTimer) await saveCurrentMapState();
@@ -4087,7 +4199,7 @@ function treeSelCards() {
             });
 
             // clic droit + appui long (mobile)
-            c.addEventListener('contextmenu', (e) => { if (!canEdit()) return; e.preventDefault(); if (treeRight.down || treeRight.recent) return; const row = e.target.closest('.tree-row'); openTreeMenu(e.clientX, e.clientY, row ? row.dataset.id : null); });
+            c.addEventListener('contextmenu', (e) => { if (!canEdit()&&!window.MOBIUS_TREE_HOST) return; e.preventDefault(); if (treeRight.down || treeRight.recent) return; const row = e.target.closest('.tree-row'); openTreeMenu(e.clientX, e.clientY, row ? row.dataset.id : null); });
             let lpTimer = null;
             c.addEventListener('touchstart', (e) => {
                 if (!canEdit() || e.touches.length !== 1) return;
@@ -4925,6 +5037,7 @@ const mobiusMapPending=new Set();
 window.saveCurrentMapState=async(...args)=>{const job=Promise.resolve().then(()=>mobiusMapOriginalSave(...args));mobiusMapPending.add(job);try{return await job}finally{mobiusMapPending.delete(job)}};
 window.MobiusSplitAdapter={
   app:'map',
+  hasProject:()=>Boolean(projectId && projectData && currentUser),
   isReady:()=>Boolean(currentUser&&cardId&&currentCard?.id),
   title:()=>currentCard?.name||'Carte',
   userId:()=>currentUser?.id,
@@ -4948,7 +5061,7 @@ window.MobiusSplitAdapter={
 /* Mobius Split Bridge v1 — common navigation/iframe protocol. Designed to be loaded AFTER the original page scripts. */
 (()=>{'use strict';
  const APP=window.MobiusSplitAdapter;
- if(!APP||!['map','editor','central'].includes(APP.app))return;
+ if(!APP||!['map','editor','central'].includes(APP.app)||new URLSearchParams(location.search).has('splitTree'))return;
  const PREFIX='mobius.split.v1', HIST='mobius.split.navigation.v1', INTENT='mobius.split.intent.v1', URLS=/^(map|editor|central)\.html$/i;
  const q=new URLSearchParams(location.search), embedded=q.get('split')==='1';
  const origin=location.origin==='null'?'*':location.origin;
@@ -4964,29 +5077,30 @@ window.MobiusSplitAdapter={
    }catch{return null}
  };
  function current(){return validDoc(APP.document?.()||{url:escURL()});}
- function remember(){if(embedded||!APP.isReady())return;const e=current();if(!e)return;let arr=[];
+ function remember(){if(embedded||!APP.isReady()||!APP.hasProject?.())return;const e=current();if(!e)return;let arr=[];
    try{arr=JSON.parse(sessionStorage.getItem(scoped(HIST))||'[]')}catch{}if(!Array.isArray(arr))arr=[];
    arr=arr.filter(x=>validDoc(x)&&x.url!==e.url);arr.unshift({...e,at:Date.now()});sessionStorage.setItem(scoped(HIST),JSON.stringify(arr.slice(0,16)));
  }
  function notify(type,other={}){if(!embedded||window.parent===window)return;window.parent.postMessage({namespace:PREFIX,type,...other},origin)}
- function ready(){if(!APP.isReady())return; if(!embedded)remember();else if(!readySent){readySent=true;notify('READY',{document:current(),name:APP.title?.()||document.title})}}
+ function ready(){if(!APP.isReady())return; if(!embedded){button.hidden=!APP.hasProject?.();remember();}else if(!readySent){readySent=true;notify('READY',{document:current(),name:APP.title?.()||document.title})}}
  async function ensureSaved(){try{const ok=(await APP.ensureSaved())===true;if(ok)notify('TREE_CHANGED');return ok}catch(err){console.error('Mobius Split: échec de sauvegarde',err);return false}}
- async function openSplit(){if(embedded){notify('REQUEST_SPLIT');return}if(busy||!APP.isReady())return;
+ async function openSplit(){if(embedded){notify('REQUEST_SPLIT');return}if(busy||!APP.isReady()||!APP.hasProject?.())return;
    if(isPhone()||(window.innerWidth<768&&window.matchMedia('(pointer:coarse)').matches)){alert('Mobius Split est disponible sur tablette et ordinateur.');return}
    if(document.querySelector('dialog[open],#mod:not(.hidden),[aria-modal="true"]')){alert('Ferme la fenêtre en cours avant de passer en mode Split.');return}
    busy=true;
    try{const ok=await ensureSaved();if(!ok){alert('Enregistrement impossible ou modification en cours : Split n’a pas été ouvert pour protéger ton travail.');return}
-     remember();const left=current();if(!left)return;let arr=[];try{arr=JSON.parse(sessionStorage.getItem(scoped(HIST))||'[]')}catch{};
+     remember();const left=current();if(!left||!left.projectId)return;let arr=[];try{arr=JSON.parse(sessionStorage.getItem(scoped(HIST))||'[]')}catch{};
      const right=(Array.isArray(arr)?arr:[]).map(validDoc).find(x=>x?.url!==left.url)||null;
      sessionStorage.setItem(scoped(INTENT),JSON.stringify({left,right,created:Date.now()}));
      location.assign('split.html');
    }finally{busy=false}
  }
  const button=document.createElement('button');button.type='button';button.id='mobius-split-launch';button.textContent='◫ Split';button.title='Scinder les interfaces (⌘ + E ou Ctrl + E)';button.setAttribute('aria-label','Ouvrir Mobius Split');
- button.style.cssText='display:inline-flex;align-items:center;justify-content:center;gap:4px;border:1px solid #d8d7f9;border-radius:12px;background:rgba(82,70,238,.09);color:#5246EE;padding:8px 10px;font:600 12px Inter,system-ui,sans-serif;cursor:pointer;flex-shrink:0;white-space:nowrap;';
+ button.hidden=true;button.style.cssText='display:inline-flex;align-items:center;justify-content:center;gap:4px;border:1px solid #d8d7f9;border-radius:12px;background:rgba(82,70,238,.09);color:#5246EE;padding:8px 10px;font:600 12px Inter,system-ui,sans-serif;cursor:pointer;flex-shrink:0;white-space:nowrap;';
+ const hideStyle=document.createElement('style');hideStyle.textContent='#mobius-split-launch[hidden]{display:none!important}';document.head.append(hideStyle);
  button.addEventListener('click',openSplit);
  if(!embedded){const hdr=document.querySelector('header');if(hdr){const target=hdr.querySelector('#role-badge')?.parentElement || hdr.lastElementChild || hdr; if(target&&target!==hdr)target.prepend(button);else hdr.append(button);}}
- document.addEventListener('keydown',e=>{if(embedded)return;const mod=e.metaKey||e.ctrlKey;if(!mod||e.altKey||e.repeat)return;
+ document.addEventListener('keydown',e=>{if(embedded||!APP.hasProject?.())return;const mod=e.metaKey||e.ctrlKey;if(!mod||e.altKey||e.repeat)return;
   const primary=!e.shiftKey&&(e.key.toLowerCase()==='e'||e.code==='KeyE');
   const fallback=e.shiftKey&&(e.key==='.'||e.code==='Period');
   if(primary||fallback){e.preventDefault();e.stopPropagation();openSplit()}
@@ -5011,7 +5125,7 @@ window.MobiusSplitAdapter={
      if(m.type==='PREPARE_NAV'){
        const success=await ensureSaved();notify('PREPARE_RESULT',{requestId:m.requestId,ok:success});
      }else if(m.type==='FOCUS'){window.focus();}
-     else if(m.type==='REFRESH_TREE'){/* Upstream project reloading is app-specific: see host warning about concurrent editing. */}
+     else if(m.type==='REFRESH_TREE'){/* Le projet partagé a changé : recharger la copie locale évite une réécriture obsolète du JSON d'arborescence. */window.location.reload();}
    });
  }
  document.addEventListener('DOMContentLoaded',ready);window.addEventListener('pageshow',ready);
