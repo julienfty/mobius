@@ -1,5 +1,17 @@
 <!DOCTYPE html>
-<html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Mobius Split — Espace multi-interface</title><link href="split.css" rel="stylesheet"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
+<html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Mobius Split — Espace multi-interface</title><style id="mobius-split-styles">
+:root{color-scheme:light;--violet:#5246ee;--bg:#f8fafc;--surface:#fff;--text:#1e293b;--muted:#64748b;--line:#e2e8f0;--tree:268px}
+*{box-sizing:border-box}html,body{height:100%;margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--text);background:var(--bg)}body.dark{color-scheme:dark;--bg:#020617;--surface:#0f172a;--text:#e2e8f0;--muted:#94a3b8;--line:#334155}button,input{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible{outline:2px solid var(--violet);outline-offset:2px}button:disabled{opacity:.5;cursor:not-allowed}a{color:inherit}
+.app{display:flex;flex-direction:column;height:100dvh;overflow:hidden}.top{height:58px;flex:none;display:flex;align-items:center;gap:13px;padding:8px 16px;background:var(--surface);border-bottom:1px solid var(--line)}.brand{display:flex;align-items:center;gap:9px;font-weight:800;letter-spacing:-.02em}.brand-mark{background:var(--violet);border-radius:11px;color:white;width:34px;height:34px;display:grid;place-items:center;font-weight:800}.muted{color:var(--muted)}.subhead{font-size:12px;color:var(--muted)}.push{flex:1}.btn{border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:11px;padding:9px 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:650;white-space:nowrap}.btn:hover,.tree-row:hover{background:color-mix(in srgb,var(--violet) 8%,var(--surface))}.btn.primary{background:var(--violet);border-color:var(--violet);color:white}.btn.ghost{border-color:transparent}.work{display:flex;flex:1;min-height:0;min-width:0}.tree-pane{width:var(--tree);max-width:35vw;min-width:180px;flex:none;display:flex;flex-direction:column;background:var(--surface);border-right:1px solid var(--line)}.tree-header{display:flex;align-items:center;justify-content:space-between;padding:15px 13px 7px;font-size:12px;font-weight:800}.tree-search{margin:8px 12px 12px;padding:10px 12px;border:1px solid var(--line);background:var(--bg);border-radius:11px;color:var(--text);width:calc(100% - 24px);font-size:12px}.tree-body{flex:1;overflow:auto;padding:2px 8px 28px}.tree-row{display:flex;align-items:center;gap:7px;min-height:36px;padding:6px 7px;border-radius:9px;font-size:12px;white-space:nowrap;cursor:pointer;user-select:none}.tree-row .name{flex:1;overflow:hidden;text-overflow:ellipsis}.tree-row .arrow{font-size:12px;flex:none;width:13px;text-align:center;color:var(--muted)}.tree-row .kind{color:var(--muted);width:18px;text-align:center}.tree-row .pin{font-size:9px;padding:2px 5px;border-radius:5px;background:#ede9fe;color:#5b21b6;font-weight:800}.tree-row .pin.right{background:#dcfce7;color:#166534}.tree-row .pin.both{background:#dbeafe;color:#1e40af}.tree-row .actions{display:none;gap:3px}.tree-row:hover .actions,.tree-row:focus-within .actions{display:flex}.tree-row .actions button{background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:6px;font-size:10px;padding:3px 6px}.children{padding-left:12px;border-left:1px solid var(--line);margin-left:14px}.tree-empty,.tree-error{padding:16px 12px;color:var(--muted);font-size:12px;line-height:1.6}.tree-error{color:#dc2626}.tree-footer{border-top:1px solid var(--line);padding:10px 12px;font-size:11px;color:var(--muted)}
+.panel-space{flex:1;display:flex;min-width:0;min-height:0;overflow:hidden}.panel{display:flex;flex-direction:column;flex:1 1 50%;min-width:0;background:var(--surface)}.panel-head{height:48px;flex:none;display:flex;gap:7px;align-items:center;border-bottom:1px solid var(--line);padding:7px 10px}.panel-head .panel-icon{color:var(--violet);font-weight:900;font-size:12px;flex:none}.panel-head .panel-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:700;flex:1}.panel-head .panel-sub{font-size:10px;color:var(--muted);white-space:nowrap;max-width:30%;overflow:hidden;text-overflow:ellipsis}.panel-head .icon-btn{height:27px;min-width:28px;padding:3px;border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:8px}.panel-main{position:relative;flex:1;min-height:0;overflow:hidden}.panel-main iframe{height:100%;width:100%;display:block;border:0;background:var(--surface)}.panel-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:var(--bg);color:var(--muted);text-align:center;font-size:13px;padding:20px}.panel-empty strong{color:var(--text);font-size:15px}.panel-empty[hidden]{display:none}.divider-handle{width:8px;flex:none;background:var(--bg);border-left:1px solid var(--line);border-right:1px solid var(--line);cursor:col-resize;position:relative;touch-action:none}.divider-handle:hover,.divider-handle.dragging{background:color-mix(in srgb,var(--violet) 21%,var(--bg))}.divider-handle::after{content:'⋮';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--muted);font-weight:bold;font-size:19px}.max-left .panel[data-side="right"],.max-right .panel[data-side="left"],.max-left #divider-handle,.max-right #divider-handle{display:none}.max-left .panel[data-side="left"],.max-right .panel[data-side="right"]{flex:1!important}.is-busy .btn:not(.ghost){pointer-events:none}.toast{position:fixed;bottom:20px;right:20px;z-index:200;max-width:min(420px,95vw);padding:12px 16px;border-radius:12px;background:#1e293b;color:white;box-shadow:0 12px 25px #0003;font-size:12px;line-height:1.5}.toast[hidden]{display:none}.danger{background:#991b1b}.warning{background:#92400e}.status{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}.hidden{display:none!important}.project-title{padding:9px 7px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:flex;justify-content:space-between;align-items:center;cursor:pointer}.loading{position:absolute;inset:0;display:grid;place-items:center;background:var(--bg);color:var(--muted);font-size:13px;z-index:4}.loading[hidden]{display:none}.disabled-overlay{position:fixed;inset:0;z-index:500;display:none;align-items:center;justify-content:center;background:var(--bg);padding:20px;text-align:center}.disabled-card{border:1px solid var(--line);background:var(--surface);border-radius:18px;padding:30px;max-width:420px;line-height:1.6}
+@media(max-width:767px) and (pointer:coarse){.disabled-overlay{display:flex}}
+@media(max-width:1060px){.top{gap:7px;padding:8px 10px}.top .subhead{display:none}.tree-pane{width:215px}.panel-head .panel-sub{display:none}.btn{padding:8px 10px}}
+@media(max-width:900px){.tree-pane{width:195px}.panel-head .panel-title{font-size:11px}.top .status{display:none}}
+
+body.phone-disabled .disabled-overlay{display:flex}body.phone-disabled .app{display:none}
+@media(hover:none){.tree-row .actions{display:flex}}
+
+</style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
 <body><div class="app" id="app">
 <header class="top"><div class="brand"><span class="brand-mark">M</span><span>Mobius Split</span></div><span class="subhead">Espace multi-interface</span><span class="push"></span><span class="status" id="status" aria-live="polite">Initialisation…</span><button class="btn" id="theme" title="Changer de thème">◐</button><button class="btn" id="swap" title="Inverser les panneaux">⇄ <span>Inverser</span></button><button class="btn" id="tree-toggle" title="Afficher / masquer l'arborescence">☰</button><button class="btn primary" id="exit" title="Retourner à la page de gauche">✕ Fermer Split</button></header>
 <div class="work" id="work">
@@ -10,4 +22,187 @@
 </main></div></div>
 <div id="toast" class="toast" role="status" hidden></div>
 <div class="disabled-overlay"><div class="disabled-card"><h2>Mobius Split est réservé aux tablettes et aux ordinateurs.</h2><p>Ouvre ce module sur un écran plus grand pour travailler avec deux interfaces simultanément.</p><button class="btn primary" onclick="location.href='dashboard.html'">Revenir au Dashboard</button></div></div>
-<script defer src="split.js"></script></body></html>
+<script id="mobius-split-app">
+/* Mobius Split — host application, no privileged database keys. */
+(()=>{'use strict';
+ const PREFIX='mobius.split.v1',HIST='mobius.split.navigation.v1',INTENT='mobius.split.intent.v1',WORKSPACE='mobius.split.workspace.v1', ACTIVE='mobius.split.active.v1', SIZES='mobius.split.panes.v1';
+ const SB_URL='https://nfvnayuqrmlldtixzdpx.supabase.co',SB_KEY='sb_publishable_EwONSAsqSfu8_SocZ7wZBA_rVODWqSF';
+ const $=id=>document.getElementById(id),safe=(s)=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const validApps={map:'map.html',editor:'editor.html',central:'central.html'};
+ const state={panes:{},projects:[],cards:[],projectErrors:null,cardErrors:null,search:'',expanded:new Set(),max:null,ratio:50,busy:false,session:null};
+ let sb=null,pending=new Map(),treeTimer=null,toastTimer=null;
+ const toast=(msg,t='info')=>{const el=$('toast');el.textContent=msg;el.className='toast '+(t==='danger'?'danger':t==='warning'?'warning':'');el.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.hidden=true,6200)};
+ const read=(key,def)=>{try{return JSON.parse(sessionStorage.getItem(key)||localStorage.getItem(key)||'null')??def}catch{return def}};
+ const dateNow=()=>Date.now();
+ const toDoc=entry=>{
+  if(!entry||typeof entry.url!=='string'||entry.url.length>4096)return null;
+  try{const u=new URL(entry.url,location.href);const app=Object.keys(validApps).find(k=>validApps[k]===u.pathname.split('/').pop());
+   if(!app||u.origin!==location.origin)return null;
+   const id=(app==='central'?u.searchParams.get('centralId'):app==='map'?u.searchParams.get('cardId'):u.searchParams.get('fileId')||u.searchParams.get('cardId'));
+   if(!id)return null;
+   u.searchParams.delete('split');u.searchParams.delete('pane');u.hash='';
+   return {app,docId:String(id),projectId:u.searchParams.get('projectId')||null,url:u.pathname.split('/').pop()+u.search,name:entry.name||null};
+  }catch{return null}
+ };
+ function urlForItem(project,item){const pid=project?.id||null,id=item.id;let app;
+   if(item.type==='central')app='central';else if(item.type==='card')app='map';else app='editor';
+   const qp=new URLSearchParams();if(pid)qp.set('projectId',pid);
+   if(app==='central')qp.set('centralId',id);else if(app==='map')qp.set('cardId',id);else qp.set(pid?'fileId':'cardId',id);
+   return toDoc({url:validApps[app]+'?'+qp.toString(),name:item.name});
+ }
+ const withSplit=(doc,side)=>{const u=new URL(doc.url,location.href);u.searchParams.set('split','1');u.searchParams.set('pane',side);return u.href};
+ function setStatus(s){$('status').textContent=s}
+ function renderPanel(side){const p=state.panes[side],d=p.doc;const name=p.el.querySelector('.panel-title'),info=p.el.querySelector('.panel-sub');
+    p.el.dataset.side=side;p.el.querySelector('.panel-icon').textContent=side==='left'?'G':'D';name.textContent=d?.name||d?.url||('Panneau '+(side==='left'?'gauche':'droit'));
+    info.textContent=d?.app?d.app[0].toUpperCase()+d.app.slice(1):'';
+    p.el.querySelector('.panel-empty').hidden=!!d;
+    p.el.querySelector('.loading').hidden=!d||p.loaded;
+    p.el.querySelector('iframe').title=d?`${d.app} — ${d.name||d.docId}`:`Panneau ${side}`;
+    p.el.querySelector('.max-btn').setAttribute('aria-label','Agrandir ou réduire le panneau '+(side==='left'?'gauche':'droit'));
+ }
+ function draw(){for(const side of ['left','right'])renderPanel(side);renderTree();const max=state.max;$('panel-space').classList.toggle('max-left',max==='left');$('panel-space').classList.toggle('max-right',max==='right');}
+ function persist(){try{localStorage.setItem(WORKSPACE+':'+state.session.user.id,JSON.stringify({left:state.panes.left.doc,right:state.panes.right.doc,ratio:state.ratio,at:dateNow()}))}catch{}}
+ async function prepare(side){const p=state.panes[side];if(!p.doc||!p.loaded)return !p.doc;
+    const id='r'+Date.now()+Math.random().toString(36).slice(2);
+    return new Promise(resolve=>{const tm=setTimeout(()=>{pending.delete(id);resolve(false)},12000);
+      pending.set(id,ok=>{clearTimeout(tm);resolve(ok)});
+      try{p.iframe.contentWindow.postMessage({namespace:PREFIX,type:'PREPARE_NAV',requestId:id},location.origin)}catch{clearTimeout(tm);pending.delete(id);resolve(false)}
+    });
+ }
+ async function openPanel(side,entry,{initial=false}={}){
+    const d=toDoc(entry);if(!d)return false;
+    const p=state.panes[side];if(state.busy&&!initial)return false;
+    if(p.doc?.url===d.url){p.iframe.contentWindow?.postMessage({namespace:PREFIX,type:'FOCUS'},location.origin);return true}
+    const other=state.panes[side==='left'?'right':'left'];
+    if(other.doc?.url===d.url){toast('Ce document est déjà ouvert dans l’autre panneau. Pour éviter deux éditions concurrentes, il reste dans son panneau actuel.','warning');return false}
+    if(d.projectId&&other.doc?.projectId===d.projectId&&d.url!==other.doc.url&&!initial)toast('Les deux documents appartiennent au même projet : des sauvegardes simultanées peuvent encore provoquer un conflit avec la structure actuelle de Mobius.','warning');
+    if(!initial&&p.doc){state.busy=true;setStatus('Vérification des sauvegardes…');const ok=await prepare(side);state.busy=false;if(!ok){setStatus('Navigation annulée');toast('Le document n’a pas confirmé sa sauvegarde. Aucun changement de panneau n’a été effectué.','danger');return false}}
+    p.loaded=false;p.doc=d;renderPanel(side);p.iframe.src=withSplit(d,side);persist();renderTree();setStatus('Chargement de '+(d.name||d.app)+'…');return true;
+ }
+ async function leave(){if(state.busy)return;state.busy=true;setStatus('Enregistrement des deux panneaux…');
+    let ok=true;for(const s of ['left','right']){const yes=await prepare(s);if(!yes){ok=false;break}}
+    state.busy=false;if(!ok){toast('Impossible de vérifier toutes les sauvegardes : Split reste ouvert.','danger');setStatus('Fermeture annulée');return}
+    persist();sessionStorage.removeItem(ACTIVE+':'+state.session.user.id);const target=state.panes.left.doc||state.panes.right.doc;location.assign(target?.url||'dashboard.html');
+ }
+ function swap(){if(state.busy)return;const a=state.panes.left,b=state.panes.right;state.panes.left=b;state.panes.right=a;
+   // CSS order avoids detaching iframe elements, which could reload their browsing contexts.
+   b.el.style.order='0';$('divider-handle').style.order='1';a.el.style.order='2';
+   const was=state.max;state.max=was==='left'?'right':was==='right'?'left':null;
+   state.setRatio(state.ratio);draw();persist();}
+ function maximize(side){state.max=state.max===side?null:side;draw()}
+ function insertDocGroup(container,label,items,project){
+    const group=document.createElement('div'),title=document.createElement('div');title.className='project-title';
+    const key=project?.id||'standalone';const exp=state.expanded.has(key);title.innerHTML=`<span>${safe(label)}</span><span>${exp?'▾':'▸'}</span>`;
+    title.addEventListener('click',()=>{state.expanded.has(key)?state.expanded.delete(key):state.expanded.add(key);renderTree()});group.append(title);
+    const match=items.some(it=>nodeMatches(it,state.search));if(state.search&&!match){container.append(group);return}
+    if(exp||!!state.search){const list=document.createElement('div');list.style.paddingLeft='6px';(items||[]).forEach(item=>buildRow(list,project,item,0));group.append(list)}container.append(group)
+ }
+ function nodeMatches(item,q){if(!q)return true;return String(item.name||'').toLocaleLowerCase().includes(q)||(item.children||[]).some(x=>nodeMatches(x,q))}
+ function kindIcon(type){return {folder:'📁',card:'🗺',central:'▦',script:'✍',text:'≡',txt:'≡',pdf:'▤' }[type]||'📄'}
+ function activeSides(doc){const sides=[];for(const side of ['left','right'])if(state.panes[side].doc?.url===doc.url)sides.push(side);return sides}
+ function buildRow(container,project,item,depth){if(!item||typeof item!=='object'||!nodeMatches(item,state.search))return;
+    const folder=item.type==='folder';const row=document.createElement('div');row.className='tree-row';row.tabIndex=0;row.style.paddingLeft=(7+depth*12)+'px';
+    if(folder){const open=state.expanded.has(String(item.id))||!!state.search;row.innerHTML=`<span class="arrow">${open?'▾':'▸'}</span><span class="kind">📁</span><span class="name">${safe(item.name||'Dossier')}</span>`;
+      row.addEventListener('click',()=>{const k=String(item.id);state.expanded.has(k)?state.expanded.delete(k):state.expanded.add(k);renderTree()});container.append(row);
+      if(open){const children=document.createElement('div');for(const sub of item.children||[])buildRow(children,project,sub,depth+1);container.append(children)}return;
+    }
+    const doc=urlForItem(project,item),sides=doc?activeSides(doc):[];
+    row.innerHTML=`<span class="kind">${kindIcon(item.type)}</span><span class="name" title="${safe(item.name||'Document')}">${safe(item.name||'Document')}</span>${sides.length?`<span class="pin ${sides.length===2?'both':sides[0]==='right'?'right':''}">${sides.length===2?'G+D':sides[0]==='right'?'D':'G'}</span>`:''}<span class="actions"><button type="button" data-target="left" title="Ouvrir à gauche">G</button><button type="button" data-target="right" title="Ouvrir à droite">D</button></span>`;
+    row.querySelectorAll('button').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();if(doc)openPanel(b.dataset.target,{...doc,name:item.name})}));
+    row.addEventListener('dblclick',()=>doc&&openPanel('left',{...doc,name:item.name}));
+    row.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();doc&&openPanel(e.shiftKey?'right':'left',{...doc,name:item.name})}});
+    row.addEventListener('contextmenu',e=>{e.preventDefault();if(!doc)return;const side=confirm('Ouvrir « '+item.name+' » à droite ?\nOK = droite · Annuler = gauche')?'right':'left';openPanel(side,{...doc,name:item.name})});
+    container.append(row);
+ }
+ function renderTree(){const body=$('tree-body');body.replaceChildren();if(!state.session)return;
+   if(state.projectErrors){const e=document.createElement('div');e.className='tree-error';e.textContent='Chargement des projets impossible : '+state.projectErrors+'. Les documents déjà ouverts restent accessibles.';body.append(e)}
+   for(const p of state.projects)insertDocGroup(body,p.name||'Projet sans nom',Array.isArray(p.tree)?p.tree:[],p);
+   if(state.cards.length)insertDocGroup(body,'Documents indépendants',state.cards.map(c=>({id:c.id,name:c.name,type:c.docType})),null);
+   if(!state.projects.length&&!state.cards.length&&!state.projectErrors){const e=document.createElement('div');e.className='tree-empty';e.textContent=state.cardErrors?'Erreur de chargement des documents : '+state.cardErrors:'Aucun projet visible. Les accès et protections Supabase sont respectés.';body.append(e)}
+ }
+ function normalizeTree(t){if(Array.isArray(t))return t;if(typeof t==='string'){try{return JSON.parse(t)}catch{return[]}}return[]}
+ async function fetchTree(){setStatus('Actualisation des projets…');const p=await sb.from('projects').select('*');
+   if(p.error){state.projectErrors=p.error.message;}else{state.projectErrors=null;state.projects=(p.data||[]).map(x=>({...x,tree:normalizeTree(x.tree)}));if(!state.expanded.size)state.projects.forEach(x=>state.expanded.add(String(x.id)));}
+   const c=await sb.from('cards').select('id,name,info');
+   if(c.error)state.cardErrors=c.error.message;else{state.cardErrors=null;const nested=new Set();for(const p of state.projects){const walk=items=>(items||[]).forEach(it=>{nested.add(String(it.id));if(it.children)walk(it.children)});walk(p.tree)}
+     state.cards=(c.data||[]).filter(x=>!nested.has(String(x.id))).map(x=>{let info=x.info;if(typeof info==='string'){try{info=JSON.parse(info)}catch{info={}}}return {...x,docType:info?.type==='script'?'script':info?.type==='text'?'text':'card'}});
+   }
+   if(state.cards.length)state.expanded.add('standalone');
+   const active=new Set(['left','right'].map(k=>state.panes[k].doc?.docId).filter(Boolean).map(String));
+   for(const p of state.projects){
+     function showParents(items,parents=[]){for(const it of items||[]){
+       if(active.has(String(it.id))){state.expanded.add(String(p.id));parents.forEach(id=>state.expanded.add(String(id)));}
+       if(it.children)showParents(it.children,[...parents,it.id]);
+     }}
+     showParents(p.tree);
+   }
+   renderTree();setStatus('Prêt');
+ }
+ function onFrameLoad(side,el){const p=state.panes[side];if(!p||p.iframe!==el||!p.doc)return;
+  try{const u=new URL(el.contentWindow.location.href);if(u.origin!==location.origin){p.el.querySelector('.panel-empty').hidden=false;toast('Une interface a tenté de sortir de Mobius. Navigation bloquée.','danger');return}
+    const file=u.pathname.split('/').pop();if(!Object.values(validApps).includes(file)){
+      p.doc=null;p.loaded=false;p.iframe.src='about:blank';renderPanel(side);toast('Cette page ne peut pas être ouverte dans Split. Retourne au Dashboard pour accéder au document.','warning');persist();return;
+    }
+    if(u.searchParams.get('split')!=='1'){u.searchParams.set('split','1');u.searchParams.set('pane',side);el.contentWindow.location.replace(u.href);return}
+    const d=toDoc({url:u.href,name:p.doc?.name});if(d)p.doc=d;
+  }catch{}
+ }
+ function handleMessage(e){if(e.origin!==location.origin)return;const m=e.data;if(!m||m.namespace!==PREFIX||!['READY','PREPARE_RESULT','REQUEST_CLOSE','REQUEST_SPLIT','TREE_CHANGED'].includes(m.type))return;
+   if(m.type==='PREPARE_RESULT'){const fn=pending.get(m.requestId);if(fn&&[state.panes.left.iframe.contentWindow,state.panes.right.iframe.contentWindow].includes(e.source)){pending.delete(m.requestId);fn(m.ok===true)}return}
+   const s=['left','right'].find(side=>state.panes[side]?.iframe.contentWindow===e.source);if(!s)return;const p=state.panes[s];
+   if(m.type==='READY'){
+     const actual=toDoc(m.document);if(actual){actual.name=m.name||p.doc?.name||actual.docId;p.doc=actual}
+     p.loaded=true;renderPanel(s);renderTree();persist();setStatus('Prêt');
+   }else if(m.type==='TREE_CHANGED'){clearTimeout(treeTimer);treeTimer=setTimeout(()=>fetchTree().catch(console.warn),500)}else if(m.type==='REQUEST_CLOSE'){leave()}else if(m.type==='REQUEST_SPLIT'){state.max=null;draw()}
+ }
+ function initResize(){const handle=$('divider-handle'),area=$('panel-space');let dragging=false;
+   function setRatio(pct){pct=Math.min(77,Math.max(23,pct));state.ratio=pct;
+     state.panes.left.el.style.flex=`0 0 calc(${pct}% - 4px)`;state.panes.right.el.style.flex='1';
+     persist();}
+   handle.addEventListener('pointerdown',e=>{if(state.max)return;dragging=true;handle.classList.add('dragging');handle.setPointerCapture(e.pointerId);e.preventDefault()});
+   handle.addEventListener('pointermove',e=>{if(!dragging)return;const r=area.getBoundingClientRect();setRatio((e.clientX-r.left)*100/r.width)});
+   const end=()=>{dragging=false;handle.classList.remove('dragging')};handle.addEventListener('pointerup',end);handle.addEventListener('pointercancel',end);
+   handle.addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();setRatio(state.ratio+(e.key==='ArrowRight'?3:-3))}});
+   state.setRatio=setRatio;
+ }
+ async function start(){
+   const phone=/iPhone|iPod|Android[^;]*Mobile|Windows Phone/i.test(navigator.userAgent)&&!/iPad/i.test(navigator.userAgent);
+   if(phone){document.body.classList.add('phone-disabled');return}
+   document.body.classList.toggle('dark',localStorage.getItem('theme')==='dark'||(localStorage.getItem('theme')===null&&matchMedia('(prefers-color-scheme:dark)').matches));
+   state.panes.left={el:$('pane-left'),iframe:$('pane-left').querySelector('iframe'),doc:null,loaded:false};
+   state.panes.right={el:$('pane-right'),iframe:$('pane-right').querySelector('iframe'),doc:null,loaded:false};
+   for(const side of ['left','right']){
+     const p=state.panes[side];p.el.querySelector('.max-btn').addEventListener('click',()=>{const found=['left','right'].find(k=>state.panes[k]===p);maximize(found)});
+     p.iframe.addEventListener('load',()=>{const found=['left','right'].find(k=>state.panes[k]===p);onFrameLoad(found,p.iframe)});
+   }
+   $('exit').addEventListener('click',leave);$('swap').addEventListener('click',swap);
+   $('theme').addEventListener('click',()=>{document.body.classList.toggle('dark');localStorage.setItem('theme',document.body.classList.contains('dark')?'dark':'light')});
+   $('tree-toggle').addEventListener('click',()=>{$('tree-pane').classList.toggle('hidden')});
+   $('tree-reload').addEventListener('click',fetchTree);$('tree-search').addEventListener('input',e=>{state.search=e.target.value.trim().toLocaleLowerCase();renderTree()});
+   window.addEventListener('message',handleMessage);window.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.max){state.max=null;draw()}});
+   initResize();
+   if(!window.supabase){toast('La bibliothèque Supabase ne s’est pas chargée.','danger');return}
+   sb=window.supabase.createClient(SB_URL,SB_KEY);const {data,error}=await sb.auth.getSession();
+   if(error||!data?.session?.user){location.assign('index.html');return}state.session=data.session;
+   const previous=read(WORKSPACE+':'+state.session.user.id,{});state.setRatio(Number(previous.ratio)||50);
+   let intent=null;try{intent=JSON.parse(sessionStorage.getItem(INTENT+':'+state.session.user.id)||'null')}catch{}sessionStorage.removeItem(INTENT+':'+state.session.user.id);
+   const validIntent=intent&&dateNow()-intent.created<120000;
+   const activeKey=ACTIVE+':'+state.session.user.id;
+   const activeState=read(activeKey,null);
+   // The workspace is entered through an authenticated shortcut from Map/Editor/Central,
+   // or refreshed during an already active Split session (not via Dashboard).
+   if(!validIntent&&!(activeState&&dateNow()-activeState.at<7200000)){location.replace('dashboard.html');return;}
+   sessionStorage.setItem(activeKey,JSON.stringify({at:dateNow()}));
+   let left=toDoc(validIntent?intent.left:previous.left),right=toDoc(validIntent?intent.right:previous.right);
+   if(!left&&!right){const past=read(HIST+':'+state.session.user.id,[]);left=(Array.isArray(past)?past:[]).map(toDoc).find(Boolean)||null;
+       right=(Array.isArray(past)?past:[]).map(toDoc).find(x=>x&&x.url!==left?.url)||null;}
+   if(left)await openPanel('left',left,{initial:true});if(right&&right.url!==left?.url)await openPanel('right',right,{initial:true});
+   if(state.panes.left.doc?.projectId&&state.panes.left.doc.projectId===state.panes.right.doc?.projectId)
+     toast('Attention : les deux panneaux travaillent sur le même projet. Évite les modifications simultanées tant que les révisions atomiques ne sont pas déployées.','warning');
+   draw();window.addEventListener('focus',()=>{if(state.session&&!state.busy){clearTimeout(treeTimer);treeTimer=setTimeout(()=>fetchTree().catch(console.warn),500)}});
+   fetchTree().catch(err=>{state.projectErrors=err.message;renderTree();toast('Arborescence indisponible : '+err.message,'danger')});
+ }
+ document.addEventListener('DOMContentLoaded',()=>start().catch(err=>{console.error(err);toast('Erreur Split : '+err.message,'danger')}));
+})();
+
+</script></body></html>
