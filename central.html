@@ -1932,7 +1932,7 @@ window.MobiusSplitAdapter={
    arr=arr.filter(x=>validDoc(x)&&x.url!==e.url);arr.unshift({...e,at:Date.now()});sessionStorage.setItem(scoped(HIST),JSON.stringify(arr.slice(0,16)));
  }
  function notify(type,other={}){if(!embedded||window.parent===window)return;window.parent.postMessage({namespace:PREFIX,type,...other},origin)}
- function ready(){if(!APP.isReady())return; if(!embedded){button.hidden=!APP.hasProject?.();remember();}else if(!readySent){readySent=true;notify('READY',{document:current(),name:APP.title?.()||document.title})}}
+ function ready(){if(!APP.isReady())return; if(!embedded){button.hidden=isPhone()||!APP.hasProject?.();remember();}else if(!readySent){readySent=true;notify('READY',{document:current(),name:APP.title?.()||document.title})}}
  async function ensureSaved(){try{const ok=(await APP.ensureSaved())===true;if(ok)notify('TREE_CHANGED');return ok}catch(err){console.error('Mobius Split: échec de sauvegarde',err);return false}}
  async function openSplit(){if(embedded){notify('REQUEST_SPLIT');return}if(busy||!APP.isReady()||!APP.hasProject?.())return;
    if(isPhone()||(window.innerWidth<768&&window.matchMedia('(pointer:coarse)').matches)){alert('Mobius Split est disponible sur tablette et ordinateur.');return}
@@ -1950,7 +1950,7 @@ window.MobiusSplitAdapter={
  const hideStyle=document.createElement('style');hideStyle.textContent='#mobius-split-launch[hidden]{display:none!important}';document.head.append(hideStyle);
  button.addEventListener('click',openSplit);
  if(!embedded){const hdr=document.querySelector('header');if(hdr){if(APP.app==='central')hdr.append(button);else{const target=hdr.querySelector('#role-badge')?.parentElement || hdr.lastElementChild || hdr;if(target&&target!==hdr)target.prepend(button);else hdr.append(button);}}}
- window.addEventListener('keydown',e=>{if(embedded||!APP.hasProject?.())return;const mod=e.metaKey||e.ctrlKey;if(!mod||e.altKey||e.repeat)return;
+ window.addEventListener('keydown',e=>{if(embedded||isPhone()||!APP.hasProject?.())return;const mod=e.metaKey||e.ctrlKey;if(!mod||e.altKey||e.repeat)return;
   const primary=!e.shiftKey&&(e.key.toLowerCase()==='e'||e.code==='KeyE');
   const fallback=e.shiftKey&&(e.key==='.'||e.code==='Period');
   if(primary||fallback){e.preventDefault();e.stopPropagation();openSplit()}
