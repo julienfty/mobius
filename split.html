@@ -50,26 +50,22 @@ body.phone-disabled .disabled-overlay{display:flex}body.phone-disabled .app{disp
 .tree-context-menu{position:fixed;z-index:140;min-width:218px;max-height:80vh;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:15px;padding:7px;box-shadow:0 15px 36px #0003}
 .tree-context-menu[hidden]{display:none}.ctx-heading{padding:7px 10px;color:var(--muted);font-size:10px}.ctx-action{width:100%;display:flex;align-items:center;gap:11px;padding:10px 11px;background:transparent;border:0;border-radius:9px;text-align:left;color:var(--text);font-size:12px}.ctx-action:hover{background:var(--bg)}.ctx-action.destructive{color:#f43f5e}.tree-context-menu hr{border:0;border-top:1px solid var(--line);margin:5px 0}
 @media(max-width:1060px){.tree-pane{width:260px;min-width:220px}}
+
+/* Mode arbre authentique : la navigation, importation et exportation sont rendues
+   directement par le moteur de map.html, pas une reimplementation. */
+.tree-pane{width:288px;max-width:38vw;min-width:245px;display:flex;flex-direction:column;overflow:hidden}
+#native-tree-frame{flex:1;width:100%;height:100%;min-height:0;border:0;display:block;background:var(--surface)}
+#tree-project-selector{flex:none}
+#tree-host-error{padding:14px;flex:none;font-size:12px;overflow-wrap:anywhere}
 </style><script src="https://unpkg.com/lucide@latest"></script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
 <body><div class="app" id="app">
 <header class="top"><div class="brand"><span class="brand-mark">M</span><span>Mobius Split</span></div><span class="subhead">Espace multi-interface</span><span class="push"></span><span class="status" id="status" aria-live="polite">Initialisation…</span><button class="btn" id="theme" title="Changer de thème">◐</button><button class="btn" id="swap" title="Inverser les panneaux">⇄ <span>Inverser</span></button><button class="btn" id="tree-toggle" title="Afficher / masquer l'arborescence">☰</button><button class="btn primary" id="exit" title="Retourner à la page de gauche">✕ Fermer Split</button></header>
 <div class="work" id="work">
-<aside class="tree-pane" id="tree-pane" aria-label="Arborescence du projet">
- <div class="native-tree-header"><strong>ARBORESCENCE DU PROJET</strong><button class="native-close" id="tree-hide" title="Replier l'arborescence" aria-label="Replier l'arborescence">×</button></div>
- <div id="tree-project-selector" class="tree-project-select" hidden><label for="tree-project-picker">Projet actif</label><select id="tree-project-picker" aria-label="Choisir l'arborescence du projet"></select></div>
- <div class="native-tree-toolbar" id="tree-toolbar" hidden><div class="tree-buttons">
-  <button data-tree-create="folder" title="Nouveau dossier"><i data-lucide="folder-plus"></i>Dossier</button>
-  <button data-tree-create="txt" title="Nouveau fichier .txt"><i data-lucide="file-text"></i>.txt</button>
-  <button data-tree-create="card" title="Nouvelle carte"><i data-lucide="sticky-note"></i>Carte</button>
-  <button id="tree-import-btn" title="Importer un fichier"><i data-lucide="file-up"></i>Importer</button>
- </div><div id="tree-dest" class="tree-destination">📁 Destination : racine du projet</div>
- <input type="file" id="tree-file-input" hidden multiple accept=".txt,.json,.mobius,.fountain,.mobtext,.mobscen"></div>
- <div class="tree-body" id="tree-body" aria-live="polite"><div class="tree-empty">Chargement de l'arborescence…</div></div>
- <div class="native-tree-footer" id="tree-footer"><button id="tree-export-btn" title="Exporter le projet"><i data-lucide="download"></i>Exporter le projet <i data-lucide="chevron-up"></i></button>
- <div id="tree-export-menu" hidden><button data-export-tree="mobpro"><i data-lucide="folder-archive"></i> Projet (.mobpro) <span>Natif</span></button><div class="export-subtitle">Tabulation</div>
- <button data-export-tree="xlsx"><i data-lucide="file-spreadsheet"></i>Export Excel (.xlsx) (via Map)</button><button data-export-tree="csv"><i data-lucide="file-text"></i>Export CSV</button>
- <button data-export-tree="json"><i data-lucide="braces"></i>Export JSON</button><button data-export-tree="mql"><i data-lucide="terminal"></i>Export MQL (via Map)</button><button data-export-tree="sql"><i data-lucide="database"></i>Export SQL (via Map)</button></div></div>
-</aside><div class="tree-context-menu" id="tree-context-menu" hidden></div>
+<aside class="tree-pane" id="tree-pane" aria-label="Arborescence native du projet">
+ <div id="tree-project-selector" class="tree-project-select" hidden><label for="tree-project-picker">Projet affiché dans l’arborescence</label><select id="tree-project-picker" aria-label="Choisir le projet"></select></div>
+ <div id="tree-host-error" class="tree-error" hidden></div>
+ <iframe id="native-tree-frame" title="Arborescence originale Mobius (Map)" loading="eager" referrerpolicy="same-origin"></iframe>
+</aside>
 <main class="panel-space" id="panel-space"><section class="panel" id="pane-left" data-side="left"><div class="panel-head"><span class="panel-icon">G</span><span class="panel-title">Panneau gauche</span><span class="panel-sub"></span><button class="icon-btn max-btn" title="Agrandir / réduire" aria-label="Agrandir le panneau gauche">⛶</button></div><div class="panel-main"><iframe title="Application Mobius gauche" referrerpolicy="same-origin" loading="eager"></iframe><div class="loading" hidden>Chargement…</div><div class="panel-empty"><strong>Choisis un document</strong><span>Depuis l'arborescence commune, ouvre un document à gauche.</span></div></div></section>
 <div id="divider-handle" class="divider-handle" role="separator" aria-label="Redimensionner les panneaux" aria-orientation="vertical" tabindex="0"></div>
 <section class="panel" id="pane-right" data-side="right"><div class="panel-head"><span class="panel-icon">D</span><span class="panel-title">Panneau droit</span><span class="panel-sub"></span><button class="icon-btn max-btn" title="Agrandir / réduire" aria-label="Agrandir le panneau droit">⛶</button></div><div class="panel-main"><iframe title="Application Mobius droite" referrerpolicy="same-origin" loading="eager"></iframe><div class="loading" hidden>Chargement…</div><div class="panel-empty"><strong>Deuxième document</strong><span>Choisis un document depuis l'arborescence pour travailler côte à côte.</span></div></div></section>
@@ -83,7 +79,7 @@ body.phone-disabled .disabled-overlay{display:flex}body.phone-disabled .app{disp
  const SB_URL='https://nfvnayuqrmlldtixzdpx.supabase.co',SB_KEY='sb_publishable_EwONSAsqSfu8_SocZ7wZBA_rVODWqSF';
  const $=id=>document.getElementById(id),safe=(s)=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const validApps={map:'map.html',editor:'editor.html',central:'central.html'};
- const state={panes:{},projects:[],cards:[],projectErrors:null,cardErrors:null,search:'',expanded:new Set(),treeProjectId:null,treeSelectedId:null,contextItemId:null,contextFolderId:null,availableProjectIds:new Set(),dragTreeId:null,max:null,ratio:50,busy:false,session:null};
+ const state={panes:{},projects:[],cards:[],projectErrors:null,cardErrors:null,search:'',expanded:new Set(),treeProjectId:null,treeSelectedId:null,contextItemId:null,contextFolderId:null,availableProjectIds:new Set(),treeFrameProjectId:null,treeReady:false,dragTreeId:null,max:null,ratio:50,busy:false,session:null};
  let sb=null,pending=new Map(),treeTimer=null,toastTimer=null;
  const toast=(msg,t='info')=>{const el=$('toast');el.textContent=msg;el.className='toast '+(t==='danger'?'danger':t==='warning'?'warning':'');el.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.hidden=true,6200)};
  const read=(key,def)=>{try{return JSON.parse(sessionStorage.getItem(key)||localStorage.getItem(key)||'null')??def}catch{return def}};
@@ -123,6 +119,15 @@ body.phone-disabled .disabled-overlay{display:flex}body.phone-disabled .app{disp
       try{p.iframe.contentWindow.postMessage({namespace:PREFIX,type:'PREPARE_NAV',requestId:id},location.origin)}catch{clearTimeout(tm);pending.delete(id);resolve(false)}
     });
  }
+ async function prepareTree(){
+   if(!state.treeReady)return true;
+   const id='tree'+Date.now()+Math.random().toString(36).slice(2);
+   return new Promise(resolve=>{
+     const timer=setTimeout(()=>{pending.delete(id);resolve(false)},12000);
+     pending.set(id,ok=>{clearTimeout(timer);resolve(ok)});
+     sendTree('TREE_PREPARE',{requestId:id});
+   });
+ }
  async function openPanel(side,entry,{initial=false}={}){
     const d=toDoc(entry);if(!d)return false;
     const p=state.panes[side];if(state.busy&&!initial)return false;
@@ -130,10 +135,14 @@ body.phone-disabled .disabled-overlay{display:flex}body.phone-disabled .app{disp
     const other=state.panes[side==='left'?'right':'left'];
     if(other.doc?.url===d.url){toast('Ce document est déjà ouvert dans l’autre panneau. Pour éviter deux éditions concurrentes, il reste dans son panneau actuel.','warning');return false}
     if(d.projectId&&other.doc?.projectId===d.projectId&&d.url!==other.doc.url&&!initial)toast('Les deux documents appartiennent au même projet : des sauvegardes simultanées peuvent encore provoquer un conflit avec la structure actuelle de Mobius.','warning');
-    if(!initial&&p.doc){state.busy=true;setStatus('Vérification des sauvegardes…');const ok=await prepare(side);state.busy=false;if(!ok){setStatus('Navigation annulée');toast('Le document n’a pas confirmé sa sauvegarde. Aucun changement de panneau n’a été effectué.','danger');return false}}
+    if(!initial&&p.doc){state.busy=true;setStatus('Vérification des sauvegardes…');
+      const ok=await prepare(side);const okTree=ok?await prepareTree():false;state.busy=false;
+      if(!ok||!okTree){setStatus('Navigation annulée');toast('La sauvegarde du document ou de l’arborescence n’a pas été confirmée.','danger');return false}}
     p.loaded=false;p.doc=d;renderPanel(side);p.iframe.src=withSplit(d,side);persist();renderTree();if(!initial)fetchTree().catch(console.warn);setStatus('Chargement de '+(d.name||d.app)+'…');return true;
  }
  async function leave(){if(state.busy)return;state.busy=true;setStatus('Enregistrement des deux panneaux…');
+    if(state.treeReady){const ok=await prepareTree();if(!ok){state.busy=false;toast('Arborescence non enregistrée : Split reste ouvert.','danger');return;}}
+
     let ok=true;for(const s of ['left','right']){const yes=await prepare(s);if(!yes){ok=false;break}}
     state.busy=false;if(!ok){toast('Impossible de vérifier toutes les sauvegardes : Split reste ouvert.','danger');setStatus('Fermeture annulée');return}
     persist();sessionStorage.removeItem(ACTIVE+':'+state.session.user.id);const target=state.panes.left.doc||state.panes.right.doc;location.assign(target?.url||'dashboard.html');
@@ -144,180 +153,40 @@ body.phone-disabled .disabled-overlay{display:flex}body.phone-disabled .app{disp
    const was=state.max;state.max=was==='left'?'right':was==='right'?'left':null;
    state.setRatio(state.ratio);state.treeProjectId=String(state.panes.left.doc?.projectId||state.panes.right.doc?.projectId||'');draw();persist();fetchTree().catch(console.warn);}
  function maximize(side){state.max=state.max===side?null:side;draw()}
- function selectedProject(){return state.projects.find(p=>String(p.id)===String(state.treeProjectId))||null}
- function projectRoles(p){
-   if(!p||!state.session?.user)return 'viewer';
-   const u=state.session.user,owner=p.user_id||p.owner_id;
-   if(owner&&String(owner)===String(u.id))return 'owner';
-   const cs=Array.isArray(p.collaborators)?p.collaborators:[];
-   const entry=cs.map(c=>typeof c==='string'?{email:c,role:'editor',status:'pending'}:c)
-     .find(c=>c?.email?.toLowerCase()===u.email?.toLowerCase());
-   if(entry?.status==='accepted'&&['admin','editor'].includes(entry.role))return entry.role;
-   return 'viewer';
- }
- function canManageTree(){const p=selectedProject();return ['owner','admin','editor'].includes(projectRoles(p))}
- function titleFor(item){return item?.name||'Sans nom'}
- function treeLocation(list,id){for(let i=0;i<(list||[]).length;i++){
-   if(String(list[i].id)===String(id))return {list,index:i,item:list[i]};
-   const deep=treeLocation(list[i].children,id);if(deep)return deep;
- }return null}
- function treeContains(root,id){return String(root?.id)===String(id)||(root?.children||[]).some(x=>treeContains(x,id))}
- function selectedItem(){return treeLocation(selectedProject()?.tree,state.treeSelectedId)?.item||null}
- function updateDestination(){const item=selectedItem(),folder=item?.type==='folder'?item:null;
-  $('tree-dest').textContent='📁 Destination : '+(folder?folder.name:'racine du projet')}
- function iconFor(item,expanded=false){return item.type==='folder'?(expanded?'folder-open':'folder'):item.type==='card'?'sticky-note':item.type==='central'?'users':'file-text'}
- function itemColor(item){return item.type==='folder'?'#5246EE':item.type==='card'?'#6366f1':item.type==='central'?'#a855f7':'#10b981'}
- function icon(name,cls='',size=15){return `<i data-lucide="${name}" class="${cls}" style="width:${size}px;height:${size}px;flex:none"></i>`}
- function renderTree(){const body=$('tree-body');body.replaceChildren();if(!state.session)return;
-  const projects=state.projects.filter(p=>state.availableProjectIds?.has(String(p.id)));
-  if(!projects.length){body.innerHTML='<div class="tree-empty">Aucun projet ouvert. La navigation Split nécessite un projet.</div>';return}
-  const select=$('tree-project-picker');select.replaceChildren();for(const p of projects){const o=document.createElement('option');o.value=String(p.id);o.textContent=p.name||'Projet sans nom';select.append(o)}
-  if(!projects.some(p=>String(p.id)===String(state.treeProjectId)))state.treeProjectId=String(projects[0].id);
-  select.value=String(state.treeProjectId);$('tree-project-selector').hidden=projects.length<2;
-  const p=selectedProject(),permitted=canManageTree();$('tree-toolbar').hidden=!permitted;
-  $('tree-footer').hidden=!p;$('tree-export-btn').disabled=!p;
-  updateDestination();
-  if(!p){body.innerHTML='<div class="tree-empty">Projet indisponible.</div>';return}
-  if(state.projectErrors){const box=document.createElement('p');box.className='tree-error';box.textContent=state.projectErrors;body.append(box)}
-  if(!p.tree?.length){const empty=document.createElement('p');empty.className='tree-empty';empty.textContent='Arborescence vide. Clic droit pour créer un élément.';body.append(empty)}
-  else for(const item of p.tree)renderNativeRow(item,body,0,permitted);
-  if(window.lucide?.createIcons)lucide.createIcons({attrs:{'stroke-width':1.8}});
- }
- function renderNativeRow(item,container,depth,editable){
-  if(!item||typeof item!=='object')return;
-  const fold=item.type==='folder',id=String(item.id),expanded=state.expanded.has(id),sel=String(state.treeSelectedId)===id;
-  const wrapper=document.createElement('div');wrapper.dataset.wrap=id;
-  const row=document.createElement('div');row.className='native-tree-row tree-row'+(sel?' is-selected':'');
-  row.dataset.id=id;row.dataset.type=item.type||'txt';row.style.paddingLeft=depth?'8px':'8px';row.tabIndex=0;row.draggable=editable;
-  const doc=fold?null:urlForItem(selectedProject(),item);const sides=doc?activeSides(doc):[];
-  const marker=sides.length?`<span class="side-pin ${sides[0]==='right'?'right':''}">${sides.length===2?'G+D':sides[0]==='right'?'D':'G'}</span>`:'';
-  row.innerHTML=(fold?icon(expanded?'chevron-down':'chevron-right','tree-arrow',14):'<span class="tree-indent"></span>')+
-   icon(iconFor(item,expanded),'native-tree-icon',15)+
-   `<span class="tree-name" title="${safe(titleFor(item))}">${safe(titleFor(item))}</span>`+
-   (fold?`<span class="tree-count">${item.children?.length||''}</span>`:marker)+
-   (!fold?`<span class="tree-actions"><button title="Ouvrir à gauche" data-target="left">G</button><button title="Ouvrir à droite" data-target="right">D</button></span>`:'');
-  row.querySelector('.native-tree-icon')?.setAttribute('style',`width:15px;height:15px;flex:none;color:${itemColor(item)}`);
-  row.addEventListener('click',e=>{
-    if(e.target.closest('[data-target]'))return;
-    state.treeSelectedId=id;
-    if(fold){expanded?state.expanded.delete(id):state.expanded.add(id);renderTree()}
-    else{
-      container.closest('#tree-body')?.querySelectorAll('.native-tree-row.is-selected').forEach(el=>el.classList.remove('is-selected'));
-      row.classList.add('is-selected');updateDestination();
-    }
-  });
-  if(!fold){row.querySelectorAll('[data-target]').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();openPanel(btn.dataset.target,doc)}));
-    row.addEventListener('dblclick',()=>openPanel('left',doc));}
-  row.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();if(fold){state.expanded.has(id)?state.expanded.delete(id):state.expanded.add(id);renderTree()}else openPanel(e.shiftKey?'right':'left',doc)}});
-  row.addEventListener('contextmenu',e=>{e.preventDefault();state.treeSelectedId=id;showTreeMenu(e.clientX,e.clientY,id)});
-  if(editable){row.addEventListener('dragstart',e=>{state.dragTreeId=id;e.dataTransfer.setData('text/plain',id);e.dataTransfer.effectAllowed='move';});
-   row.addEventListener('dragover',e=>{if(!state.dragTreeId||state.dragTreeId===id)return;e.preventDefault();row.classList.add('tree-drop-inside')});
-   row.addEventListener('dragleave',()=>row.classList.remove('tree-drop-inside'));
-   row.addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();row.classList.remove('tree-drop-inside');treeMove(state.dragTreeId,id,fold?'inside':'after');state.dragTreeId=null;});}
-  wrapper.append(row);container.append(wrapper);
-  if(fold){const sub=document.createElement('div');sub.className='native-children'+(!expanded?' hidden':'');
-    if(expanded)for(const child of item.children||[])renderNativeRow(child,sub,depth+1,editable);
-    wrapper.append(sub)}
- }
- function showTreeMenu(x,y,id=null){const menu=$('tree-context-menu');state.contextItemId=id;
-  const p=selectedProject();if(!p)return;
-  const target=id?treeLocation(p.tree,id)?.item:null;
-  const folder=target?.type==='folder'?target:null;
-  state.contextFolderId=folder?.id||(target?(()=>{const findParent=(arr,parent=null)=>{for(const it of arr||[]){if(String(it.id)===String(target.id))return parent;if(it.children){const q=findParent(it.children,it);if(q!==undefined)return q}}};const par=findParent(p.tree);return par?.type==='folder'?par.id:null})():null);
-  const editable=canManageTree();
-  const b=(action,ico,label,danger=false)=>`<button data-tree-action="${action}" class="ctx-action${danger?' destructive':''}">${icon(ico,'',15)} ${safe(label)}</button>`;
-  menu.innerHTML=`<div class="ctx-heading">📁 ${safe(folder?.name||'Racine du projet')}</div>`+
-    (editable?b('new-folder','folder-plus','Nouveau dossier')+b('new-txt','file-text','Nouveau fichier .txt')+b('new-card','sticky-note','Nouvelle carte')+b('new-central','users','Nouvelle centrale')+b('import','file-up','Importer un fichier')+(target?'<hr>'+b('rename','pencil','Renommer')+b('up','arrow-up','Monter')+b('down','arrow-down','Descendre')+b('delete','trash-2','Supprimer',true):''):'<div class="tree-empty">Lecture seule</div>');
-  menu.hidden=false;menu.classList.remove('hidden');const rect=menu.getBoundingClientRect();menu.style.left=Math.max(6,Math.min(x,window.innerWidth-rect.width-6))+'px';menu.style.top=Math.max(6,Math.min(y,window.innerHeight-rect.height-6))+'px';
-  if(window.lucide?.createIcons)lucide.createIcons();
- }
- function closeTreeMenu(){$('tree-context-menu').hidden=true}
- async function beforeTreeWrite(mutator){
-   const p=selectedProject();if(!p||!canManageTree()){toast('Droits insuffisants pour modifier ce projet.','warning');return false}
-   if(state.busy)return false;state.busy=true;setStatus('Vérification des sauvegardes…');
-   try{
-    for(const side of ['left','right']){
-      if(state.panes[side].doc?.projectId===String(p.id)&&!(await prepare(side))){toast('Sauvegarde non confirmée : modification annulée.','danger');return false}
-    }
-    const r=await sb.from('projects').select('tree').eq('id',p.id).single();
-    if(r.error){toast('Impossible de relire le projet : '+r.error.message,'danger');return false}
-    const latest=normalizeTree(r.data.tree);if(JSON.stringify(latest)!==JSON.stringify(p.tree)){
-      toast('Ce projet a changé depuis son chargement. Arborescence actualisée : réessaie ton action.','warning');await fetchTree();return false
-    }
-    const copy=structuredClone(latest);const changed=await mutator(copy);if(!changed)return false;
-    const updated=await sb.from('projects').update({tree:copy}).eq('id',p.id).select('id');
-    if(updated.error||!updated.data?.length){toast('Enregistrement refusé : '+(updated.error?.message||'aucune ligne modifiée'),'danger');return false}
-    p.tree=copy;renderTree();setStatus('Arborescence enregistrée');
-    for(const side of ['left','right'])if(state.panes[side].doc?.projectId===String(p.id))state.panes[side].iframe?.contentWindow?.postMessage({namespace:PREFIX,type:'REFRESH_TREE'},location.origin);
-    return true;
-   }catch(e){console.error(e);toast('Modification impossible : '+e.message,'danger');return false}
-   finally{state.busy=false}
- }
- function insertInTree(tree,item,folderId){const loc=folderId&&treeLocation(tree,folderId);if(loc?.item?.type==='folder'){(loc.item.children|| (loc.item.children=[])).push(item);state.expanded.add(String(folderId))}else tree.push(item)}
- async function createTreeItem(type,folderId){const defaultNames={folder:'Nouveau dossier',txt:'Nouveau fichier',card:'Nouvelle carte',central:'Nouvelle centrale'};
-  const name=prompt('Nom du '+({folder:'dossier',txt:'fichier .txt',card:'carte',central:'centrale'}[type])+ ' :',defaultNames[type]);if(!name?.trim())return;
-  const ok=await beforeTreeWrite(tree=>{const id='id_'+Date.now()+Math.random().toString(36).slice(2,6);let it={id,type,name:name.trim(),content:''};
-    if(type==='folder')it.children=[];
-    if(type==='card')Object.assign(it,{nodes:[],links:[],relationTypes:[]});
-    if(type==='central')Object.assign(it,{mode:folderId?'folder':'root',folderId:folderId||null,includeSub:false,cardIds:[],groups:[],links:{}});
-    if(type==='central'){const parent=folderId&&treeLocation(tree,folderId)?.item;((parent?.type==='folder'?(parent.children||(parent.children=[])):tree)).unshift(it)}else insertInTree(tree,it,folderId);
-    return true;
-  });if(ok)toast('Élément créé.');
- }
- async function treeAction(action){closeTreeMenu();const id=state.contextItemId,p=selectedProject();if(!p)return;
-  if(action.startsWith('new-'))return createTreeItem(action.slice(4),state.contextFolderId);
-  if(action==='import'){if(canManageTree())$('tree-file-input').click();return}
-  if(!id)return;
-  const it=treeLocation(p.tree,id)?.item;if(!it)return;
-  if(action==='rename'){const name=prompt('Nouveau nom :',it.name);if(!name?.trim()||name.trim()===it.name)return;
-   return beforeTreeWrite(tree=>{const x=treeLocation(tree,id);if(!x)return false;x.item.name=name.trim();return true})}
-  if(action==='delete'){
-   if(['left','right'].some(side=>{const d=state.panes[side].doc;return d?.projectId===String(p.id)&&treeContains(it,d.docId)})){toast('Ferme ce document avant de le supprimer.','warning');return}
-   if(!confirm('Supprimer « '+it.name+' » de l’arborescence ?'))return;
-   return beforeTreeWrite(tree=>{const x=treeLocation(tree,id);if(!x)return false;x.list.splice(x.index,1);return true})}
-  if(action==='up'||action==='down'){return beforeTreeWrite(tree=>{const x=treeLocation(tree,id);if(!x)return false;const j=x.index+(action==='up'?-1:1);if(j<0||j>=x.list.length)return false;[x.list[x.index],x.list[j]]=[x.list[j],x.list[x.index]];return true})}
- }
- async function treeMove(from,to,pos){if(!canManageTree()||!from||!to||from===to)return;
-  await beforeTreeWrite(tree=>{const src=treeLocation(tree,from),dest=treeLocation(tree,to);if(!src||!dest||treeContains(src.item,to))return false;
-   const item=src.item;src.list.splice(src.index,1);const loc=treeLocation(tree,to);if(!loc)return false;
-   if(pos==='inside'&&loc.item.type==='folder'){(loc.item.children||(loc.item.children=[])).push(item);state.expanded.add(String(to))}
-   else loc.list.splice(loc.index+1,0,item);return true;
-  });
- }
- async function importTreeFiles(files){if(!canManageTree())return;const folder=state.contextFolderId||selectedItem()?.type==='folder'&&selectedItem()?.id||null;
-  const records=[];for(const file of files){if(file.size>20*1024*1024){toast('Fichier trop volumineux : '+file.name,'warning');continue}
-   try{const ext=file.name.split('.').pop().toLowerCase();let item=null;const name=file.name.replace(/\.[^.]+$/,'');
-    if(ext==='mobius'){const d=JSON.parse(await file.text());if(!Array.isArray(d.nodes)||!Array.isArray(d.links))throw Error('Carte invalide');item={type:'card',name:d.name||name,nodes:d.nodes,links:d.links,content:d.content||'',relationTypes:d.relationTypes||[],fields:d.fields||[],groups:d.groups||[]}}
-    else if(['mobtext','mobscen'].includes(ext)){const d=JSON.parse(await file.text());item={type:'txt',name:d.name||name,content:d.content||'',docType:d.type|| (ext==='mobscen'?'script':'text'),doc:d.doc}}
-    else if(['txt','fountain'].includes(ext)){item={type:'txt',name:file.name,content:await file.text(),docType:ext==='fountain'?'script':'text'}}
-    else if(ext==='json'){const d=JSON.parse(await file.text());if(Array.isArray(d.nodes)&&Array.isArray(d.links)){item={type:'card',name:d.name||name,nodes:d.nodes,links:d.links,content:d.content||'',relationTypes:d.relationTypes||[]}}else item={type:'txt',name:file.name,content:JSON.stringify(d,null,2)}}
-    else {toast('Import '+file.name+' : utilise l’importateur complet de Map ou Dashboard pour ce format.','warning');continue}
-    item.id='id_'+Date.now()+Math.random().toString(36).slice(2,6);records.push(item);
-   }catch(e){toast('Import impossible (« '+file.name+' ») : '+e.message,'danger')}
-  }
-  if(records.length)await beforeTreeWrite(tree=>{records.forEach(it=>insertInTree(tree,it,folder));return true});$('tree-file-input').value='';
- }
- function exportTree(format){$('tree-export-menu').hidden=true;const p=selectedProject();if(!p)return;
-  if(!canManageTree()){toast('Export depuis Split réservé aux membres pouvant modifier ce projet.','warning');return}
-  const name=String(p.name||'projet').replace(/[\\/:*?"<>|]/g,'_').toLowerCase().replace(/\s+/g,'_');let data,mime,ext;
-  if(format==='mobpro'||format==='json'){data=JSON.stringify(p.tree||[],null,2);mime='application/json';ext=format}
-  else if(format==='csv'){const rows=[['id','parent_id','type','name']];const walk=(a,parent='')=>(a||[]).forEach(x=>{rows.push([x.id,parent,x.type,x.name]);walk(x.children,x.id)});walk(p.tree);data=rows.map(r=>r.map(c=>'"'+String(c??'').replaceAll('"','""')+'"').join(',')).join('\r\n');mime='text/csv';ext='csv'}
-  else{toast('Cet export doit être effectué depuis le menu natif de Map pour conserver toutes les données.','warning');return}
-  const blob=new Blob([data],{type:mime+';charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name+'.'+ext;a.click();setTimeout(()=>URL.revokeObjectURL(url),3000);
- }
 
- function normalizeTree(t){if(Array.isArray(t))return t;if(typeof t==='string'){try{return JSON.parse(t)}catch{return[]}}return[]}
- async function fetchTree(){setStatus('Actualisation des projets…');
+ // Navigation unique : on réutilise le moteur de l’arborescence Map sans copier ses fonctions.
+ function treeFrame(){return $('native-tree-frame')}
+ function activeDocs(){return {left:state.panes.left.doc,right:state.panes.right.doc}}
+ function sendTree(type,more={}){
+   const frame=treeFrame();if(!frame?.contentWindow||!state.treeFrameProjectId)return;
+   try{frame.contentWindow.postMessage({namespace:PREFIX,type,...more},location.origin)}catch(e){console.warn('Split arbre :',e)}
+ }
+ function renderTree(){sendTree('TREE_BADGES',activeDocs())}
+ function refreshTreeBadgeSoon(){setTimeout(renderTree,180)}
+ function syncTreeProject(){
+   const pid=String(state.treeProjectId||'');const frame=treeFrame();
+   if(!pid){frame.removeAttribute('src');state.treeFrameProjectId=null;state.treeReady=false;$('tree-host-error').hidden=false;$('tree-host-error').textContent='Aucun projet chargé.';return}
+   $('tree-host-error').hidden=true;
+   if(state.treeFrameProjectId===pid){renderTree();return}
+   state.treeFrameProjectId=pid;state.treeReady=false;
+   const params=new URLSearchParams({splitTree:'1',projectId:pid});
+   frame.src='map.html?'+params.toString();
+ }
+ async function fetchTree(){
    const ids=new Set(['left','right'].map(k=>state.panes[k]?.doc?.projectId).filter(Boolean).map(String));
-   // Only show the project(s) actually in the Split panels, just like the native sidebar.
    state.availableProjectIds=ids;
-   if(!ids.size){state.projectErrors='Aucun projet ouvert dans Split.';renderTree();return}
-   const p=await sb.from('projects').select('*').in('id',[...ids]);
-   if(p.error){state.projectErrors='Chargement du projet impossible : '+p.error.message;renderTree();setStatus('Erreur de chargement');return}
-   state.projectErrors=null;state.projects=(p.data||[]).map(x=>({...x,tree:normalizeTree(x.tree)}));
-   if(!state.treeProjectId||!ids.has(state.treeProjectId))state.treeProjectId=String(state.panes.left.doc?.projectId||state.panes.right.doc?.projectId);
-   for(const pr of state.projects)state.expanded.add(String(pr.id));
-   renderTree();setStatus('Prêt');
+   if(!ids.size){state.projects=[];state.treeProjectId=null;syncTreeProject();return}
+   const {data,error}=await sb.from('projects').select('id,name').in('id',[...ids]);
+   if(error){$('tree-host-error').hidden=false;$('tree-host-error').textContent='Impossible de récupérer la liste des projets : '+error.message;setStatus('Erreur de projet');return}
+   state.projects=data||[];
+   const accessible=new Set(state.projects.map(x=>String(x.id)));
+   if(!accessible.has(String(state.treeProjectId))){state.treeProjectId=String(state.panes.left.doc?.projectId||'');
+     if(!accessible.has(state.treeProjectId))state.treeProjectId=String(state.projects[0]?.id||'')}
+   const picker=$('tree-project-picker');picker.replaceChildren();
+   for(const p of state.projects){const opt=document.createElement('option');opt.value=String(p.id);opt.textContent=p.name||'Projet';picker.appendChild(opt)}
+   picker.value=state.treeProjectId;
+   $('tree-project-selector').hidden=state.projects.length<2;
+   syncTreeProject();setStatus('Prêt');
  }
  function onFrameLoad(side,el){const p=state.panes[side];if(!p||p.iframe!==el||!p.doc)return;
   try{const u=new URL(el.contentWindow.location.href);if(u.origin!==location.origin){p.el.querySelector('.panel-empty').hidden=false;toast('Une interface a tenté de sortir de Mobius. Navigation bloquée.','danger');return}
@@ -328,13 +197,56 @@ body.phone-disabled .disabled-overlay{display:flex}body.phone-disabled .app{disp
     const d=toDoc({url:u.href,name:p.doc?.name});if(d)p.doc=d;
   }catch{}
  }
- function handleMessage(e){if(e.origin!==location.origin)return;const m=e.data;if(!m||m.namespace!==PREFIX||!['READY','PREPARE_RESULT','REQUEST_CLOSE','REQUEST_SPLIT','TREE_CHANGED'].includes(m.type))return;
-   if(m.type==='PREPARE_RESULT'){const fn=pending.get(m.requestId);if(fn&&[state.panes.left.iframe.contentWindow,state.panes.right.iframe.contentWindow].includes(e.source)){pending.delete(m.requestId);fn(m.ok===true)}return}
-   const s=['left','right'].find(side=>state.panes[side]?.iframe.contentWindow===e.source);if(!s)return;const p=state.panes[s];
+ function handleMessage(e){
+   if(e.origin!==location.origin)return;
+   const m=e.data;if(!m||m.namespace!==PREFIX)return;
+   if(e.source===treeFrame().contentWindow){
+     if(m.type==='TREE_READY'&&String(m.projectId)===String(state.treeFrameProjectId)){
+       state.treeReady=true;renderTree();setStatus('Arborescence prête');
+     }else if(m.type==='TREE_ERROR'){
+       state.treeReady=false;$('tree-host-error').hidden=false;$('tree-host-error').textContent='Arborescence du projet inaccessible. Vérifie les autorisations.';
+     }else if(m.type==='TREE_HIDE'){$('tree-pane').classList.add('hidden');}
+     else if(m.type==='TREE_OPEN'){
+       // Ne jamais ouvrir un document d’un autre projet que le moteur actuellement affiché.
+       if(String(m.projectId)!==String(state.treeFrameProjectId))return;
+       const d=toDoc(m.document),side=m.side==='right'?'right':'left';
+       if(!d||String(d.projectId)!==String(state.treeFrameProjectId))return;
+       openPanel(side,d).then(ok=>{if(ok)renderTree()}).catch(err=>toast('Ouverture impossible : '+err.message,'danger'));
+     }else if(m.type==='TREE_CHANGED'){
+       clearTimeout(treeTimer);
+       treeTimer=setTimeout(()=>{
+          renderTree();
+          for(const side of ['left','right']){
+             const p=state.panes[side];
+             if(p.loaded&&String(p.doc?.projectId)===String(state.treeFrameProjectId)){
+                p.iframe.contentWindow?.postMessage({namespace:PREFIX,type:'TREE_UPDATED'},location.origin);
+             }
+          }
+       },400);
+     }else if(m.type==='TREE_PREPARE_RESULT'){
+       const fn=pending.get(m.requestId);if(fn){pending.delete(m.requestId);fn(m.ok===true)}
+     }
+     return;
+   }
+   if(!['READY','PREPARE_RESULT','REQUEST_CLOSE','REQUEST_SPLIT','TREE_CHANGED'].includes(m.type))return;
+   if(m.type==='PREPARE_RESULT'){
+     const fn=pending.get(m.requestId);if(fn&&[state.panes.left.iframe.contentWindow,state.panes.right.iframe.contentWindow].includes(e.source)){
+        pending.delete(m.requestId);fn(m.ok===true)
+     }
+     return;
+   }
+   const side=['left','right'].find(k=>state.panes[k]?.iframe.contentWindow===e.source);if(!side)return;
+   const p=state.panes[side];
    if(m.type==='READY'){
      const actual=toDoc(m.document);if(actual){actual.name=m.name||p.doc?.name||actual.docId;p.doc=actual}
-     p.loaded=true;renderPanel(s);renderTree();persist();setStatus('Prêt');if(p.doc?.projectId&&!state.availableProjectIds.has(String(p.doc.projectId)))fetchTree().catch(console.warn);
-   }else if(m.type==='TREE_CHANGED'){clearTimeout(treeTimer);treeTimer=setTimeout(()=>fetchTree().catch(console.warn),500)}else if(m.type==='REQUEST_CLOSE'){leave()}else if(m.type==='REQUEST_SPLIT'){state.max=null;draw()}
+     p.loaded=true;renderPanel(side);renderTree();persist();setStatus('Prêt');
+     if(p.doc?.projectId&&!state.availableProjectIds.has(String(p.doc.projectId)))fetchTree().catch(console.warn);
+   }else if(m.type==='TREE_CHANGED'){
+     clearTimeout(treeTimer);treeTimer=setTimeout(()=>{
+       if(String(p.doc?.projectId)===String(state.treeFrameProjectId))sendTree('TREE_SYNC');
+       renderTree();
+     },500);
+   }else if(m.type==='REQUEST_CLOSE'){leave()}else if(m.type==='REQUEST_SPLIT'){state.max=null;draw()}
  }
  function initResize(){const handle=$('divider-handle'),area=$('panel-space');let dragging=false;
    function setRatio(pct){pct=Math.min(77,Math.max(23,pct));state.ratio=pct;
@@ -359,16 +271,8 @@ body.phone-disabled .disabled-overlay{display:flex}body.phone-disabled .app{disp
    $('exit').addEventListener('click',leave);$('swap').addEventListener('click',swap);
    $('theme').addEventListener('click',()=>{document.body.classList.toggle('dark');localStorage.setItem('theme',document.body.classList.contains('dark')?'dark':'light')});
    $('tree-toggle').addEventListener('click',()=>{$('tree-pane').classList.toggle('hidden')});
-   $('tree-hide').addEventListener('click',()=>{$('tree-pane').classList.add('hidden')});
-   $('tree-project-picker').addEventListener('change',e=>{state.treeProjectId=e.target.value;state.treeSelectedId=null;renderTree()});
-   $('tree-toolbar').addEventListener('click',e=>{const type=e.target.closest('[data-tree-create]')?.dataset.treeCreate;if(type)createTreeItem(type,selectedItem()?.type==='folder'?selectedItem().id:null)});
-   $('tree-import-btn').addEventListener('click',()=>{state.contextFolderId=selectedItem()?.type==='folder'?selectedItem()?.id:null;$('tree-file-input').click()});
-   $('tree-file-input').addEventListener('change',e=>importTreeFiles([...e.target.files]));
-   $('tree-export-btn').addEventListener('click',e=>{e.stopPropagation();$('tree-export-menu').hidden=!$('tree-export-menu').hidden});
-   $('tree-export-menu').addEventListener('click',e=>{const fmt=e.target.closest('[data-export-tree]')?.dataset.exportTree;if(fmt)exportTree(fmt)});
-   $('tree-context-menu').addEventListener('click',e=>{const action=e.target.closest('[data-tree-action]')?.dataset.treeAction;if(action)treeAction(action)});
-   $('tree-body').addEventListener('contextmenu',e=>{if(e.target.closest('.native-tree-row'))return;e.preventDefault();state.treeSelectedId=null;showTreeMenu(e.clientX,e.clientY)});
-   document.addEventListener('click',e=>{if(!e.target.closest('#tree-context-menu'))closeTreeMenu();if(!e.target.closest('#tree-footer'))$('tree-export-menu').hidden=true});
+   $('tree-project-picker').addEventListener('change',e=>{state.treeProjectId=e.target.value;syncTreeProject()});
+   $('native-tree-frame').addEventListener('load',()=>{refreshTreeBadgeSoon()});
    window.addEventListener('message',handleMessage);window.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.max){state.max=null;draw()}});
    initResize();
    if(!window.supabase){toast('La bibliothèque Supabase ne s’est pas chargée.','danger');return}
