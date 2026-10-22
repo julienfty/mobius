@@ -4,14 +4,40 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Mobius</title>
+    <!-- Optimisation v9 : listes légères, rendu progressif et chargement à la demande -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/lucide@latest" async onload="window.lucide?.createIcons()"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- Dépendances lourdes (ZIP, Excel, PDF) chargées uniquement lorsqu'une fonction les utilise. -->
+    <script>
+    window.MobiusLoadLib = (() => {
+      const libs = {
+        zip: ['JSZip', 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'],
+        xlsx: ['XLSX', 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'],
+        pdf: ['pdfjsLib', 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js']
+      };
+      const pending = {};
+      return function (key) {
+        const [globalName, src] = libs[key] || [];
+        if (!src) return Promise.reject(new Error('Bibliothèque inconnue : ' + key));
+        if (window[globalName]) return Promise.resolve(window[globalName]);
+        if (!pending[key]) {
+          pending[key] = new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            const timeout = setTimeout(() => { script.remove(); reject(new Error('Délai dépassé pour le module ' + key)); }, 20000);
+            script.async = true;
+            script.src = src;
+            script.onload = () => { clearTimeout(timeout); window[globalName] ? resolve(window[globalName]) : reject(new Error('Module ' + key + ' indisponible')); };
+            script.onerror = () => { clearTimeout(timeout); reject(new Error('Téléchargement impossible : ' + key)); };
+            document.head.appendChild(script);
+          }).catch(err => { delete pending[key]; throw err; });
+        }
+        return pending[key];
+      };
+    })();
+    </script>
     <script>
         if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             document.documentElement.classList.add('dark');
@@ -327,6 +353,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
     const tableOf = (tab) => TAB_META[tab].table;
     const kindOfRow = (row) => {
+        // La liste ne télécharge pas les gros documents : seul le type JSON est projeté par Supabase.
+        if (row && (row.card_kind === 'script' || row.card_kind === 'text')) return row.card_kind;
         let info = row && row.info;
         if (typeof info === 'string') { try { info = JSON.parse(info); } catch (_) { info = null; } }
         return info && (info.type === 'script' || info.type === 'text') ? info.type : 'card';
@@ -346,6 +374,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const hideModal = (id) => { $(id).classList.add('hidden'); $(id).classList.remove('flex'); };
 
     /* ---------- Session ---------- */
+    // Retour immédiat pour éviter un écran entièrement vide pendant la récupération de session.
+    $('items-grid').innerHTML = '<div class="col-span-full text-center py-16 text-gray-400 text-xs">Connexion à vos projets…</div>';
     const { data: { session } } = await sb.auth.getSession();
     if (!session?.user) { window.location.href = 'index.html'; return; }
     const user = session.user;
@@ -394,9 +424,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     const hasCollab = (item) => collabEntries(item).some(c => c.status === 'accepted');
     const pendingCount = (item) => collabEntries(item).filter(c => c.status === 'pending').length;
 
-    /* ---------- Chargement résilient : une erreur réseau ne signifie jamais « zéro document » ---------- */
+    /* ---------- Chargement rapide : métadonnées seules, rendu progressif ---------- */
+    // Avant : 6 SELECT * chargeaient TOUTES les arborescences, cartes et documents à chaque actualisation.
+    // Ces champs suffisent à la liste, aux rôles et à l'affichage des badges.
+    // La projection card_kind:info->>type évite le téléchargement du lourd JSON cards.info.
+    const LIST_FIELDS = 'id,name,owner_id,owner_email,collaborators,is_collab,pwd,created_at';
+    const CARD_FIELDS = LIST_FIELDS + ',card_kind:info->>type';
+    const tableLoaded = { projects: false, cards: false };
     let loadSequence = 0;
     let lastLoadOk = false;
+    let activeLoad = null;
+    let queuedLoad = null;
+    let refreshDebounce = null;
+
     const loadNotice = document.createElement('div');
     loadNotice.id = 'mobius-load-notice';
     loadNotice.setAttribute('role', 'status');
@@ -411,10 +451,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     function hideLoadNotice() { loadNotice.classList.add('hidden'); }
 
     async function fetchTable(table) {
+        const columns = table === 'cards' ? CARD_FIELDS : LIST_FIELDS;
+        // Ne jamais faire une seule requête OR non indexée sur toute la table.
+        // On conserve les 3 filtres compatibles avec les collaborateurs historiques.
         const queries = [
-            sb.from(table).select('*').eq('owner_id', user.id),
-            sb.from(table).select('*').contains('collaborators', JSON.stringify([{ email: myEmail }])),
-            sb.from(table).select('*').contains('collaborators', JSON.stringify([myEmail]))
+            sb.from(table).select(columns).eq('owner_id', user.id),
+            sb.from(table).select(columns).contains('collaborators', JSON.stringify([{ email: myEmail }])),
+            sb.from(table).select(columns).contains('collaborators', JSON.stringify([myEmail]))
         ];
         const results = await Promise.allSettled(queries);
         const map = new Map();
@@ -438,60 +481,99 @@ document.addEventListener('DOMContentLoaded', async () => {
         return [...map.values()];
     }
 
-    async function loadAll() {
-        const seq = ++loadSequence;
-        // Les deux tables sont traitées séparément : une erreur ne vide jamais l'autre table.
-        const results = await Promise.allSettled([fetchTable('projects'), fetchTable('cards')]);
-        if (seq !== loadSequence) return; // réponse ancienne : ne jamais écraser un chargement plus récent
-        const failed = [];
-        const nextData = { projects: state.data.projects, cards: state.data.cards };
-        const nextInvitations = [];
-        const names = ['projects', 'cards'];
-        const raw = { projects: null, cards: null };
-        results.forEach((result, i) => {
-            if (result.status === 'fulfilled') raw[names[i]] = result.value;
-            else { failed.push(names[i]); console.error(`[Mobius] ${names[i]} :`, result.reason); }
-        });
-        if (raw.projects && raw.cards) {
-            try {
-                const { data: lk, error: lkErr } = await sb.rpc('locked_items_for_me');
-                if (seq !== loadSequence) return;
-                if (!lkErr && lk) [[raw.projects, lk.projects], [raw.cards, lk.cards]].forEach(([rows, extra]) =>
-                    (extra || []).forEach(x => { if (!rows.some(r => r.id === x.id)) rows.push(x); }));
-                // L'échec de ce RPC optionnel ne doit pas vider les listes ordinaires.
-            } catch (e) { console.warn('[Mobius] locked_items_for_me :', e); }
-        }
-        names.forEach(table => {
-            if (!raw[table]) return;
-            const visible = [];
-            raw[table].forEach(item => {
-                const entry = myEntry(item);
-                if (!isOwner(item) && entry?.status === 'pending')
-                    nextInvitations.push({ table, item, from: entry.invited_by || item.owner_email, at: entry.invited_at });
-                else if (isOwner(item) || entry?.status === 'accepted') visible.push(item);
-            });
-            nextData[table] = visible;
-        });
+    // Actualiser une table sans effacer l'autre. Une ancienne requête ne remplace jamais la nouvelle.
+    function commitRows(table, rows, seq) {
         if (seq !== loadSequence) return;
-        state.data.projects = nextData.projects;
-        state.data.cards = nextData.cards;
-        // Conserver les invitations de la table en erreur.
-        state.invitations = [...state.invitations.filter(x => failed.includes(x.table)), ...nextInvitations];
+        const visible = [], invitations = [];
+        for (const item of rows) {
+            const entry = myEntry(item);
+            if (!isOwner(item) && entry?.status === 'pending')
+                invitations.push({ table, item, from: entry.invited_by || item.owner_email, at: entry.invited_at });
+            else if (isOwner(item) || entry?.status === 'accepted') visible.push(item);
+        }
+        state.data[table] = visible;
+        state.invitations = [...state.invitations.filter(x => x.table !== table), ...invitations];
+        tableLoaded[table] = true;
+        renderDashboard();
+        renderNotifications();
+    }
+
+    // Les appels facultatifs restent en arrière-plan : ils ne retardent plus l'affichage des documents.
+    async function loadSupplementary(seq) {
+        const jobs = [
+            (async () => {
+                try {
+                    const { data: lk, error } = await sb.rpc('locked_items_for_me');
+                    if (seq !== loadSequence || error || !lk) return;
+                    for (const table of ['projects', 'cards']) {
+                        const extras = lk[table] || [];
+                        if (!extras.length || !tableLoaded[table]) continue;
+                        const known = new Set([
+                            ...state.data[table].map(r => r.id),
+                            ...state.invitations.filter(i => i.table === table).map(i => i.item.id)
+                        ]);
+                        // Les éléments verrouillés déjà chargés ne doivent pas être ajoutés en doublon.
+                        const added = extras.filter(r => !known.has(r.id));
+                        if (!added.length) continue;
+                        const merged = [...state.data[table], ...state.invitations.filter(i => i.table === table).map(i => i.item), ...added];
+                        commitRows(table, merged, seq);
+                    }
+                } catch (e) { console.warn('[Mobius] locked_items_for_me :', e); }
+            })(),
+            (async () => {
+                try {
+                    const { data: reqs, error } = await sb.from('pwd_requests').select('*')
+                        .eq('owner_id', user.id).eq('status', 'pending').order('created_at', { ascending: false });
+                    if (seq !== loadSequence) return;
+                    if (!error) {
+                        state.pwdRequests = (reqs || []).map(r => ({ ...r, item: (state.data[r.table_name] || []).find(i => i.id === r.item_id) })).filter(r => r.item);
+                        renderNotifications();
+                    }
+                } catch (e) { console.warn('[Mobius] pwd_requests :', e); }
+            })(),
+            loadNotifs()
+        ];
+        await Promise.allSettled(jobs);
+    }
+
+    async function performLoad() {
+        const seq = ++loadSequence;
+        const failed = [];
+        // Une table prête s'affiche immédiatement, sans attendre l'autre table.
+        await Promise.all(['projects', 'cards'].map(async table => {
+            try { commitRows(table, await fetchTable(table), seq); }
+            catch (e) { failed.push(table); console.error(`[Mobius] ${table} :`, e); }
+        }));
+        if (seq !== loadSequence) return;
         if (failed.length) {
             showLoadNotice(`Connexion ou chargement incomplet (${failed.join(', ')}). Les dernières données disponibles sont conservées. Aucun document n'a été supprimé.`);
         } else {
             lastLoadOk = true;
             hideLoadNotice();
         }
-        renderDashboard();
-        try {
-            const { data: reqs, error: reqErr } = await sb.from('pwd_requests').select('*')
-                .eq('owner_id', user.id).eq('status', 'pending').order('created_at', { ascending: false });
-            if (seq !== loadSequence) return;
-            if (!reqErr) state.pwdRequests = (reqs || []).map(r => ({ ...r, item: (state.data[r.table_name] || []).find(i => i.id === r.item_id) })).filter(r => r.item);
-        } catch (e) { console.warn('[Mobius] pwd_requests :', e); }
-        if (seq !== loadSequence) return;
-        try { await loadNotifs(); } catch (e) { console.warn('[Mobius] notifications :', e); }
+        // Non bloquant : invitations, demandes, notifications et éléments verrouillés.
+        void loadSupplementary(seq);
+    }
+
+    // Une seule actualisation réseau à la fois. Les appels arrivés pendant celle-ci sont coalescés.
+    function loadAll() {
+        if (activeLoad) {
+            if (!queuedLoad) queuedLoad = activeLoad.then(() => {
+                queuedLoad = null;
+                return loadAll();
+            });
+            return queuedLoad;
+        }
+        const work = performLoad();
+        activeLoad = work;
+        void work.finally(() => { if (activeLoad === work) activeLoad = null; }).catch(console.warn);
+        return work;
+    }
+    function scheduleLoad(delay = 700) {
+        clearTimeout(refreshDebounce);
+        refreshDebounce = setTimeout(() => {
+            if (!document.hidden && $('main-view').offsetParent !== null) void loadAll();
+        }, delay);
     }
 
     /* ---------- Rendu dashboard ---------- */
@@ -561,7 +643,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             : 'flex flex-col gap-2';
 
         if (!items.length) {
-            container.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400 text-xs">${q ? 'Aucun résultat.' : (!lastLoadOk ? 'Chargement des documents… Si cela persiste, cliquez sur Réessayer.' : 'Aucun élément pour le moment. Cliquez sur le bouton en haut pour en créer un !')}</div>`;
+            container.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400 text-xs">${q ? 'Aucun résultat.' : (!tableLoaded[tableOf(state.tab)] ? 'Chargement des documents…' : 'Aucun élément pour le moment. Cliquez sur le bouton en haut pour en créer un !')}</div>`;
             return;
         }
 
@@ -636,7 +718,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const name = await askPrompt('Nom du projet :', 'Nom du projet', 'text', item.name);
         if (!name) return;
         if (!await askConfirm(`« ${item.name} » sera déplacé dans le nouveau projet. Continuer ?`)) return;
-        let info = item.info; if (typeof info === 'string') { try { info = JSON.parse(info); } catch (e) { info = {}; } }
+        // Charger la carte réelle seulement pour cette opération (la liste n'a que ses métadonnées).
+        const { data: fullCard, error: cardErr } = await sb.from('cards').select('info').eq('id', item.id).maybeSingle();
+        if (cardErr || !fullCard) return toast('Carte indisponible : ' + (cardErr?.message || 'accès refusé'), 'error');
+        let info = fullCard.info; if (typeof info === 'string') { try { info = JSON.parse(info); } catch (e) { info = {}; } }
         info = info || {};
         const treeItem = { ...info, id: 'id_' + Date.now() + 'i', name: item.name, type: info.type || 'card' };
         const { error } = await sb.from('projects').insert([{ id: 'id_' + Date.now() + 'p', name, owner_email: user.email, owner_id: user.id, is_collab: false, collaborators: [], tree: [treeItem] }]);
@@ -1176,13 +1261,13 @@ const currentCard = {};
                     const tb = aoaTable(csvParse(t, sep), base); if (!tb) throw Error('fichier vide'); return [tb];
                 }
                 if (ext === 'xlsx' || ext === 'xls') {
-                    if (typeof XLSX === 'undefined') throw Error('bibliothèque Excel non chargée');
+                    await window.MobiusLoadLib('xlsx');
                     const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
                     const out = wb.SheetNames.map(n => aoaTable(XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null }), wb.SheetNames.length > 1 ? n : base)).filter(Boolean);
                     if (!out.length) throw Error('classeur vide'); return out;
                 }
                 if (ext === 'zip') {
-                    if (typeof JSZip === 'undefined') throw Error('bibliothèque ZIP non chargée');
+                    await window.MobiusLoadLib('zip');
                     const z = await JSZip.loadAsync(await file.arrayBuffer()), out = [];
                     const names = Object.keys(z.files).filter(n => !z.files[n].dir && !/(^|\/)(__MACOSX|\.)/.test(n) && /\.(csv|xlsx|xls|json)$/i.test(n)).sort();
                     for (const n of names) out.push(...await fileTables(new File([await z.files[n].async('blob')], n.split('/').pop())));
@@ -1687,15 +1772,15 @@ window.__mobiusSb = sb;
         if (!e.target.closest('#notif-panel') && !e.target.closest('#notif-btn')) $('notif-panel').classList.add('hidden');
     });
 
-    setInterval(() => { if (!document.hidden && $('main-view').offsetParent !== null) loadAll(); }, 30000);
-    document.addEventListener('visibilitychange', () => { if (!document.hidden && $('main-view').offsetParent !== null) loadAll(); });
+    setInterval(() => { if (!document.hidden && $('main-view').offsetParent !== null) scheduleLoad(300); }, 60000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && $('main-view').offsetParent !== null) scheduleLoad(300); });
     setInterval(() => { if (!document.hidden) loadNotifs(); }, 30000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) loadNotifs(); });
     try {
         sb.channel('mobius-collab')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => { if (!state.activeProject) loadAll(); })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'cards' }, () => { if (!state.activeProject) loadAll(); })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'pwd_requests' }, () => { if (!state.activeProject) loadAll(); })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => { if (!state.activeProject) scheduleLoad(); })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'cards' }, () => { if (!state.activeProject) scheduleLoad(); })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'pwd_requests' }, () => { if (!state.activeProject) scheduleLoad(); })
             .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => loadNotifs())
             .on('postgres_changes', { event: '*', schema: 'public', table: 'role_requests' }, () => loadNotifs())
             .subscribe();
@@ -1727,6 +1812,11 @@ window.__mobiusSb = sb;
         let item = state.data[table].find(i => i.id === id);
         if (!item) return;
         if (!isAdminOf(item)) return toast('Seuls le propriétaire et les admins peuvent modifier les paramètres.', 'error');
+        // Les paramètres avancés (locked / admins_manage_pwd) et le document complet sont lus à la demande.
+        const { data: detail, error: detailError } = await sb.from(table).select('*').eq('id', id).maybeSingle();
+        if (detailError || !detail) return toast('Impossible de charger les paramètres : ' + (detailError?.message || 'accès refusé'), 'error');
+        item = detail;
+        if (!isAdminOf(item)) return toast('Accès aux paramètres refusé.', 'error');
         if (item.pwd) {
             const p = await askPrompt('Mot de passe requis :', 'Mot de passe', 'password');
             if (p === null) return;
@@ -1734,7 +1824,7 @@ window.__mobiusSb = sb;
             if (item.locked) { await loadAll(); item = state.data[table].find(i => i.id === id); if (!item || item.locked) return toast('Élément indisponible.', 'error'); }
         }
         const entries = collabEntries(item);
-        state.editing = { table, id };
+        state.editing = { table, id, item };
         state.collabMeta = new Map(entries.map(c => [c.email, c]));
         state.collabRoles = new Map(entries.map(c => [c.email, c.role || 'editor']));
         state.tempCollabs = entries.map(c => c.email);
@@ -1768,7 +1858,7 @@ window.__mobiusSb = sb;
 
     async function saveSettings() {
         const { table, id } = state.editing || {};
-        const item = state.data[table]?.find(i => i.id === id);
+        const item = state.editing?.item || state.data[table]?.find(i => i.id === id);
         if (!item) return;
         if (item.locked) return toast('Déverrouillez cet élément avant de le modifier.', 'error');
         const name = $('modal-item-name').value.trim();
@@ -1814,9 +1904,11 @@ window.__mobiusSb = sb;
         if (owner) update.pwd = pwd || null;
         if (owner && $('modal-admin-pwd').checked !== !!item.admins_manage_pwd) update.admins_manage_pwd = $('modal-admin-pwd').checked;
         if (table === 'cards') {
-            // le nom d'une carte libre est aussi dans cards.info (lu par map.html)
-            let info = item.info;
-            if (typeof info === 'string') { try { info = JSON.parse(info); } catch (e) { info = null; } }
+            // Relecture du JSON complet et récent pour préserver le contenu du document.
+            const { data: fullCard, error: fullErr } = await sb.from('cards').select('info').eq('id', id).maybeSingle();
+            if (fullErr || !fullCard) return toast('Impossible de lire la carte : ' + (fullErr?.message || 'accès refusé'), 'error');
+            let info = fullCard.info;
+            if (typeof info === 'string') { try { info = JSON.parse(info); } catch (_) { info = null; } }
             if (info && typeof info === 'object') update.info = { ...info, name };
         }
 
@@ -2003,8 +2095,14 @@ window.__mobiusSb = sb;
             if (v === null) return;
             if (!(await verifyPwd(sb, 'projects', p.id, v, p.pwd))) return toast('Mot de passe incorrect.', 'error');
         }
-        const { data } = await sb.from('projects').select('*').eq('id', id).maybeSingle();
-        state.activeProject = data || p;
+        // Chargement du projet complet uniquement à l'ouverture. Pas de remplacement par une arborescence vide en cas d'erreur.
+        topProgress.start();
+        let data, error;
+        try { ({ data, error } = await sb.from('projects').select('*').eq('id', id).maybeSingle()); }
+        catch (e) { error = e; }
+        topProgress.done();
+        if (error || !data) return toast('Chargement du projet impossible : ' + (error?.message || 'accès refusé'), 'error');
+        state.activeProject = data;
         if (!Array.isArray(state.activeProject.tree)) state.activeProject.tree = [];
         state.selectedFolderId = null;
         state.expanded.clear();
@@ -2147,7 +2245,7 @@ window.__mobiusSb = sb;
     }
 
     async function pdfToText(buf) {
-        if (!window.pdfjsLib) throw new Error("lecteur PDF indisponible (connexion ?)");
+        await window.MobiusLoadLib('pdf');
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
         const pages = [];
@@ -2183,6 +2281,7 @@ window.__mobiusSb = sb;
     }
 
     async function docxToText(buf) {
+        await window.MobiusLoadLib('zip');
         const zip = await JSZip.loadAsync(buf);
         const entry = zip.file('word/document.xml');
         if (!entry) throw new Error("ce n'est pas un document Word valide");
@@ -2917,12 +3016,12 @@ window.MobiusProjectExport = (() => {
    const csv = t => '\ufeff' + [['id', ...t.cols.map(c => c.label)], ...t.rows.map(r => [r.id, ...r.vals])].map(row => row.map(csvCell).join(';')).join('\r\n');
    if (tables.length === 1) dl(new Blob([csv(tables[0])], { type: 'text/csv;charset=utf-8' }), base + '.csv');
    else {
-    if (typeof JSZip === 'undefined') { toast('Bibliothèque ZIP non chargée.'); return; }
+    try { await window.MobiusLoadLib('zip'); } catch (e) { toast(e.message); return; }
     const zip = new JSZip(); tables.forEach(t => zip.file(t.name + '.csv', csv(t)));
     dl(await zip.generateAsync({ type: 'blob' }), base + '_csv.zip');
    }
   } else if (format === 'xlsx') {
-   if (typeof XLSX === 'undefined') { toast('Bibliothèque Excel non chargée.'); return; }
+   try { await window.MobiusLoadLib('xlsx'); } catch (e) { toast(e.message); return; }
    const wb = XLSX.utils.book_new(), used = new Set();
    tables.forEach(t => {
     let sn = String(t.title).replace(/[\[\]:*?\/\\]/g, ' ').trim().slice(0, 28) || t.name, b = sn, k = 2;
