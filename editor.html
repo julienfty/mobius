@@ -766,6 +766,8 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
             setupTreeSidebarVisibility();
             renderBreadcrumb();
             initEditor();
+            window.__mobiusEditorInitialized = true;
+            window.MobiusSplitReady?.();
             focusFromUrl();
             topProgress.done();
 
@@ -4046,7 +4048,7 @@ window.mobiusRelationSQL = function(cardTables) {
 window.MobiusSplitAdapter={
  app:'editor',
  hasProject:()=>Boolean(projectId && projectData && currentUser),
- isReady:()=>Boolean(currentUser&&cardId&&currentCard&&docReady),
+ isReady:()=>Boolean(currentUser&&cardId&&currentCard&&window.__mobiusEditorInitialized),
  title:()=>currentCard?.name||'Document',
  userId:()=>currentUser?.id,
  ensureSaved:async()=>{
@@ -4092,7 +4094,7 @@ window.MobiusSplitAdapter={
    arr=arr.filter(x=>validDoc(x)&&x.url!==e.url);arr.unshift({...e,at:Date.now()});sessionStorage.setItem(scoped(HIST),JSON.stringify(arr.slice(0,16)));
  }
  function notify(type,other={}){if(!embedded||window.parent===window)return;window.parent.postMessage({namespace:PREFIX,type,...other},origin)}
- function ready(){if(!APP.isReady())return; if(!embedded){button.hidden=!APP.hasProject?.();remember();}else if(!readySent){readySent=true;notify('READY',{document:current(),name:APP.title?.()||document.title})}}
+ function ready(){if(!APP.isReady())return; if(!embedded){button.hidden=isPhone()||!APP.hasProject?.();remember();}else if(!readySent){readySent=true;notify('READY',{document:current(),name:APP.title?.()||document.title})}}
  async function ensureSaved(){try{const ok=(await APP.ensureSaved())===true;if(ok)notify('TREE_CHANGED');return ok}catch(err){console.error('Mobius Split: échec de sauvegarde',err);return false}}
  async function openSplit(){if(embedded){notify('REQUEST_SPLIT');return}if(busy||!APP.isReady()||!APP.hasProject?.())return;
    if(isPhone()||(window.innerWidth<768&&window.matchMedia('(pointer:coarse)').matches)){alert('Mobius Split est disponible sur tablette et ordinateur.');return}
@@ -4109,8 +4111,8 @@ window.MobiusSplitAdapter={
  button.hidden=true;button.style.cssText='display:inline-flex;align-items:center;justify-content:center;gap:4px;border:1px solid #d8d7f9;border-radius:12px;background:rgba(82,70,238,.09);color:#5246EE;padding:8px 10px;font:600 12px Inter,system-ui,sans-serif;cursor:pointer;flex-shrink:0;white-space:nowrap;';
  const hideStyle=document.createElement('style');hideStyle.textContent='#mobius-split-launch[hidden]{display:none!important}';document.head.append(hideStyle);
  button.addEventListener('click',openSplit);
- if(!embedded){const hdr=document.querySelector('header');if(hdr){const target=hdr.querySelector('#role-badge')?.parentElement || hdr.lastElementChild || hdr; if(target&&target!==hdr)target.prepend(button);else hdr.append(button);}}
- document.addEventListener('keydown',e=>{if(embedded||!APP.hasProject?.())return;const mod=e.metaKey||e.ctrlKey;if(!mod||e.altKey||e.repeat)return;
+ if(!embedded){const hdr=document.querySelector('header');if(hdr){if(APP.app==='central')hdr.append(button);else{const target=hdr.querySelector('#role-badge')?.parentElement || hdr.lastElementChild || hdr;if(target&&target!==hdr)target.prepend(button);else hdr.append(button);}}}
+ window.addEventListener('keydown',e=>{if(embedded||isPhone()||!APP.hasProject?.())return;const mod=e.metaKey||e.ctrlKey;if(!mod||e.altKey||e.repeat)return;
   const primary=!e.shiftKey&&(e.key.toLowerCase()==='e'||e.code==='KeyE');
   const fallback=e.shiftKey&&(e.key==='.'||e.code==='Period');
   if(primary||fallback){e.preventDefault();e.stopPropagation();openSplit()}
@@ -4140,7 +4142,8 @@ window.MobiusSplitAdapter={
  }
  document.addEventListener('DOMContentLoaded',ready);window.addEventListener('pageshow',ready);
  // Async Supabase authentication can finish after DOMContentLoaded.
- let polls=0;const interval=setInterval(()=>{ready();if((embedded?readySent:APP.isReady())||++polls>60)clearInterval(interval)},250);
+ window.MobiusSplitReady=ready;
+ let polls=0;const interval=setInterval(()=>{ready();if((embedded?readySent:APP.isReady())||++polls>600)clearInterval(interval)},300);
 })();
 
 </script>
