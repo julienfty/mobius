@@ -112,6 +112,10 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
   #collab-dropdown { padding: 12px; }
 }
 </style>
+
+<!-- Mobius Split: embedded applications hide the duplicated project tree. -->
+<script>if(new URLSearchParams(location.search).get('split')==='1')document.documentElement.classList.add('mobius-embedded');</script>
+<style>html.mobius-embedded #tree-sidebar,html.mobius-embedded #breadcrumb-container,html.mobius-embedded #mnav-tree,html.mobius-embedded #tree-selbar{display:none!important}html.mobius-embedded #top-header,html.mobius-embedded header{max-width:100vw}</style>
 </head>
 <body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col antialiased selection:bg-[#5246EE] selection:text-white">
 
@@ -645,7 +649,7 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
         function setupMobilePagesOrder() {
             // même ordre que sur ordinateur : Projet, Légende, Map, Inspecteur
             mobilePagesOrder = [];
-            if (projectId && projectData) {
+            if (projectId && projectData && new URLSearchParams(location.search).get('split')!=='1') {
                 mobilePagesOrder.push('tree');
                 document.getElementById('nav-btn-tree').classList.remove('hidden');
                 document.getElementById('nav-btn-tree').classList.add('flex');
@@ -3317,6 +3321,8 @@ container.addEventListener('touchstart', (e) => {
                 }).eq('id', currentCard.id));
             }
             if (error) { console.error(error); showToast("Erreur d'enregistrement."); }
+            if(!error&&new URLSearchParams(location.search).get('split')==='1')window.parent.postMessage({namespace:'mobius.split.v1',type:'TREE_CHANGED'},location.origin);
+            return !error;
         }
 
         function updateCardInTree(list, updatedCard) {
@@ -4911,5 +4917,33 @@ window.mobiusRelationSQL = function(cardTables) {
 (function(){ if (!new URLSearchParams(location.search).get('mql')) return; let n = 0;
   const t = setInterval(() => { n++; try { if (typeof currentCard !== 'undefined' && currentCard && currentCard.id && typeof MT !== 'undefined' && MT.open) { clearInterval(t); MT.open(); } } catch (e) {} if (n > 60) clearInterval(t); }, 250); })();
 </script>
+
+<!-- Mobius Split integration: no changes to the existing database. -->
+<script>
+const mobiusMapOriginalSave=saveCurrentMapState;
+const mobiusMapPending=new Set();
+window.saveCurrentMapState=async(...args)=>{const job=Promise.resolve().then(()=>mobiusMapOriginalSave(...args));mobiusMapPending.add(job);try{return await job}finally{mobiusMapPending.delete(job)}};
+window.MobiusSplitAdapter={
+  app:'map',
+  isReady:()=>Boolean(currentUser&&cardId&&currentCard?.id),
+  title:()=>currentCard?.name||'Carte',
+  userId:()=>currentUser?.id,
+  document:()=>({url:'map.html?'+new URLSearchParams({cardId:String(cardId),...(projectId?{projectId:String(projectId)}:{})})}),
+  ensureSaved:async()=>{
+    try{
+      if(saveTimer){const ok=await saveCurrentMapState();if(ok===false)return false;}
+      if(mobiusMapPending.size){const results=await Promise.allSettled([...mobiusMapPending]);if(results.some(x=>x.status==='rejected'||x.value===false))return false;}
+      if(typeof treeSaveTimer!=='undefined'&&treeSaveTimer&&projectData){
+        clearTimeout(treeSaveTimer);treeSaveTimer=null;
+        updateCardInTree(projectData.tree,currentCard);
+        const{error}=await supabaseClient.from('projects').update({tree:projectData.tree}).eq('id',projectId);
+        if(error){console.error('Split: sauvegarde arborescence',error);return false;}
+      }
+      return true;
+    }catch(e){console.error(e);return false;}
+  }
+};
+</script>
+<script src="mobius-split-bridge.js"></script>
 </body>
 </html>
