@@ -1853,7 +1853,7 @@ $('expm').onclick=e=>{const b=e.target.closest('[data-ex]');if(!b)return;const d
 $('bMql').onclick=async()=>{dirty=true;await flush();const c=(curCard&&find(curCard))||cards()[0];if(!c){alert('Aucune carte dans la centrale.');return}
   location.href=`map.html?projectId=${encodeURIComponent(pid)}&cardId=${encodeURIComponent(c.id)}&mql=1`};
 $('q').oninput=render;document.querySelectorAll('.view-btn').forEach(b=>b.onclick=()=>{view=b.dataset.view;localStorage.setItem('centralView',view);render()});
-(async()=>{const{data:{session}}=await sb.auth.getSession();if(!session){location.href='index.html';return}window.__mobiusCentralUserId=session.user.id;
+(async()=>{const{data:{session}}=await sb.auth.getSession();if(!session){location.href='connexion.html';return}window.__mobiusCentralUserId=session.user.id;
   const{data,error}=await sb.from('projects').select('*').eq('id',pid).single();if(error||!data){location.href='dashboard.html?openProjectId='+encodeURIComponent(pid);return}
   P=data;if(typeof P.tree==='string')P.tree=JSON.parse(P.tree);projectData=P;C=find(cid);if(!C||C.type!=='central'){document.body.innerHTML='Centrale introuvable.';return}
   C.groups=(C.groups||[]).map(g=>({parent:null,...g,keys:g.keys||[]}));C.links=C.links||{};
