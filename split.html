@@ -2151,7 +2151,7 @@ window.addEventListener('beforeunload',e=>{if(treeDirty||treeSaveTimer){e.preven
    initResize();
    if(!window.supabase){toast('La bibliothèque Supabase ne s’est pas chargée.','danger');return}
    sb=window.supabase.createClient(SB_URL,SB_KEY);const {data,error}=await sb.auth.getSession();
-   if(error||!data?.session?.user){location.assign('index.html');return}state.session=data.session;
+   if(error||!data?.session?.user){location.assign('connexion.html');return}state.session=data.session;
    window.SplitTree.setClient(sb,state.session.user);
    window.SplitTree.message=(s)=>toast(s,'warning');
    window.SplitTree.changed=(id)=>{for(const side of ['left','right']){const p=state.panes[side];if(p.loaded&&String(p.doc?.projectId)===String(id)){p.iframe.contentWindow?.postMessage({namespace:PREFIX,type:'TREE_UPDATED'},location.origin)}}};
