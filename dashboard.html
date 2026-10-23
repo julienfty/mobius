@@ -377,7 +377,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Retour immédiat pour éviter un écran entièrement vide pendant la récupération de session.
     $('items-grid').innerHTML = '<div class="col-span-full text-center py-16 text-gray-400 text-xs">Connexion à vos projets…</div>';
     const { data: { session } } = await sb.auth.getSession();
-    if (!session?.user) { window.location.href = 'index.html'; return; }
+    if (!session?.user) { window.location.href = 'connexion.html'; return; }
     const user = session.user;
     const myEmail = norm(user.email);
     const meta = user.user_metadata || {};
@@ -2034,7 +2034,7 @@ window.__mobiusSb = sb;
         showModal('profile-modal');
     });
     document.querySelector('[data-close="profile-modal"]').addEventListener('click', () => hideModal('profile-modal'));
-    $('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'index.html'; });
+    $('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'connexion.html'; });
     ['create-modal', 'profile-modal'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target.id === id) hideModal(id); }));
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') { ['create-modal', 'profile-modal'].forEach(hideModal); $('notif-panel').classList.add('hidden'); }
