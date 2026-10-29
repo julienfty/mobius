@@ -137,6 +137,151 @@ html.mobius-tree-host #toast-notification{z-index:150!important}
 html.mobius-tree-host #tree-sidebar input,html.mobius-tree-host #tree-sidebar select{max-width:100%}
 html.mobius-tree-host #tree-sidebar #proj-export-menu{max-height:65dvh;overflow:auto}
 </style>
+
+<!-- Affichage tablette : portrait mobile ; paysage tactile ou ordinateur selon clavier / préférence. -->
+<script id="mobius-tablet-mode-script">
+(function(){
+  const STORAGE_KEY='mobius-tablet-interface';
+  const ROOT=document.documentElement;
+  const mqFine=window.matchMedia('(pointer:fine) and (hover:hover)');
+  const screenTablet=()=>{
+    // Une tablette tactile a typiquement au moins 600 px CSS sur son petit côté.
+    const shortSide=Math.min(screen.width||innerWidth, screen.height||innerHeight);
+    return (navigator.maxTouchPoints||0)>0 && shortSide>=600 && shortSide<=1150;
+  };
+  const pref=()=>{try{return localStorage.getItem(STORAGE_KEY)||'auto';}catch(_){return 'auto';}};
+  let keyboardSeen=false;
+  let lastMode='';
+  const isPortrait=()=>window.matchMedia('(orientation:portrait)').matches;
+  function choose(){
+    if(!screenTablet())return innerWidth<768?'touch':'desktop';
+    if(isPortrait())return 'touch';
+    const value=pref();
+    if(value==='touch'||value==='desktop')return value;
+    return keyboardSeen || mqFine.matches ? 'desktop' : 'touch';
+  }
+  function apply(){
+    const next=choose();
+    ROOT.classList.toggle('mobius-tablet-touch',screenTablet()&&next==='touch');
+    ROOT.classList.toggle('mobius-tablet-desktop',screenTablet()&&next==='desktop'&&!isPortrait());
+    ROOT.dataset.mobiusTabletLayout=next;
+    const switcher=document.getElementById('mobius-tablet-switch');
+    if(switcher){
+      const show=screenTablet()&&!isPortrait();
+      switcher.hidden=!show;
+      switcher.textContent=next==='touch'?'⌨ Mode ordinateur':'☝ Mode tactile';
+      switcher.title=next==='touch'?'Afficher les menus compacts pour un clavier physique':'Afficher les panneaux et outils tactiles';
+      switcher.setAttribute('aria-pressed',String(next==='desktop'));
+    }
+    if(next!==lastMode){
+      const previous=lastMode;
+      lastMode=next;
+      window.dispatchEvent(new CustomEvent('mobius:tablet-layout-change',{detail:{mode:next,previous}}));
+    }
+  }
+  window.mobiusTablet={
+    isTablet:screenTablet,
+    isMobile:()=>choose()==='touch',
+    isDesktop:()=>choose()==='desktop',
+    get mode(){return choose()},
+    get preference(){return pref()},
+    setPreference(mode){
+      if(!['auto','touch','desktop'].includes(mode))return;
+      try{localStorage.setItem(STORAGE_KEY,mode)}catch(_){}
+      apply();
+    },
+    refresh:apply
+  };
+  // Les navigateurs ne fournissent pas un indicateur fiable de clavier connecté.
+  // Seuls les raccourcis manifestement matériels constituent un indice fort.
+  addEventListener('keydown',e=>{
+    if(!screenTablet()||isPortrait()||pref()!=='auto'||keyboardSeen||!e.isTrusted)return;
+    if((e.metaKey||e.ctrlKey)&&e.key.length===1 || e.key==='Escape' || /^F\d{1,2}$/.test(e.key)){
+      keyboardSeen=true;apply();
+    }
+  },{capture:true});
+  addEventListener('resize',apply);
+  addEventListener('orientationchange',()=>setTimeout(apply,100));
+  mqFine.addEventListener?.('change',apply);
+  document.addEventListener('DOMContentLoaded',()=>{
+    const header=document.querySelector('body > header');
+    if(header){
+      const button=document.createElement('button');
+      button.type='button';button.id='mobius-tablet-switch';button.hidden=true;
+      button.className='mobius-tablet-switch';
+      button.addEventListener('click',()=>{
+        const next=choose()==='touch'?'desktop':'touch';
+        window.mobiusTablet.setPreference(next);
+      });
+      header.appendChild(button);
+    }
+    apply();
+  });
+  apply();
+})();
+</script>
+
+<style id="mobius-tablet-layout-css">
+/* Rendu smartphone authentique sur iPad/tablette sans clavier, y compris à 820-1366 px. */
+html.mobius-tablet-touch body > .flex-1.flex.overflow-hidden.relative{
+  position:relative!important;padding-bottom:64px!important;min-height:0!important;
+}
+html.mobius-tablet-touch #tree-sidebar,
+html.mobius-tablet-touch #sidebar-legend-left,
+html.mobius-tablet-touch #sidebar-inspector-right,
+html.mobius-tablet-touch #canvas-container{flex:1 1 auto!important;min-width:0!important;max-width:none!important;width:100%!important;}
+/* C'est switchMobilePage qui choisit exactement UN des quatre panneaux. */
+html.mobius-tablet-touch #tree-sidebar.hidden,
+html.mobius-tablet-touch #sidebar-legend-left.hidden,
+html.mobius-tablet-touch #sidebar-inspector-right.hidden,
+html.mobius-tablet-touch #canvas-container.hidden{display:none!important;}
+html.mobius-tablet-touch #tree-sidebar.absolute,
+html.mobius-tablet-touch #sidebar-legend-left.absolute,
+html.mobius-tablet-touch #sidebar-inspector-right.absolute,
+html.mobius-tablet-touch #canvas-container.absolute{
+  display:flex!important;position:absolute!important;inset:0!important;z-index:30!important;
+  width:100%!important;height:100%!important;overflow:hidden;
+}
+html.mobius-tablet-touch #canvas-container.absolute{overflow:auto!important;}
+html.mobius-tablet-touch body > nav.md\:hidden{display:flex!important;}
+html.mobius-tablet-touch #map-tools-mobile.hidden,
+html.mobius-tablet-touch #map-history-mobile.hidden,
+html.mobius-tablet-touch #multi-select-bar.hidden{display:none!important;}
+html.mobius-tablet-touch #map-tools-mobile.flex,
+html.mobius-tablet-touch #map-history-mobile.flex,
+html.mobius-tablet-touch #multi-select-bar.flex{display:flex!important;}
+html.mobius-tablet-touch #canvas-container .pointer-events-none.hidden.md\:flex{display:none!important;}
+html.mobius-tablet-touch #tree-sidebar,
+html.mobius-tablet-touch #sidebar-legend-left,
+html.mobius-tablet-touch #sidebar-inspector-right{box-shadow:none!important;border-left:0!important;border-right:0!important;}
+html.mobius-tablet-touch #tree-sidebar > div:first-child,
+html.mobius-tablet-touch #sidebar-legend-left > div:first-child,
+html.mobius-tablet-touch #sidebar-inspector-right > div:first-child{flex-shrink:0;}
+html.mobius-tablet-touch body > header{padding:8px 12px;gap:6px;}
+html.mobius-tablet-touch #breadcrumb-container{max-width:min(45vw,440px);}
+html.mobius-tablet-touch #collab-count-label{display:none!important;}
+/* Les trois actions restent cliquables en haut du canevas sur tablette tactile. */
+html.mobius-tablet-touch #map-history-mobile,
+html.mobius-tablet-touch #map-tools-mobile{top:12px;}
+html.mobius-tablet-touch #multi-select-bar{bottom:12px;max-width:calc(100% - 24px);flex-wrap:wrap;justify-content:center;}
+/* Clavier physique : les panneaux d'origine sont visibles, mais occupent moins de place. */
+html.mobius-tablet-desktop #tree-sidebar{width:clamp(160px,17vw,215px)!important;flex:none!important;}
+html.mobius-tablet-desktop #sidebar-legend-left{width:clamp(148px,15vw,190px)!important;flex:none!important;}
+html.mobius-tablet-desktop #sidebar-inspector-right{width:clamp(190px,20vw,240px)!important;flex:none!important;}
+html.mobius-tablet-desktop #tree-sidebar .p-4,
+html.mobius-tablet-desktop #sidebar-legend-left .p-4,
+html.mobius-tablet-desktop #sidebar-inspector-right .p-4{padding:10px!important;}
+html.mobius-tablet-desktop #canvas-container{min-width:180px!important;}
+html.mobius-tablet-desktop #map-history-mobile,
+html.mobius-tablet-desktop #map-tools-mobile,
+html.mobius-tablet-desktop #multi-select-bar{display:none!important;}
+html.mobius-tablet-desktop body > nav.md\:hidden{display:none!important;}
+/* Commande explicite et persistante, uniquement en paysage sur tablette. */
+.mobius-tablet-switch{flex-shrink:0;max-width:145px;background:rgba(82,70,238,.1);color:#5246ee;border:1px solid rgba(82,70,238,.25);border-radius:10px;padding:7px 9px;font:600 11px Inter,system-ui,sans-serif;white-space:nowrap;cursor:pointer;}
+.mobius-tablet-switch[hidden]{display:none!important;}
+.dark .mobius-tablet-switch{color:#c4b5fd;background:rgba(82,70,238,.22);border-color:rgba(167,139,250,.4);}
+@media(max-width:900px){.mobius-tablet-switch{font-size:10px;padding:7px 6px;max-width:116px;}}
+</style>
 </head>
 <body class="h-full bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col antialiased selection:bg-[#5246EE] selection:text-white">
 
@@ -676,7 +821,7 @@ html.mobius-tree-host #tree-sidebar #proj-export-menu{max-height:65dvh;overflow:
             handleInvitation();
             topProgress.done();
 
-            if (window.innerWidth < 768) {
+            if (window.mobiusTablet.isMobile()) {
                 switchMobilePage('map', false);
             }
 
@@ -762,7 +907,7 @@ html.mobius-tree-host #tree-sidebar #proj-export-menu{max-height:65dvh;overflow:
         }
 
         window.switchMobilePage = function(pageName, animate = false, direction = 'next') {
-            if (window.innerWidth >= 768) return;
+            if (!window.mobiusTablet.isMobile()) return;
 
             const legend = document.getElementById('sidebar-legend-left');
             const tree = document.getElementById('tree-sidebar');
@@ -890,7 +1035,7 @@ html.mobius-tree-host #tree-sidebar #proj-export-menu{max-height:65dvh;overflow:
             const tools = document.getElementById('map-tools-mobile');
             const bar = document.getElementById('multi-select-bar');
             if (!btn || !bar || !tools) return;
-            const onMap = window.innerWidth >= 768 || currentMobilePageName === 'map';
+            const onMap = !window.mobiusTablet.isMobile() || currentMobilePageName === 'map';
             const show = onMap && canEdit();
             tools.classList.toggle('hidden', !show);
             tools.classList.toggle('flex', show);
@@ -1071,7 +1216,7 @@ html.mobius-tree-host #tree-sidebar #proj-export-menu{max-height:65dvh;overflow:
         function renderBreadcrumb() {
             const bc = document.getElementById('breadcrumb-container');
             const isProject = projectId && projectData;
-            if (isProject && window.innerWidth >= 768) {
+            if (isProject && !window.mobiusTablet.isMobile()) {
                 const path = getTreePath(projectData.tree, cardId);
                 const formattedPath = escapeHtml(formatTruncatedPath([projectData.name, ...(path || [currentCard.name])]));
                 bc.title = treeOpen ? "Replier l'arborescence" : "Ouvrir l'arborescence";
@@ -1120,7 +1265,7 @@ html.mobius-tree-host #tree-sidebar #proj-export-menu{max-height:65dvh;overflow:
         function applyTreeSidebarState() {
             const sidebar = document.getElementById('tree-sidebar');
             if (!projectId || !projectData) { sidebar.style.display = 'none'; return; }
-            sidebar.style.display = window.innerWidth >= 768 ? (treeOpen ? 'flex' : 'none') : '';
+            sidebar.style.display = !window.mobiusTablet.isMobile() ? (treeOpen ? 'flex' : 'none') : '';
         }
 
         function setupTreeSidebarVisibility() {
@@ -1130,7 +1275,7 @@ html.mobius-tree-host #tree-sidebar #proj-export-menu{max-height:65dvh;overflow:
 
         window.toggleTreeSidebar = function() {
             if (!projectId || !projectData) return;
-            if (window.innerWidth < 768) { switchMobilePage('tree', false); return; }
+            if (window.mobiusTablet.isMobile()) { switchMobilePage('tree', false); return; }
             treeOpen = !treeOpen;
             localStorage.setItem('treeOpen', treeOpen ? '1' : '0');
             applyTreeSidebarState();
@@ -1138,7 +1283,7 @@ html.mobius-tree-host #tree-sidebar #proj-export-menu{max-height:65dvh;overflow:
         }
 
         window.closeTreeSidebar = function() {
-            if (window.innerWidth < 768) switchMobilePage('map', false);
+            if (window.mobiusTablet.isMobile()) switchMobilePage('map', false);
             else if (treeOpen) toggleTreeSidebar();
         }
 
@@ -2710,7 +2855,7 @@ container.addEventListener('touchstart', (e) => {
             renderInspector();
             const node = (currentCard.nodes || []).find(n => n.id === nodeId);
             if (node) centerCameraOnNode(node);
-            if (window.innerWidth < 768) {
+            if (window.mobiusTablet.isMobile()) {
                 switchMobilePage('inspector', false);
             }
         }
@@ -5134,6 +5279,38 @@ window.MobiusSplitAdapter={
  let polls=0;const interval=setInterval(()=>{ready();if((embedded?readySent:APP.isReady())||++polls>600)clearInterval(interval)},300);
 })();
 
+</script>
+
+<script id="mobius-tablet-transition-script">
+(function(){
+ const ids=['tree-sidebar','sidebar-legend-left','canvas-container','sidebar-inspector-right'];
+ function restoreDesktop(){
+   ids.forEach(id=>{
+     const el=document.getElementById(id);if(!el)return;
+     el.classList.remove('absolute','inset-0','z-30','transition-transform','duration-300','ease-in-out');
+     el.classList.remove('hidden');
+     el.style.removeProperty('transform');
+     el.style.removeProperty('display');
+   });
+   window.applyTreeSidebarState?.();
+ }
+ function renderTablet(event){
+   if(!document.getElementById('canvas-container'))return;
+   if(window.mobiusTablet?.isMobile()){
+     // La vue Map est sélectionnée au changement de mode pour éviter un écran vide.
+     window.switchMobilePage?.('map',false);
+   }else{
+     restoreDesktop();
+   }
+   window.updateSelectUi?.();
+ }
+ window.addEventListener('mobius:tablet-layout-change',renderTablet);
+ document.addEventListener('DOMContentLoaded',()=>{
+   // Le chargement des cartes est asynchrone ; ne pas appeler switchMobilePage
+   // avant la création de mobilePagesOrder dans le code original.
+   if(!window.mobiusTablet?.isMobile())restoreDesktop();
+ });
+})();
 </script>
 </body>
 </html>
