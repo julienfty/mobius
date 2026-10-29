@@ -22,11 +22,38 @@ html[data-theme="dark"]{--bg:#0b1020;--surface:#141b2d;--surface2:#1b263a;--text
 @media(max-width:580px){.header-actions .head-link{font-size:0;gap:0}.header-actions .head-link .ico{width:20px;height:20px}.brand-name{font-size:15px}.hero h1{font-size:34px}.profile-summary{gap:12px}.big-avatar{height:58px;width:58px;border-radius:18px;font-size:20px}.summary-badge{display:none}.profile-summary h2{font-size:17px}.form-grid{grid-template-columns:1fr}.lang-layout{grid-template-columns:1fr}.lang-layout .btn{width:100%}.plans-grid{grid-template-columns:1fr}.plan{min-height:210px}.usage-values{grid-template-columns:1fr 1fr}.usage-values .metric:last-child{grid-column:span 2}.storage-hero{padding:18px}.panel{padding:17px}.button-row .btn{width:100%}.topbar{padding:0 17px}.footer{margin-top:15px}.toast-stack{bottom:16px;left:16px;right:16px;align-items:stretch}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}.spinner{animation:none}}
 </style>
+
+<style id="mobius-profile-header-dashboard-v2">
+/* Entête partagé avec Dashboard : dimensions et espacements identiques. */
+.topbar{height:68px;min-height:68px;padding:0 32px;z-index:30;background:color-mix(in srgb,var(--surface) 85%,transparent)}
+.brand{gap:12px;font-size:18px;letter-spacing:-.02em}.brand img{width:32px;height:32px}.brand-fallback{width:32px;height:32px}.brand-name{font-size:18px;letter-spacing:-.025em}
+.header-plan{display:inline-flex;align-items:center;justify-content:center;background:#5246ee14;color:#5246ee;font-size:10px;line-height:1;padding:5px 8px;border-radius:999px;letter-spacing:.06em;font-weight:700;text-transform:uppercase}
+.header-actions{gap:12px}
+.head-icon{height:36px;width:36px;flex:none;border:0;border-radius:12px;background:#f3f4f6;color:#4b5563;display:inline-flex;align-items:center;justify-content:center;transition:background .2s}
+.head-icon i{width:16px;height:16px}.head-icon:hover{background:#e5e7eb}
+html[data-theme=dark] .head-icon{background:#1f2937;color:#d1d5db}html[data-theme=dark] .head-icon:hover{background:#374151}
+.profile-sun{display:none}html[data-theme=dark] .profile-sun{display:inline-flex}html[data-theme=dark] .profile-moon{display:none}
+.head-user{display:inline-flex;align-items:center;gap:10px;border:0;padding:6px 12px;border-radius:16px;background:#f3f4f6;color:inherit;min-height:42px;transition:background .2s}
+.head-user:hover{background:#e5e7eb}html[data-theme=dark] .head-user{background:#1f2937}html[data-theme=dark] .head-user:hover{background:#374151}
+.header-initial{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#5246ee;color:white;font-size:12px;font-weight:800;flex:none}
+.head-user-text{text-align:left;display:block;min-width:0;max-width:195px;line-height:1.3}.head-user-text strong{display:block;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.head-user-text small{display:block;font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:640px){.topbar{padding:0 16px}.head-user-text{display:none}.brand-name{font-size:16px}.header-plan{font-size:9px}.header-actions{gap:9px}.head-user{padding:6px}}
+</style>
 </head>
 <body>
-<header class="topbar">
- <a class="brand" href="dashboard.html" aria-label="Mobius Dashboard"><img src="logo_mobius_nobg.png" alt="" onerror="this.hidden=true"><span class="brand-fallback" aria-hidden="true">◈</span><span class="brand-name">MOBIUS</span></a>
- <div class="header-actions"><a class="head-link" href="dashboard.html"><i class="ico" data-lucide="layout-dashboard"></i><span data-i18n="back">Retour au Dashboard</span></a><button id="headerAvatar" class="head-avatar" title="Profil">M</button></div>
+<header class="topbar" aria-label="En-tête Mobius">
+ <a class="brand" href="dashboard.html" aria-label="Accueil Mobius">
+   <img src="logo_mobius_nobg.png" alt="" onerror="this.hidden=true"><span class="brand-fallback" aria-hidden="true">◈</span>
+   <span class="brand-name">MOBIUS</span><span class="header-plan" id="headerPlan">Standard</span>
+ </a>
+ <div class="header-actions">
+   <a class="head-icon" href="dashboard.html" title="Notifications sur le Dashboard" aria-label="Consulter les notifications sur le Dashboard"><i data-lucide="bell"></i></a>
+   <button type="button" class="head-icon" id="profile-theme-toggle" title="Changer le thème" aria-label="Changer le thème"><i data-lucide="moon" class="profile-moon"></i><i data-lucide="sun" class="profile-sun"></i></button>
+   <button id="profile-header-link" type="button" class="head-user" title="Mon compte" aria-label="Voir mes informations personnelles">
+     <span class="header-initial" id="headerAvatar">M</span>
+     <span class="head-user-text"><strong id="headerUserName">Mon compte</strong><small id="headerUserEmail"></small></span>
+   </button>
+ </div>
 </header>
 <div class="app-shell" id="app">
  <aside class="sidebar">
@@ -125,6 +152,8 @@ function showName(){
  const n=named(currentUser);
  ['heroName','sideName'].forEach(x=>$(x).textContent=n);
  ['heroAvatar','sideAvatar','headerAvatar'].forEach(x=>$(x).textContent=initials(n));
+ $('headerUserName').textContent=n;
+ $('headerUserEmail').textContent=currentUser.email||'';
  ['heroEmail','sideEmail'].forEach(x=>$(x).textContent=currentUser.email||'');
  $('accountEmail').value=currentUser.email||'';
  $('firstName').value=esc(currentUser.user_metadata?.first_name)||'';
@@ -156,6 +185,7 @@ function renderPlans(){
   button.querySelector('span').textContent=current?text('currentTag'):text('choose');
  });
  $('currentPlanChip').textContent=(MOBIUS_I18N[activeLocale]||MOBIUS_I18N.en)[plan]||plan;
+ const headerPlan=$('headerPlan');if(headerPlan)headerPlan.textContent=(MOBIUS_I18N[activeLocale]||MOBIUS_I18N.en)[plan]||plan;
  document.querySelectorAll('[data-plan-volume]').forEach(el=>{const bytes=Number(el.dataset.planVolume);el.textContent=formatBytes(bytes);});
 }
 async function loadAccount(){
@@ -293,7 +323,8 @@ document.addEventListener('DOMContentLoaded',()=>{
  $('refreshUsage').addEventListener('click',loadUsage);
  $('signOut').addEventListener('click',async()=>{if(sb)await sb.auth.signOut();window.location.assign('connexion.html');});
  $('retryLoad').addEventListener('click',()=>location.reload());
- $('headerAvatar').addEventListener('click',()=>$('identity').scrollIntoView({behavior:'smooth'}));
+ $('profile-header-link').addEventListener('click',()=>$('identity').scrollIntoView({behavior:'smooth'}));
+ $('profile-theme-toggle').addEventListener('click',()=>theme(document.documentElement.dataset.theme==='dark'?'light':'dark'));
  window.addEventListener('scroll',toggleNavActive,{passive:true});
  matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',resizeThemeListener);
  window.lucide?.createIcons();
