@@ -85,11 +85,125 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
 };
 </script>
 <style>#tree,#tree-selbar{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}</style>
+
+<style id="mobius-dashboard-sidebar-v2">
+/* Le topbar est identique sur Dashboard et Profil : 64 px. */
+.mobius-shell{width:min(1600px,100%);margin:0 auto;display:flex;align-items:stretch;gap:clamp(22px,3vw,46px);padding:28px clamp(16px,3vw,40px) 56px;min-height:calc(100vh - 64px)}
+.mobius-page-content{flex:1;min-width:0;display:flex;flex-direction:column}
+.mobius-page-content>#main-view,.mobius-page-content>#project-workspace{padding:0!important;max-width:none!important;margin:0!important;width:100%!important;flex:1}
+.mobius-sidebar{width:230px;flex:none;align-self:flex-start;position:sticky;top:92px;display:flex;flex-direction:column;gap:0;overflow:visible}
+.mobius-sidebar-heading{font-size:10px;font-weight:800;letter-spacing:.13em;color:#8b91a3;margin:0 12px 10px}
+.mobius-side-tabs{display:flex;flex-direction:column;gap:8px}
+.dash-side-tab{display:flex;align-items:center;width:100%;gap:12px;text-align:left;padding:13px 14px;border:1px solid #e7e9f0;border-radius:12px;background:#fff;color:#667085;font-size:12px;font-weight:650;min-height:46px;transition:background .16s,color .16s,border-color .16s,box-shadow .16s}
+.dash-side-tab i{width:18px;text-align:center;color:#8b91a3;font-size:13px;flex:none}
+.dash-side-tab:hover{background:#f4f3ff;border-color:#dedaff;color:#5246ee}
+.dash-side-tab.is-active{background:#eeecff;border-color:#cfcafa;color:#5246ee;box-shadow:0 3px 13px #5246ee0c;font-weight:750}
+.dash-side-tab.is-active i{color:#5246ee}
+.dark .dash-side-tab{background:#111827;border-color:#293449;color:#b6bdd0}.dark .dash-side-tab i{color:#939eba}
+.dark .dash-side-tab:hover,.dark .dash-side-tab.is-active{background:#252044;border-color:#484080;color:#c5beff}.dark .dash-side-tab.is-active i{color:#aaa3ff}
+.mobius-mobile-nav-row{display:none}
+#mobius-nav-shade{display:none}
+@media(max-width:1050px){.mobius-shell{gap:20px;padding:22px 18px 50px}.mobius-sidebar{width:205px}.dash-side-tab{padding:12px 11px}}
+@media(max-width:720px){
+ .mobius-shell{display:block;padding:16px 14px 38px}.mobius-mobile-nav-row{display:flex;align-items:center;gap:12px;margin-bottom:16px;min-width:0}
+ #mobius-mobile-nav-trigger{display:inline-flex;align-items:center;gap:10px;border-radius:12px;border:1px solid #e7e9f0;background:#fff;padding:11px 13px;font-size:11px;font-weight:700;color:#5246ee;white-space:nowrap}
+ .dark #mobius-mobile-nav-trigger{background:#111827;border-color:#293449;color:#b6aaff}
+ .mobius-mobile-tab-name{font-size:11px;font-weight:700;color:#828a9d;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .mobius-sidebar{position:fixed;top:64px;left:0;bottom:0;width:min(292px,calc(100vw - 55px));height:auto;padding:20px 17px 25px;background:#f8f9fc;z-index:42;box-shadow:20px 0 55px #0c102333;transform:translateX(-110%);visibility:hidden;transition:transform .22s ease,visibility .22s;overflow-y:hidden;overscroll-behavior:contain}
+ .dark .mobius-sidebar{background:#0b1020}
+ .mobius-sidebar.open{transform:translateX(0);visibility:visible}
+ #mobius-nav-shade{position:fixed;inset:64px 0 0;background:#090b1ca1;z-index:41}#mobius-nav-shade.open{display:block}
+ .mobius-page-content>#main-view,.mobius-page-content>#project-workspace{padding:0!important}
+}
+@media(max-width:720px) and (max-height:600px){.mobius-sidebar{overflow-y:auto}}
+@media(prefers-reduced-motion:reduce){.mobius-sidebar{transition:none}}
+
+/* V3 · Outils uniformes façon Finder, sans dépendance à Tailwind */
+.mobius-finderbar>#import-mobius-input{display:none!important}
+.mobius-finderbar{
+ display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;
+ padding:10px;margin-bottom:22px;background:#fff;border:1px solid #e3e7ef;
+ box-shadow:0 4px 24px rgba(22,35,67,.035);border-radius:18px;align-items:stretch;
+}
+.dark .mobius-finderbar{background:#111827;border-color:#293449}
+.mobius-finderbar .finder-cell{min-width:0;width:100%;height:44px;min-height:44px;
+ border:1px solid #e5e8f1;border-radius:11px;background:#f7f8fb;color:#465168;
+ display:flex;align-items:center;justify-content:center;gap:9px;font-size:11px;font-weight:650;
+ transition:background .15s,border-color .15s,box-shadow .15s;box-sizing:border-box;
+}
+.dark .mobius-finderbar .finder-cell{background:#1c2638;border-color:#35415a;color:#cbd5e1}
+.mobius-finderbar .finder-button:hover,.mobius-finderbar .finder-view .view-btn:hover{
+ background:#eeecff;border-color:#dcd8ff;color:#5246ee;
+}
+.dark .mobius-finderbar .finder-button:hover,.dark .mobius-finderbar .finder-view .view-btn:hover{background:#282246;color:#ddd7ff}
+.mobius-finderbar .finder-button{padding:0 10px;cursor:pointer;text-align:center}
+.mobius-finderbar .finder-button span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mobius-finderbar .finder-import i{color:#5246ee}
+.mobius-finderbar .finder-create{background:#5246ee;color:white;border-color:#5246ee;font-weight:750}
+.mobius-finderbar .finder-create:hover{background:#4538d8;color:#fff;border-color:#4538d8}
+.dark .mobius-finderbar .finder-create{background:#5246ee;color:#fff;border-color:#5246ee}
+.dark .mobius-finderbar .finder-create:hover{background:#4538d8;color:#fff}
+.mobius-finderbar .finder-view{padding:3px;gap:0}
+.mobius-finderbar .finder-view .view-btn{border:0;border-radius:8px;background:transparent;
+ min-width:0;flex:1;height:36px;display:flex;align-items:center;justify-content:center;gap:6px;
+ font-size:11px;color:#7a8598;cursor:pointer;white-space:nowrap;
+}
+.mobius-finderbar .finder-view .view-btn.is-active{background:#fff;color:#5246ee;box-shadow:0 1px 6px #11182714}
+.dark .mobius-finderbar .finder-view .view-btn.is-active{background:#35415a;color:#c4bcff}
+.mobius-finderbar .finder-view-divider{height:20px;width:1px;background:#dfe3ed;flex:none;margin:0 2px}
+.dark .mobius-finderbar .finder-view-divider{background:#46506a}
+.mobius-finderbar .finder-sort{position:relative;justify-content:stretch;padding:0 10px}
+.mobius-finderbar .finder-sort select{flex:1;width:100%;min-width:0;background:transparent;
+ border:0;outline:0;appearance:none;-webkit-appearance:none;color:inherit;
+ font-size:11px;font-weight:650;padding:0;cursor:pointer;white-space:nowrap;text-overflow:ellipsis;
+}
+.mobius-finderbar .finder-sort select option{background:#fff;color:#334155}
+.dark .mobius-finderbar .finder-sort select option{background:#1c2638;color:#fff}
+.mobius-finderbar .finder-leading-icon{flex:none;font-size:12px;color:#929baf}
+.mobius-finderbar .finder-chevron{flex:none;font-size:9px;color:#9ba3b4}
+.mobius-finderbar .finder-search{justify-content:stretch;padding:0 12px;gap:8px}
+.mobius-finderbar .finder-search input{flex:1;min-width:0;width:100%;height:100%;border:0;background:none;
+ color:inherit;outline:none;font-size:11px;font-weight:500;padding:0;border-radius:0;
+}
+.mobius-finderbar .finder-search:focus-within,.mobius-finderbar .finder-sort:focus-within{border-color:#877aff;box-shadow:0 0 0 3px #5246ee19}
+.mobius-finderbar .finder-search input::placeholder{color:#929baf}
+@media(max-width:1180px){
+ .mobius-finderbar{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:720px){
+ .mobius-finderbar{grid-template-columns:repeat(2,minmax(0,1fr));padding:8px;gap:8px;margin-bottom:18px}
+}
+@media(max-width:360px){
+ .mobius-finderbar .finder-view .view-btn span{display:none}
+ .mobius-finderbar .finder-button{gap:5px;padding:0 6px}
+}
+</style>
+<script id="mobius-sidebar-behavior-v2">
+(function(){
+  const sidebar=()=>document.getElementById('mobius-sidebar');
+  const trigger=()=>document.getElementById('mobius-mobile-nav-trigger');
+  const shade=()=>document.getElementById('mobius-nav-shade');
+  window.mobiusCloseSidebar=function(){sidebar()?.classList.remove('open');shade()?.classList.remove('open');trigger()?.setAttribute('aria-expanded','false');document.body.classList.remove('mobius-nav-open');};
+  document.addEventListener('DOMContentLoaded',()=>{
+    trigger()?.addEventListener('click',()=>{
+      const open=!sidebar().classList.contains('open');
+      sidebar().classList.toggle('open',open);shade().classList.toggle('open',open);
+      trigger().setAttribute('aria-expanded',String(open));
+    });
+    shade()?.addEventListener('click',window.mobiusCloseSidebar);
+    document.querySelectorAll('.dash-side-tab').forEach(b=>b.addEventListener('click',()=>{
+      const label=document.getElementById('mobius-current-tab-label');if(label)label.textContent=b.querySelector('span')?.textContent || b.textContent.trim();
+      window.mobiusCloseSidebar();
+    }));
+    window.addEventListener('resize',()=>{if(innerWidth>720)window.mobiusCloseSidebar();});
+  });
+})();
+</script>
 </head>
 <body class="h-full bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 flex flex-col selection:bg-[#5246EE] selection:text-white">
 
     <!-- NAVBAR -->
-    <header class="w-full border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 glass-card sticky top-0 z-30 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+    <header class="w-full border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 glass-card sticky top-0 z-30 px-4 sm:px-8 h-16 flex items-center justify-between">
         <div class="flex items-center gap-3 cursor-pointer" id="brand">
             <img src="logo_mobius_nobg.png" alt="MOBIUS" class="w-8 h-8 object-contain rounded-xl">
             <span class="font-bold tracking-tight text-base sm:text-lg">MOBIUS <span class="text-[10px] px-2 py-0.5 rounded-full bg-[#5246EE]/10 text-[#5246EE] font-semibold uppercase tracking-wider">Standard</span></span>
@@ -116,13 +230,13 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
                 <i class="fa-solid fa-sun hidden dark:block text-amber-400"></i>
             </button>
 
-            <div id="profile-btn" class="flex items-center gap-2.5 bg-gray-100 dark:bg-gray-800/80 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-1.5 rounded-2xl cursor-pointer transition-all">
+            <a id="profile-btn" href="profil.html" aria-label="Ouvrir mon profil" title="Mon profil et mon abonnement" class="flex items-center gap-2.5 bg-gray-100 dark:bg-gray-800/80 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-1.5 rounded-2xl cursor-pointer transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#5246EE]">
                 <div class="w-7 h-7 rounded-full bg-[#5246EE] text-white flex items-center justify-center text-xs font-bold" id="nav-user-initial">U</div>
                 <div class="hidden sm:block text-left leading-tight">
                     <div class="text-xs font-semibold" id="nav-user-name">Chargement...</div>
                     <div class="text-[10px] text-gray-500 dark:text-gray-400" id="nav-user-email">...</div>
                 </div>
-            </div>
+            </a>
         </div>
     <div id="top-progress"><div></div></div>
     </header>
@@ -151,38 +265,56 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
         window.addEventListener('pageshow', (e) => { if (e.persisted) window.topProgress.done(); });
     </script>
 
+
+    <!-- Barre latérale extensible : onglets de bibliothèque (hors zone de scroll) -->
+    <div id="mobius-nav-shade" aria-hidden="true"></div>
+    <div id="dashboard-shell" class="mobius-shell">
+      <aside id="mobius-sidebar" class="mobius-sidebar" aria-label="Navigation de la bibliothèque">
+        <div class="mobius-sidebar-group">
+          <div class="mobius-sidebar-heading">BIBLIOTHÈQUE</div>
+          <nav class="mobius-side-tabs" aria-label="Vos espaces de travail">
+            <button type="button" data-tab="projects" class="tab-btn dash-side-tab is-active"><i class="fa-solid fa-folder" aria-hidden="true"></i><span>Projets &amp; Dossiers</span></button>
+            <button type="button" data-tab="cards" class="tab-btn dash-side-tab"><i class="fa-solid fa-note-sticky" aria-hidden="true"></i><span>Cartes</span></button>
+            <button type="button" data-tab="scripts" class="tab-btn dash-side-tab"><i class="fa-solid fa-film" aria-hidden="true"></i><span>Scénarios</span></button>
+            <button type="button" data-tab="texts" class="tab-btn dash-side-tab"><i class="fa-solid fa-align-left" aria-hidden="true"></i><span>Textes</span></button>
+          </nav>
+        </div>
+      </aside>
+      <div class="mobius-page-content">
+        <div class="mobius-mobile-nav-row">
+          <button type="button" id="mobius-mobile-nav-trigger" aria-controls="mobius-sidebar" aria-expanded="false"><i class="fa-solid fa-bars-staggered"></i><span>Bibliothèque</span><i class="fa-solid fa-chevron-down"></i></button>
+          <span class="mobius-mobile-tab-name" id="mobius-current-tab-label">Projets &amp; Dossiers</span>
+        </div>
+
     <!-- DASHBOARD -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 flex flex-col" id="main-view">
-        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-            <div class="bg-gray-200/70 dark:bg-gray-800 p-1 rounded-2xl flex w-full sm:w-auto overflow-x-auto">
-                <button data-tab="projects" class="tab-btn flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold transition-all">Projets & Dossiers</button>
-                <button data-tab="cards" class="tab-btn flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold transition-all">Cartes</button>
-                <button data-tab="scripts" class="tab-btn flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold transition-all">Scénarios</button>
-                <button data-tab="texts" class="tab-btn flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-semibold transition-all">Textes</button>
+        <!-- Barre d’outils Finder : cinq commandes régulières, sans débordement horizontal -->
+        <div class="mobius-finderbar" role="toolbar" aria-label="Outils de la bibliothèque">
+            <div class="finder-cell finder-view" role="group" aria-label="Disposition des documents">
+                <button type="button" data-view="grid" class="view-btn" title="Affichage en grille" aria-label="Affichage en grille"><i class="fa-solid fa-border-all" aria-hidden="true"></i><span>Grille</span></button>
+                <span class="finder-view-divider" aria-hidden="true"></span>
+                <button type="button" data-view="list" class="view-btn" title="Affichage en liste" aria-label="Affichage en liste"><i class="fa-solid fa-list" aria-hidden="true"></i><span>Liste</span></button>
             </div>
-
-            <div class="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
-                <div class="relative flex-1 sm:flex-none">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400"></i>
-                    <input id="search-input" type="search" placeholder="Rechercher..." class="w-full sm:w-44 pl-8 pr-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-xs focus:outline-none focus:border-[#5246EE]">
-                </div>
-                <div class="bg-gray-200/70 dark:bg-gray-800 p-1 rounded-xl flex items-center">
-                    <button data-view="grid" class="view-btn w-8 h-8 rounded-lg text-xs flex items-center justify-center transition-all"><i class="fa-solid fa-border-all"></i></button>
-                    <button data-view="list" class="view-btn w-8 h-8 rounded-lg text-xs flex items-center justify-center transition-all"><i class="fa-solid fa-list"></i></button>
-                </div>
-                <select id="sort-select" class="bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-xs font-medium focus:outline-none">
-                    <option value="alpha">Ordre alphabétique</option>
+            <div class="finder-cell finder-sort">
+                <i class="fa-solid fa-arrow-down-wide-short finder-leading-icon" aria-hidden="true"></i>
+                <label for="sort-select" class="sr-only">Trier les documents</label>
+                <select id="sort-select" aria-label="Trier les documents">
+                    <option value="alpha">Nom (A à Z)</option>
                     <option value="chrono">Plus récents</option>
                 </select>
-                <!-- Bouton d'importation global .mobius -->
-                <input type="file" id="import-mobius-input" accept=".mobius,.mobpro,.mobpro,.json,.mobscen,.mobscen,.mobtext,.fountain,.txt,.pdf,.docx,.page,.mobql,.sql,.csv,.xlsx,.xls,.zip" multiple class="hidden" onchange="importDashboardMobiusFile(event)">
-                <button onclick="document.getElementById('import-mobius-input').click()" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all" title="Importer une carte (.mobius), un projet (.mobpro), un scénario (.mobscen, .fountain) ou un texte (.mobtext, .txt, .pdf, .docx)">
-                    <i class="fa-solid fa-file-arrow-down text-[#5246EE]"></i>
-                    <span class="hidden sm:inline">Importer</span>
-                </button>
-                <button id="create-btn" class="w-48 shrink-0 justify-center whitespace-nowrap bg-[#5246EE] hover:bg-[#4538d8] text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-md shadow-[#5246EE]/25 flex items-center gap-2 transition-all">
-                    <i class="fa-solid fa-plus text-[10px]"></i><span id="create-btn-text">Nouveau Projet</span>
-                </button>
+                <i class="fa-solid fa-chevron-down finder-chevron" aria-hidden="true"></i>
+            </div>
+            <input type="file" id="import-mobius-input" accept=".mobius,.mobpro,.mobpro,.json,.mobscen,.mobscen,.mobtext,.fountain,.txt,.pdf,.docx,.page,.mobql,.sql,.csv,.xlsx,.xls,.zip" multiple hidden class="hidden" onchange="importDashboardMobiusFile(event)">
+            <button type="button" class="finder-cell finder-button finder-import" onclick="document.getElementById('import-mobius-input').click()" title="Importer une carte, un projet, un scénario ou un texte">
+                <i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i><span>Importer</span>
+            </button>
+            <button type="button" id="create-btn" class="finder-cell finder-button finder-create" title="Créer un élément dans cette rubrique">
+                <i class="fa-solid fa-plus" aria-hidden="true"></i><span id="create-btn-text">Nouveau Projet</span>
+            </button>
+            <div class="finder-cell finder-search">
+                <i class="fa-solid fa-magnifying-glass finder-leading-icon" aria-hidden="true"></i>
+                <label for="search-input" class="sr-only">Rechercher dans les documents</label>
+                <input id="search-input" type="search" placeholder="Rechercher…" aria-label="Rechercher dans les documents" autocomplete="off">
             </div>
         </div>
 
@@ -230,6 +362,9 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
 
         <div id="tree" class="bg-white dark:bg-gray-900 border-2 border-transparent ring-1 ring-gray-200 dark:ring-gray-800 rounded-2xl p-4 flex-1 space-y-2 overflow-y-auto transition-all"></div>
     </div>
+
+      </div><!-- /mobius-page-content -->
+    </div><!-- /dashboard-shell -->
 
     <!-- MODALES -->
     <div id="prompt-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
@@ -313,20 +448,6 @@ window.verifyPwd = async function (client, table, id, typed, stored) {
                 <button data-create-modal="cancel" class="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs font-semibold hover:bg-gray-200 dark:hover:bg-gray-700 transition-all">Annuler</button>
                 <button id="create-modal-ok" data-create-modal="ok" class="flex-1 py-3 rounded-xl bg-[#5246EE] text-white text-xs font-semibold hover:bg-[#4538d8] transition-all shadow-md shadow-[#5246EE]/25">Créer</button>
             </div>
-        </div>
-    </div>
-
-    <div id="profile-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-        <div class="bg-white dark:bg-gray-900 rounded-[28px] max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-gray-100 dark:border-gray-800">
-            <div class="w-16 h-16 rounded-full bg-[#5246EE] text-white text-xl font-bold flex items-center justify-center mx-auto" id="profile-initial">U</div>
-            <div>
-                <h3 class="font-bold text-base" id="profile-name"></h3>
-                <p class="text-xs text-gray-500" id="profile-email"></p>
-            </div>
-            <button id="logout-btn" class="w-full py-3 rounded-xl bg-red-50 dark:bg-red-950/30 hover:bg-red-100 text-red-600 text-xs font-semibold transition-all border border-red-200/60 dark:border-red-900/40 flex items-center justify-center gap-2">
-                <i class="fa-solid fa-arrow-right-from-bracket"></i> Se déconnecter
-            </button>
-            <button data-close="profile-modal" class="text-xs text-gray-400 hover:underline">Fermer</button>
         </div>
     </div>
 
@@ -616,11 +737,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     function applyTabStyles() {
         document.querySelectorAll('.tab-btn').forEach(b => {
             const active = b.dataset.tab === state.tab;
-            b.className = `tab-btn flex-1 sm:flex-none px-3 sm:px-5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${active ? 'bg-white dark:bg-gray-900 shadow-sm' : 'text-gray-500 dark:text-gray-400'}`;
+            b.classList.toggle('is-active', active);
+            if (active) b.setAttribute('aria-current', 'page');
+            else b.removeAttribute('aria-current');
         });
         document.querySelectorAll('.view-btn').forEach(b => {
             const active = b.dataset.view === state.view;
-            b.className = `view-btn w-8 h-8 rounded-lg text-xs flex items-center justify-center transition-all ${active ? 'bg-white dark:bg-gray-900 shadow-sm' : 'text-gray-500 dark:text-gray-400'}`;
+            b.classList.toggle('is-active', active);
+            b.setAttribute('aria-pressed', String(active));
         });
         $('create-btn-text').textContent = TAB_META[state.tab].newBtn;
     }
@@ -2019,7 +2143,7 @@ window.__mobiusSb = sb;
     }
 
     /* ---------- Onglets / vue / recherche ---------- */
-    document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => { state.tab = b.dataset.tab; renderDashboard(); }));
+    document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => { state.tab = b.dataset.tab; if (state.activeProject) goHome(); renderDashboard(); window.mobiusCloseSidebar?.(); }));
     document.querySelectorAll('.view-btn').forEach(b => b.addEventListener('click', () => { state.view = b.dataset.view; localStorage.setItem('viewMode', state.view); renderDashboard(); }));
     $('sort-select').addEventListener('change', renderDashboard);$('search-input').addEventListener('input', renderDashboard);
 
@@ -2028,16 +2152,12 @@ window.__mobiusSb = sb;
         const dark = document.documentElement.classList.toggle('dark');
         localStorage.setItem('theme', dark ? 'dark' : 'light');
     });
-    $('profile-btn').addEventListener('click', () => {$('profile-name').textContent = fullName;
-        $('profile-email').textContent = user.email;
-        $('profile-initial').textContent = fullName.charAt(0).toUpperCase();
-        showModal('profile-modal');
-    });
-    document.querySelector('[data-close="profile-modal"]').addEventListener('click', () => hideModal('profile-modal'));
-    $('logout-btn').addEventListener('click', async () => { await sb.auth.signOut(); window.location.href = 'connexion.html'; });
-    ['create-modal', 'profile-modal'].forEach(id => $(id).addEventListener('click', (e) => { if (e.target.id === id) hideModal(id); }));
+    // Le profil se gère désormais sur profil.html (lien dans le topbar).
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') { ['create-modal', 'profile-modal'].forEach(hideModal); $('notif-panel').classList.add('hidden'); }
+        if (e.key === 'Escape') {
+            $('notif-panel').classList.add('hidden');
+            window.mobiusCloseSidebar?.();
+        }
     });
 
     /* =========================================================
