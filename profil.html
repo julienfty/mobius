@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700;750;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <script src="https://unpkg.com/lucide@latest" defer></script>
 <style>
 :root{--brand:#5246ee;--brand-hover:#4338ca;--bg:#f8f9fc;--surface:#fff;--surface2:#f3f4f9;--text:#1d2340;--muted:#7c859b;--edge:#e7e9f0;--input:#f9fafe;--glow:#5246ee1a;--success:#118263;--shadow:0 12px 40px #2124490a}
@@ -39,6 +40,48 @@ html[data-theme=dark] .head-icon{background:#1f2937;color:#d1d5db}html[data-them
 .head-user-text{text-align:left;display:block;min-width:0;max-width:195px;line-height:1.3}.head-user-text strong{display:block;font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.head-user-text small{display:block;font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:640px){.topbar{padding:0 16px}.head-user-text{display:none}.brand-name{font-size:16px}.header-plan{font-size:9px}.header-actions{gap:9px}.head-user{padding:6px}}
 </style>
+
+<style id="mobius-notifications-dashboard-v4">
+/* Le menu supérieur conserve les tailles du Dashboard (68px / icônes 36px). */
+.topbar{height:68px;min-height:68px}
+.head-icon .fa-solid{font-size:16px;line-height:1}
+.profile-sun{color:#fbbf24}
+.notif-anchor{position:relative;display:flex;align-items:center}
+.notif-trigger{position:relative}
+.notif-badge{position:absolute;top:-4px;right:-4px;height:18px;min-width:18px;display:flex;align-items:center;justify-content:center;padding:0 4px;color:#fff;background:#ef4444;border:2px solid var(--surface);border-radius:999px;font-size:10px;font-weight:800;line-height:1}
+.notif-panel{position:absolute;right:0;top:calc(100% + 8px);width:352px;max-width:calc(100vw - 24px);border:1px solid var(--edge);border-radius:16px;background:var(--surface);color:var(--text);overflow:hidden;box-shadow:0 18px 52px #0002;z-index:75;font-size:12px;animation:mobiusNotifIn .16s ease-out}
+@keyframes mobiusNotifIn{from{opacity:.7;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+.notif-panel-header{height:auto;min-height:48px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:6px;border-bottom:1px solid var(--edge)}
+.notif-panel-header strong{font-weight:750;font-size:12px}
+.notif-head-right{display:flex;gap:12px;align-items:center;justify-content:flex-end;min-width:0}
+.notif-count-label{font-size:10px;color:var(--muted);white-space:nowrap}
+.notif-readall{border:0;padding:0;background:none;color:var(--brand);font-size:10px;font-weight:750;white-space:nowrap}
+.notif-readall:hover{text-decoration:underline}
+.notif-list{max-height:min(384px,60vh);overflow-y:auto;overscroll-behavior:contain}
+.notif-empty{text-align:center;color:var(--muted);padding:40px 16px;font-size:12px}
+.notif-empty i{font-size:21px;display:block;margin-bottom:8px}
+.notif-entry{padding:14px 16px;border-bottom:1px solid var(--edge);font-size:12px;line-height:1.48}
+.notif-entry:last-child{border-bottom:0}
+.notif-entry-main{display:flex;align-items:flex-start;gap:12px;min-width:0}
+.notif-entry-text{flex:1;min-width:0;overflow-wrap:anywhere}
+.notif-entry-text p{margin:0}
+.notif-entry-text strong{font-weight:700}
+.notif-entry-time{color:var(--muted);font-size:10px;margin-top:3px!important}
+.notif-entry-icon{width:36px;height:36px;flex:0 0 36px;display:flex;align-items:center;justify-content:center;border-radius:12px;font-size:14px;background:var(--glow);color:var(--brand)}
+.notif-entry-icon.role{background:#10b98119;color:#10b981}
+.notif-entry-icon.pwd{background:#f59e0b19;color:#f59e0b}
+.notif-entry-icon.activity{background:#0ea5e919;color:#0ea5e9}
+.notif-choices{display:flex;gap:8px;padding-left:48px;margin-top:10px}
+.notif-choices button{flex:1;min-width:0;padding:7px 8px;border:0;border-radius:8px;font-size:11px;font-weight:700;background:var(--surface2);color:var(--text)}
+.notif-choices button:hover{filter:brightness(.96)}
+.notif-choices button.notif-accept{background:#5246ee;color:#fff}
+.notif-choices button:disabled{opacity:.5;cursor:wait}
+.notif-activity{display:block;text-align:left;width:100%;background:transparent;color:var(--text);border:0;cursor:pointer}
+.notif-activity:hover{background:var(--surface2)}
+.notif-activity .notif-entry-text{font-size:12px}
+@media(max-width:639px){.notif-panel{position:fixed;top:76px;left:12px;right:12px;width:auto;max-width:none;max-height:calc(100dvh - 90px)}.notif-list{max-height:min(384px,calc(100dvh - 148px))}.notif-panel-header{gap:5px}.notif-head-right{gap:7px}.notif-count-label{font-size:9px}.notif-readall{font-size:9px}}
+@media(prefers-reduced-motion:reduce){.notif-panel{animation:none}}
+</style>
 </head>
 <body>
 <header class="topbar" aria-label="En-tête Mobius">
@@ -47,8 +90,16 @@ html[data-theme=dark] .head-icon{background:#1f2937;color:#d1d5db}html[data-them
    <span class="brand-name">MOBIUS</span><span class="header-plan" id="headerPlan">Standard</span>
  </a>
  <div class="header-actions">
-   <a class="head-icon" href="dashboard.html" title="Notifications sur le Dashboard" aria-label="Consulter les notifications sur le Dashboard"><i data-lucide="bell"></i></a>
-   <button type="button" class="head-icon" id="profile-theme-toggle" title="Changer le thème" aria-label="Changer le thème"><i data-lucide="moon" class="profile-moon"></i><i data-lucide="sun" class="profile-sun"></i></button>
+   <div class="notif-anchor" id="profile-notifications">
+     <button type="button" class="head-icon notif-trigger" id="notif-btn" aria-label="Notifications" aria-controls="notif-panel" aria-expanded="false" title="Notifications">
+       <i class="fa-solid fa-bell" aria-hidden="true"></i><span class="notif-badge hidden" id="notif-badge" aria-label="Notifications non lues">0</span>
+     </button>
+     <section class="notif-panel hidden" id="notif-panel" aria-label="Notifications" aria-live="polite">
+       <div class="notif-panel-header"><strong>Notifications</strong><span class="notif-head-right"><span class="notif-count-label" id="notif-count-label"></span><button type="button" class="notif-readall" id="notif-readall">Tout marquer comme lu</button></span></div>
+       <div class="notif-list" id="notif-list"><div class="notif-empty">Chargement…</div></div>
+     </section>
+   </div>
+   <button type="button" class="head-icon" id="profile-theme-toggle" title="Changer le thème" aria-label="Changer le thème"><i class="fa-solid fa-moon profile-moon" aria-hidden="true"></i><i class="fa-solid fa-sun profile-sun" aria-hidden="true"></i></button>
    <button id="profile-header-link" type="button" class="head-user" title="Mon compte" aria-label="Voir mes informations personnelles">
      <span class="header-initial" id="headerAvatar">M</span>
      <span class="head-user-text"><strong id="headerUserName">Mon compte</strong><small id="headerUserEmail"></small></span>
@@ -302,12 +353,214 @@ function toggleNavActive(){
  const nearest=ids.filter(id=>{const el=$(id);return el&&el.getBoundingClientRect().top<=165;}).pop()||'overview';
  document.querySelectorAll('.sidenav a').forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+nearest));
 }
+
+/* ---------- Notifications identiques à celles du Dashboard ---------- */
+const profileNotifState={projects:[],cards:[],invitations:[],pwdRequests:[],activity:[],roleRequests:[]};
+const notifNorm=e=>String(e||'').trim().toLowerCase();
+const notifEscape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const notifTimeAgo=iso=>{
+ if(!iso)return '';
+ const seconds=Math.max(0,(Date.now()-new Date(iso).getTime())/1000);
+ if(seconds<60)return "à l'instant";
+ if(seconds<3600)return `il y a ${Math.floor(seconds/60)} min`;
+ if(seconds<86400)return `il y a ${Math.floor(seconds/3600)} h`;
+ return `il y a ${Math.floor(seconds/86400)} j`;
+};
+const notifTabOf=(table,item)=>{
+ if(table==='projects')return 'projects';
+ const type=item?.card_kind||item?.info?.type;
+ return type==='script'?'scripts':type==='text'?'texts':'cards';
+};
+const notifLabelOf=(table,item)=>({projects:'projet',cards:'carte libre',scripts:'scénario',texts:'texte'}[notifTabOf(table,item)]||'fichier');
+const notifIcons={projects:'fa-folder',cards:'fa-note-sticky',scripts:'fa-film',texts:'fa-align-left'};
+const notifFileWords={card:'la carte',text:'le texte',script:'le scénario'};
+const notifKindIcons={edit:'fa-pen',proposal:'fa-lightbulb',bubble:'fa-comment'};
+function notifActivityText(a){
+ const who=`<strong>${notifEscape(a.actor_name||a.actor_email)}</strong>`;
+ const file=`<strong>« ${notifEscape(a.file_name||a.item_name||'')} »</strong>`;
+ const word=notifFileWords[a.file_type]||(a.table_name==='cards'?'la carte':'le fichier');
+ if(a.kind==='proposal')return `${who} a fait une proposition dans le scénario ${file}`;
+ if(a.kind==='bubble')return `${who} a ajouté une bulle dans le texte ${file}`;
+ return `${who} a modifié ${word} ${file}`;
+}
+function notifActivityUrl(a){
+ const e=encodeURIComponent;
+ if(a.table_name==='cards')return (a.file_type==='script'||a.file_type==='text')?`editor.html?cardId=${e(a.item_id)}`+(a.anchor?`&focus=${e(a.anchor)}`:''):`map.html?cardId=${e(a.item_id)}`;
+ if(a.file_type==='card')return `map.html?cardId=${e(a.file_id)}&projectId=${e(a.item_id)}`;
+ return `editor.html?projectId=${e(a.item_id)}&fileId=${e(a.file_id)}`+(a.anchor?`&focus=${e(a.anchor)}`:'');
+}
+function notifEntry(icon,iconClass,body,time,actions='',extras=''){
+ return `<div class="notif-entry ${extras}"><div class="notif-entry-main"><div class="notif-entry-icon ${iconClass}"><i class="fa-solid ${icon}" aria-hidden="true"></i></div><div class="notif-entry-text"><p>${body}</p><p class="notif-entry-time">${notifTimeAgo(time)}</p></div></div>${actions}</div>`;
+}
+function notifActions(type,index){
+ return `<div class="notif-choices"><button type="button" data-notif-kind="${type}" data-notif-index="${index}" data-notif-response="refuse">Refuser</button><button type="button" class="notif-accept" data-notif-kind="${type}" data-notif-index="${index}" data-notif-response="accept">Accepter</button></div>`;
+}
+function renderProfileNotifications(error=''){
+ const st=profileNotifState;
+ const n=st.roleRequests.length+st.pwdRequests.length+st.invitations.length+st.activity.length;
+ const badge=$('notif-badge');
+ badge.textContent=n>9?'9+':String(n);
+ badge.classList.toggle('hidden',n===0);
+ $('notif-count-label').textContent=n?`${n} notification${n>1?'s':''}`:'';
+ $('notif-readall').classList.toggle('hidden',st.activity.length===0);
+ if(error && !n){$('notif-list').innerHTML=`<div class="notif-empty"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>Impossible de charger les notifications.<br>Réessayez en rouvrant la cloche.</div>`;return;}
+ if(!n){$('notif-list').innerHTML='<div class="notif-empty"><i class="fa-regular fa-bell-slash" aria-hidden="true"></i>Aucune notification</div>';return;}
+ const roleHtml=st.roleRequests.map((r,i)=>{
+  const item=st[r.table_name]?.find(x=>x.id===r.item_id);
+  const body=`<strong>${notifEscape(r.requested_by_email)}</strong> souhaite nommer <strong>${notifEscape(r.target_email)}</strong> admin du ${notifLabelOf(r.table_name,item)} <strong>« ${notifEscape(r.item_name||item?.name||'')} »</strong>`;
+  return notifEntry('fa-user-shield','role',body,r.created_at,notifActions('role',i));
+ }).join('');
+ const pwdHtml=st.pwdRequests.map((r,i)=>{
+  const item=r.item;
+  const action=r.new_pwd==null?'supprimer':(item?.pwd?'modifier':'créer');
+  const body=`<strong>${notifEscape(r.requested_by_email||'Un admin')}</strong> souhaite <strong>${action}</strong> le mot de passe du ${notifLabelOf(r.table_name,item)} <strong>« ${notifEscape(item?.name||'')} »</strong>`;
+  return notifEntry('fa-key','pwd',body,r.created_at,notifActions('pwd',i));
+ }).join('');
+ const invites=st.invitations.map((inv,i)=>{
+  const body=`<strong>${notifEscape(inv.from)}</strong> vous invite à collaborer sur le ${notifLabelOf(inv.table,inv.item)} <strong>« ${notifEscape(inv.item.name)} »</strong>`;
+  return notifEntry(notifIcons[notifTabOf(inv.table,inv.item)]||'fa-folder','invite',body,inv.at,notifActions('invite',i));
+ }).join('');
+ const activity=st.activity.map((a,i)=>{
+  const extra=a.table_name==='projects'?`<p class="notif-entry-time">Projet « ${notifEscape(a.item_name||'')} »</p>`:'';
+  return `<button type="button" class="notif-entry notif-activity" data-notif-activity="${i}"><div class="notif-entry-main"><div class="notif-entry-icon activity"><i class="fa-solid ${notifKindIcons[a.kind]||'fa-pen'}" aria-hidden="true"></i></div><div class="notif-entry-text"><p>${notifActivityText(a)}</p>${extra}<p class="notif-entry-time">${notifTimeAgo(a.created_at)}</p></div></div></button>`;
+ }).join('');
+ $('notif-list').innerHTML=roleHtml+pwdHtml+invites+activity;
+}
+let profileNotifDocLoading=null;
+let profileNotifActivityLoading=null;
+async function loadProfileNotifDocs(){
+ if(!currentUser||!sb)return;
+ if(profileNotifDocLoading)return profileNotifDocLoading;
+ profileNotifDocLoading=(async()=>{
+  let hadError=false;
+  const email=notifNorm(currentUser.email);
+  // Identiques aux filtres de Dashboard : anciennes invitations (email string)
+  // et invitations récentes (objet avec status pending).
+  const tableTasks=['projects','cards'].map(async table=>{
+   const fields=table==='cards'?'id,name,owner_id,owner_email,collaborators,pwd,created_at,card_kind:info->>type':'id,name,owner_id,owner_email,collaborators,pwd,created_at';
+   const qs=[
+    sb.from(table).select(fields).eq('owner_id',currentUser.id),
+    sb.from(table).select(fields).contains('collaborators',JSON.stringify([{email}])),
+    sb.from(table).select(fields).contains('collaborators',JSON.stringify([email]))
+   ];
+   const results=await Promise.allSettled(qs);
+   const merged=new Map();
+   results.forEach(res=>{
+    if(res.status!=='fulfilled'||res.value.error){hadError=true;return;}
+    (res.value.data||[]).forEach(item=>merged.set(item.id,item));
+   });
+   const docs=[...merged.values()];
+   profileNotifState[table]=docs;
+   return docs.flatMap(item=>{
+    if(item.owner_id===currentUser.id||notifNorm(item.owner_email)===email)return [];
+    const raw=Array.isArray(item.collaborators)?item.collaborators:[];
+    const match=raw.map(c=>typeof c==='string'?{email:notifNorm(c),status:'accepted'}:{...c,email:notifNorm(c.email),status:c.status||'accepted'}).find(c=>c.email===email);
+    return match?.status==='pending'?[{table,item,from:match.invited_by||item.owner_email,at:match.invited_at}]:[];
+   });
+  });
+  const [projects,cards,pwd]=await Promise.all([
+   ...tableTasks,
+   sb.from('pwd_requests').select('*').eq('owner_id',currentUser.id).eq('status','pending').order('created_at',{ascending:false})
+  ]);
+  profileNotifState.invitations=[...projects,...cards];
+  if(pwd.error)hadError=true;
+  else profileNotifState.pwdRequests=(pwd.data||[]).map(r=>({...r,item:(profileNotifState[r.table_name]||[]).find(x=>x.id===r.item_id)})).filter(r=>r.item);
+  renderProfileNotifications(hadError?'partial':'');
+ })().catch(err=>{console.warn('[Mobius] Profil notifications, documents:',err);renderProfileNotifications('failed');}).finally(()=>profileNotifDocLoading=null);
+ return profileNotifDocLoading;
+}
+async function loadProfileNotifActivity(){
+ if(!currentUser||!sb)return;
+ if(profileNotifActivityLoading)return profileNotifActivityLoading;
+ profileNotifActivityLoading=(async()=>{
+  const [a,r]=await Promise.all([
+   sb.from('notifications').select('*').eq('recipient_email',notifNorm(currentUser.email)).eq('read',false).order('created_at',{ascending:false}).limit(30),
+   sb.from('role_requests').select('*').eq('owner_id',currentUser.id).eq('status','pending').order('created_at',{ascending:false})
+  ]);
+  if(a.error||r.error){
+   console.warn('[Mobius] Profil notifications :',a.error||r.error);
+   renderProfileNotifications('failed');return;
+  }
+  profileNotifState.activity=a.data||[];
+  profileNotifState.roleRequests=r.data||[];
+  renderProfileNotifications();
+ })().catch(err=>{console.warn('[Mobius] Profil notifications:',err);renderProfileNotifications('failed');}).finally(()=>profileNotifActivityLoading=null);
+ return profileNotifActivityLoading;
+}
+async function refreshAllProfileNotifications(){await Promise.all([loadProfileNotifDocs(),loadProfileNotifActivity()]);}
+let profileNotifInitialized=false;
+function initProfileNotifications(){
+ if(profileNotifInitialized)return;
+ profileNotifInitialized=true;
+ const button=$('notif-btn'),panel=$('notif-panel');
+ function openPanel(open){
+  panel.classList.toggle('hidden',!open);
+  button.setAttribute('aria-expanded',String(open));
+  if(open)void refreshAllProfileNotifications();
+ }
+ button.addEventListener('click',event=>{event.stopPropagation();openPanel(panel.classList.contains('hidden'));});
+ panel.addEventListener('click',event=>event.stopPropagation());
+ document.addEventListener('click',event=>{if(!event.target.closest('#profile-notifications'))openPanel(false);});
+ document.addEventListener('keydown',event=>{if(event.key==='Escape')openPanel(false);});
+ $('notif-readall').addEventListener('click',async e=>{
+  e.stopPropagation();
+  const {error}=await sb.from('notifications').update({read:true}).eq('recipient_email',notifNorm(currentUser.email)).eq('read',false);
+  if(error)message('Erreur : '+error.message,'error');
+  await loadProfileNotifActivity();
+ });
+ $('notif-list').addEventListener('click',async event=>{
+  const activityBtn=event.target.closest('[data-notif-activity]');
+  if(activityBtn){
+   const a=profileNotifState.activity[Number(activityBtn.dataset.notifActivity)];
+   if(!a)return;
+   const {error}=await sb.from('notifications').update({read:true}).eq('id',a.id);
+   if(error)console.warn('[Mobius] Notification non marquée comme lue:',error);
+   location.href=notifActivityUrl(a);return;
+  }
+  const btn=event.target.closest('[data-notif-response]');
+  if(!btn||btn.disabled)return;
+  const kind=btn.dataset.notifKind;
+  const index=Number(btn.dataset.notifIndex);
+  const accept=btn.dataset.notifResponse==='accept';
+  const stateName={role:'roleRequests',pwd:'pwdRequests',invite:'invitations'}[kind];
+  const req=stateName?profileNotifState[stateName][index]:null;
+  if(!req)return;
+  const group=btn.closest('.notif-entry');
+  group.querySelectorAll('.notif-choices button').forEach(b=>b.disabled=true);
+  try{
+   let rpc;
+   if(kind==='role')rpc=sb.rpc('respond_to_role_request',{p_request:req.id,p_accept:accept});
+   if(kind==='pwd')rpc=sb.rpc('respond_to_pwd_request',{p_request:req.id,p_accept:accept});
+   if(kind==='invite')rpc=sb.rpc('respond_to_invitation',{p_table:req.table,p_id:req.item.id,p_accept:accept});
+   const {error}=await rpc;
+   if(error)throw error;
+   message(accept?(kind==='role'?`${req.target_email} est maintenant admin.`:kind==='pwd'?'Mot de passe mis à jour.':`Vous avez rejoint « ${req.item.name} »`):'Demande refusée.');
+  }catch(err){message('Erreur : '+(err.message||err),'error');}
+  finally{await refreshAllProfileNotifications();}
+ });
+ void refreshAllProfileNotifications();
+ // Les mêmes cadences et mises à jour que sur Dashboard.
+ setInterval(()=>{if(!document.hidden)void loadProfileNotifActivity();},30000);
+ setInterval(()=>{if(!document.hidden)void loadProfileNotifDocs();},60000);
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)void refreshAllProfileNotifications();});
+ try{
+  sb.channel('mobius-profile-notifications')
+   .on('postgres_changes',{event:'*',schema:'public',table:'notifications'},()=>void loadProfileNotifActivity())
+   .on('postgres_changes',{event:'*',schema:'public',table:'role_requests'},()=>void loadProfileNotifActivity())
+   .on('postgres_changes',{event:'*',schema:'public',table:'pwd_requests'},()=>void loadProfileNotifDocs())
+   .on('postgres_changes',{event:'*',schema:'public',table:'projects'},()=>void loadProfileNotifDocs())
+   .on('postgres_changes',{event:'*',schema:'public',table:'cards'},()=>void loadProfileNotifDocs())
+   .subscribe();
+ }catch(err){console.warn('[Mobius] Canal temps réel non disponible :',err);}
+}
+
 async function initialize(){
  try{
   const ok=await loadAccount();if(!ok)return;
   $('loadingVeil').classList.add('hidden');
   isInitializing=false;
   loadUsage();
+  initProfileNotifications();
  }catch(err){console.error(err);$('loadingSpinner').classList.add('hidden');$('loadingMsg').classList.add('hidden');$('loadingError').style.display='block';$('errorDetails').textContent=err.message||text('offline');}
 }
 document.addEventListener('DOMContentLoaded',()=>{
